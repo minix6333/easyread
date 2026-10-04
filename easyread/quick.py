@@ -36,9 +36,9 @@ def prompt(ws: Workspace, text: str) -> str:
 
 
 def model_id(cfg: dict, wanted=None) -> str | None:
-    """用哪個模型：請求指定的 → 設定裡選的 → 問 AI 的預設。名單裡已經沒有的當成沒選。"""
+    """用哪個模型：請求指定的 → 設定裡選的 → 翻譯用的那張卡片（換了翻譯模型，選字翻譯跟著換）→ 問 AI 的預設。名單裡已經沒有的當成沒選。"""
     ids = {m.get("id") for m in chat_models.models(cfg)}
-    for mid in (wanted, (cfg.get("quick") or {}).get("translate_model")):
+    for mid in (wanted, (cfg.get("quick") or {}).get("translate_model"), chat_models.translation_id(cfg)):
         if mid and mid in ids:
             return str(mid)
     return None

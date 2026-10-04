@@ -33,12 +33,14 @@ class QuickTranslateTest(unittest.TestCase):
         self.assertIn("日语", quick.prompt(self.ws, "x"))
 
     def test_model_falls_back_from_request_to_setting_to_default(self):
-        cfg = {"chat": {"models": [{"id": "a", "engine": "claude"}, {"id": "b", "engine": "claude"}], "default": "a"}, "quick": {"translate_model": "b"}}
+        cfg = {"chat": {"models": [{"id": "a", "engine": "claude", "model": "a"}, {"id": "b", "engine": "claude", "model": "b"}], "default": "a"}, "quick": {"translate_model": "b"}}
         self.assertEqual(quick.model_id(cfg, "a"), "a")
         self.assertEqual(quick.model_id(cfg, None), "b")
         self.assertEqual(quick.model_id(cfg, "gone"), "b")
         cfg["quick"]["translate_model"] = "gone"
-        self.assertIsNone(quick.model_id(cfg, None))     # 名單裡沒有了：用問 AI 的預設
+        self.assertIsNone(quick.model_id(cfg, None))     # 名單裡沒有了、翻譯卡片也對不上：用問 AI 的預設
+        cfg.update(engine="claude", claude={"model": "b"})
+        self.assertEqual(quick.model_id(cfg, None), "b")  # 跟翻譯用的那張卡片
 
     def test_empty_selection_is_rejected_before_any_model_call(self):
         self.paper(target="zh-TW")

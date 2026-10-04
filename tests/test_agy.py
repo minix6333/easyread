@@ -53,6 +53,9 @@ class AgyTest(unittest.TestCase):
         self.assertIn("quota exceeded", str(cm.exception))
         exe = fake_agy(self.root, {"status": "ERROR", "response": "完整的回答", "error": "connection reset after stream"})
         self.assertEqual(engines.run_agy({"command": str(exe)}, "hi", self.root), "完整的回答")
+        exe = fake_agy(self.root, {"status": "SUCCESS", "response": "正常"})  # 實際回的是 SUCCESS，不是 OK
+        with self.assertNoLogs(level="WARNING"):
+            self.assertEqual(engines.run_agy({"command": str(exe)}, "hi", self.root), "正常")
         with self.assertRaises(engines.EngineError):
             engines.run_agy({"command": str(self.root / "missing")}, "hi", self.root)
 

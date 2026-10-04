@@ -163,7 +163,7 @@
       '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="auto_translate"' + (c.auto_translate ? " checked" : "") + ">" + PR.t("匯入後自動翻譯") + "</label>" +
       '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("關著時匯入只準備 PDF，不會用到模型；要譯文時在閱讀頁按「譯文」。") + "</p>" +
       '<label class="field" style="margin:14px 0 0;max-width:340px"><span>' + PR.t("選字翻譯用的模型") + '</span><select class="input" data-k="quick.translate_model">' +
-      PR.opt([["", PR.t("跟問 AI 的預設一樣")]].concat(s.chat.models.map((x) => [x.id, x.label || x.name])), (c.quick || {}).translate_model || "") + "</select></label>" +
+      PR.opt([["", PR.t("跟翻譯用的模型一樣")]].concat(s.chat.models.map((x) => [x.id, x.label || x.name])), (c.quick || {}).translate_model || "") + "</select></label>" +
       '<p class="hint" style="margin:2px 0 0">' + PR.t("閱讀頁選字工具列的「翻譯」用它；挑一個快的比較順。") + "</p>";
     return h;
   }

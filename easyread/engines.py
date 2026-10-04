@@ -130,9 +130,10 @@ def run_agy(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     if meter is not None:
         meter.add(**usage.from_agy(res))
     text = res.get("response") or ""
-    if res.get("status", "OK") != "OK" and not text.strip():
+    ok = str(res.get("status") or "OK").upper() in ("OK", "SUCCESS", "COMPLETED", "DONE")
+    if not ok and not text.strip():
         raise EngineError(tr("Antigravity CLI 出錯：{msg}", msg=str(res.get("error") or res.get("status"))))
-    if res.get("status", "OK") != "OK":  # 回答收完了才斷線之類：內容照用，記一筆
+    if not ok:  # 回答收完了才斷線之類：內容照用，記一筆
         log.warning("Antigravity CLI 回報 %s（內容已收到）：%s", res.get("status"), str(res.get("error"))[-200:])
     return text
 
