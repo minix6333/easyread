@@ -189,8 +189,8 @@ def _images_hint(images, engine: str) -> str:
     names = [str(x) for x in (images or []) if x]
     if not names:
         return ""
-    if engine in ("claude", "agy"):
-        return ("\n\n读者这次附了 " + str(len(names)) + " 张图片，先用" + ("Read" if engine == "claude" else "读文件的") + "工具把每一张都看过再回答（路径相对当前目录）：\n"  # i18n-ok
+    if engine == "claude":
+        return ("\n\n读者这次附了 " + str(len(names)) + " 张图片，先用 Read 工具把每一张都看过再回答（路径相对当前目录）：\n"  # i18n-ok
                 + "\n".join("- " + n for n in names)
                 + "\n以图片里看到的内容为准；图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
     return ("\n\n读者这次附了 " + str(len(names)) + " 张图片（就在这条消息的附件里），先看图再回答；"  # i18n-ok
@@ -241,7 +241,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
             yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
         elif e == "openai":
             yield from openai_api.stream(ecfg["openai"], text, cancel, meter, images)
-        else:  # codex / agy 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
+        else:  # codex 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
             yield engines.run(engines.for_translation(ecfg), text, cwd, images or None, cancel, meter)
     except engines.EngineError as err:
         msg = netcheck.explain(ecfg, str(err))

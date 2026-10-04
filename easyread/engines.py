@@ -2,7 +2,6 @@
 
 - claude：本机的 Claude Code 无头模式（claude -p），用你已有的登录，不需要 Key；能自己读原页图核对公式和表格。
 - codex：本机的 Codex CLI（codex exec），同样用已有登录，原页图作为附件发过去。
-- agy：本機的 Antigravity CLI（agy --print），用它登入的 Google 帳號（Gemini 額度）；唯讀模式讓它自己讀原頁圖。
 - openai：任何 OpenAI 兼容接口（Ollama、智谱、硅基流动、DeepSeek、Gemini……），在设置里填地址、模型和 Key；
   Chat Completions 和 Responses 两种格式都行（见 openai_api.py）。
 """
@@ -32,7 +31,7 @@ class Cancelled(RuntimeError):
     pass
 
 
-ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "agy": "Antigravity CLI", "openai": "API", "none": "不翻译"}  # i18n-ok 显示时用 engine_name()
+ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "openai": "API", "none": "不翻译"}  # i18n-ok 显示时用 engine_name()
 
 
 def engine_name(engine: str | None) -> str:
@@ -57,8 +56,6 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
         return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
     if engine == "codex":
         return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
-    if engine == "agy":
-        return run_agy(cfg["agy"], prompt, cwd, cancel, meter)
     if engine == "openai":
         return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
     raise EngineError(tr("没有配置翻译引擎（设置 → 模型）"))
@@ -69,8 +66,6 @@ def image_mode(cfg: dict) -> str:
     engine = cfg.get("engine")
     if engine == "claude":
         return "claude"
-    if engine == "agy":  # 和 Claude Code 一樣自己讀檔，只是工具不叫 Read
-        return "agy"
     if engine == "codex" or (engine == "openai" and cfg["openai"].get("vision")):
         return "attached"
     return "text"
@@ -80,7 +75,7 @@ def who(cfg: dict) -> str:
     engine = cfg.get("engine")
     if engine == "openai":
         return cfg["openai"].get("model") or "API"
-    return {"claude": "claude", "codex": "codex", "agy": "agy"}.get(engine, "")
+    return {"claude": "claude", "codex": "codex"}.get(engine, "")
 
 
 # ---------- 本机 CLI ----------
@@ -96,46 +91,6 @@ def claude_path(c: dict) -> str | None:
 
 def codex_path(c: dict) -> str | None:
     return shutil.which(c.get("command") or "codex")
-
-
-def agy_path(c: dict) -> str | None:
-    return shutil.which(c.get("command") or "agy")
-
-
-_AGY_FILES = re.compile(r"(?:extract|clips)/[\w.\-]+\.(?:jpe?g|png|webp|gif)")
-
-
-def run_agy(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
-    """Antigravity CLI 的 print 模式：--output-format json 回一個 {status, response, error, usage}。
-    --mode plan 是唯讀（可以讀原頁圖、不能改檔），--dangerously-skip-permissions 讓讀檔不用確認（print 模式沒人能按）。
-    它是個會自己逛目錄的代理：放在只有提示詞提到的那幾張圖的暫存目錄裡跑，免得它把整個文件目錄讀一遍（實測會燒掉幾百萬 token）。"""
-    exe = agy_path(c)
-    if not exe:
-        raise EngineError(tr("找不到 Antigravity CLI 命令：{cmd}（先裝好並登入 agy）", cmd=c.get("command") or "agy"))
-    timeout = int(c.get("timeout") or 1200)
-    args = [exe, "--print", prompt, "--output-format", "json", "--mode", "plan", "--dangerously-skip-permissions", "--print-timeout", f"{timeout}s"]
-    if c.get("model"):
-        args += ["--model", c["model"]]
-    args += list(c.get("extra_args") or [])
-    with tempfile.TemporaryDirectory(prefix="easyread-agy-") as box:
-        for rel in sorted(set(_AGY_FILES.findall(prompt))):
-            src = Path(cwd) / rel
-            if src.is_file():
-                (Path(box) / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(src, Path(box) / rel)
-        out = _communicate(_popen(args, Path(box)), "", timeout + 30, cancel)
-    res = next((e for e in reversed(_json_lines(out)) if "response" in e or "status" in e), None)
-    if res is None:
-        raise EngineError(tr("Antigravity CLI 輸出不是 JSON：{out}", out=out[-300:]))
-    if meter is not None:
-        meter.add(**usage.from_agy(res))
-    text = res.get("response") or ""
-    ok = str(res.get("status") or "OK").upper() in ("OK", "SUCCESS", "COMPLETED", "DONE")
-    if not ok and not text.strip():
-        raise EngineError(tr("Antigravity CLI 出錯：{msg}", msg=str(res.get("error") or res.get("status"))))
-    if not ok:  # 回答收完了才斷線之類：內容照用，記一筆
-        log.warning("Antigravity CLI 回報 %s（內容已收到）：%s", res.get("status"), str(res.get("error"))[-200:])
-    return text
 
 
 def _popen(args: list[str], cwd: Path):
@@ -324,8 +279,8 @@ def _version(exe: str) -> str:
 def test(cfg: dict) -> dict:
     """设置页“测试”按钮：真的让模型回一句，确认引擎能用。"""
     engine = cfg.get("engine")
-    if engine in ("claude", "codex", "agy"):
-        exe = {"claude": claude_path, "codex": codex_path, "agy": agy_path}[engine](cfg[engine])
+    if engine in ("claude", "codex"):
+        exe = (claude_path if engine == "claude" else codex_path)(cfg[engine])
         if not exe:
             return {"ok": False, "message": tr("找不到 {engine} 命令，先安装并登录", engine=engine)}
     if engine == "none":

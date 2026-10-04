@@ -38,10 +38,9 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 
 def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
     see = ""
-    if engine in ("claude", "agy"):
+    if engine == "claude":
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
-        tool = "Read 工具" if engine == "claude" else "读文件的工具"  # i18n-ok 提示词
-        see = f"\n先用{tool}看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
+        see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     see += peek_note(engine, pages, list(peek))

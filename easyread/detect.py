@@ -47,7 +47,6 @@ def _refresh(cfg: dict) -> dict:
 
     threads = [threading.Thread(target=cli, args=("claude", engines.claude_path)),
                threading.Thread(target=cli, args=("codex", engines.codex_path)),
-               threading.Thread(target=cli, args=("agy", engines.agy_path)),
                threading.Thread(target=lambda: out.__setitem__("ollama", _ollama()))]
     for t in threads:
         t.start()
@@ -58,9 +57,6 @@ def _refresh(cfg: dict) -> dict:
     if out.get("claude", {}).get("found"):
         from .cli_models import probe_claude
         threading.Thread(target=probe_claude, args=(cfg["claude"], out["claude"]["version"]), daemon=True).start()
-    if out.get("agy", {}).get("found"):
-        from .cli_models import agy
-        agy()  # 先把 Gemini 模型清單查起來（背景），打開設定時就有
     return out
 
 

@@ -1240,11 +1240,6 @@
  "（這個模型可能不能看圖：換一個能看圖的模型，或不附圖片再問）": " (this model may not accept images: switch to one that does, or ask without the image)",
  "；<span class=\"legend-agent\"></span>AI 的解釋和回答、<span class=\"legend-mine\"></span>我的筆記都不屬於原文。": "; <span class=\"legend-agent\"></span>AI explanations and answers and <span class=\"legend-mine\"></span>my notes are not part of the original text.",
  "最新": "Newest",
- "找不到 Antigravity CLI 命令：{cmd}（先裝好並登入 agy）": "Antigravity CLI command not found: {cmd} (install it and log in to agy first)",
- "Antigravity CLI 輸出不是 JSON：{out}": "Antigravity CLI output is not JSON: {out}",
- "Antigravity CLI 出錯：{msg}": "Antigravity CLI error: {msg}",
- "Antigravity 預設": "Antigravity default",
- "用 Antigravity 登入的 Google 帳號（Gemini 額度）；模型名裡的 Low／Medium／High 是思考強度。翻譯請選 Low：實測 Medium 會自己跑很多輪，一批燒掉上百萬 token。": "Uses the Google account you logged into Antigravity with (Gemini quota); Low / Medium / High in the model name is the thinking effort. Use Low for translation: in testing, Medium looped for many turns and burned over a million tokens per batch.",
  "跟翻譯用的模型一樣": "Same as the translation model",
  "{model} 寫完才會一次顯示，通常 10–30 秒": "{model} shows the answer only once it is finished, usually 10–30 s"
 }

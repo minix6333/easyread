@@ -3,7 +3,7 @@
 (function (PR) {
   "use strict";
   const FALLBACK = { claude: { models: [{ id: "opus", name: "Opus", desc: PR.t("最强") }, { id: "sonnet", name: "Sonnet", desc: PR.t("快、省") }, { id: "haiku", name: "Haiku", desc: PR.t("最快最省") }] },
-    codex: { default: "", models: [] }, agy: { default: "", models: [] } };
+    codex: { default: "", models: [] } };
   const lists = (s) => (s.models || FALLBACK);
 
   /* 下拉框的选项：[[value, label]]，选项就写模型名。Codex 一个模型都没查到时才留一项“Codex 默认” */
@@ -14,7 +14,7 @@
       opts = L.models.map((m) => [m.id, m.actual || "Claude " + m.name]);
     } else {
       opts = L.models.map((m) => [m.id, m.name]);
-      if (!opts.length) opts.unshift(["", engine === "agy" ? PR.t("Antigravity 預設") : PR.t("Codex 默认")]);
+      if (!opts.length) opts.unshift(["", PR.t("Codex 默认")]);
     }
     if (value && !opts.some(([v]) => v === value)) opts.push([value, value]);
     return opts;
@@ -41,7 +41,6 @@
   };
 
   PR.modelReasoningFields = function (s, f) {
-    if (f.kind === "agy") return "";  // 思考強度寫在模型名裡（Flash (Low) 這種），不另外設
     const L = lists(s)[f.kind] || {};
     const model = (L.models || []).find((m) => m.id === (f.model || L.default));
     let levels = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];

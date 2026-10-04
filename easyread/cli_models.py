@@ -47,42 +47,6 @@ def codex() -> dict:
             "configured_tier": chat_models.codex_config_value("service_tier")}
 
 
-_agy_cache: dict = {}
-
-
-_agy_lock = threading.Lock()
-
-
-def agy() -> dict:
-    """{"default": "", "models": [{"id": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]}。
-    `agy models` 要連 Google，正常一兩秒，服務出狀況時會卡一分鐘：所以這裡永遠馬上回上次查到的（沒有就空），查詢放到背景跑，記一小時。"""
-    import time
-    exe = engines.agy_path({})
-    if not exe:
-        return {"default": "", "models": []}
-    fresh = _agy_cache and time.time() - _agy_cache.get("at", 0) < 3600
-    if not fresh and _agy_lock.acquire(blocking=False):
-        threading.Thread(target=_agy_refresh, args=(exe,), daemon=True).start()
-    return _agy_cache.get("data") or {"default": "", "models": []}
-
-
-def _agy_refresh(exe: str) -> None:
-    import subprocess, time
-    try:
-        out: list[dict] = []
-        text = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=90, creationflags=engines._NO_WINDOW).stdout
-        for line in text.splitlines():
-            parts = line.strip().split("\t")
-            if len(parts) >= 2 and not line.lower().startswith("fetching"):
-                out.append({"id": parts[0].strip(), "name": parts[1].strip()})
-        if out:
-            _agy_cache.update(at=time.time(), data={"default": "", "models": out})
-    except Exception:  # noqa: BLE001 —— 沒登入、沒網路：清單先空著，下次再查
-        log.info("查 Antigravity 模型清單失敗", exc_info=True)
-    finally:
-        _agy_lock.release()
-
-
 def claude_default() -> str:
     """Claude Code 不指定模型时用的那个，显示名（Claude Opus 5.5）；不知道就空。"""
     try:
@@ -148,7 +112,7 @@ def _probe(exe: str, version: str) -> None:
 
 
 def listing() -> dict:
-    return {"claude": claude(), "codex": codex(), "agy": agy()}
+    return {"claude": claude(), "codex": codex()}
 
 
 def engine_label(cfg: dict) -> str:
@@ -164,9 +128,6 @@ def engine_label(cfg: dict) -> str:
         model = chat_models.pretty(actual) if actual else ("Claude " + m.capitalize() if m in ("opus", "sonnet", "haiku", "fable") else m) if m else claude_default()
     elif e == "codex":
         model = chat_models.label({"engine": "codex", "model": cfg["codex"].get("model") or ""})
-    elif e == "agy":
-        m = cfg["agy"].get("model") or ""
-        model = next((x["name"] for x in agy()["models"] if x["id"] == m), m)
     else:
         model = ""
     return f"{name} · {model}" if model and model != "GPT" else name

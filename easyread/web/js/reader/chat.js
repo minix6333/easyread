@@ -87,7 +87,7 @@
     return true;
   }
 
-  /* 不會逐字串流的引擎（Codex、Antigravity）：等的時候說一聲，不然看起來像當掉 */
+  /* 不會逐字串流的引擎（Codex）：等的時候說一聲，不然看起來像當掉 */
   PR.waitHint = function (id) {
     const m = st.models.find((x) => x.id === (id || st.model));
     if (!m || m.engine === "claude" || m.engine === "openai") return "";

@@ -144,7 +144,6 @@
         quick: { translate_model: (c.quick || {}).translate_model || "" },
         claude: { model: c.claude.model, command: c.claude.command, reasoning_effort: c.claude.reasoning_effort || "" },
         codex: { model: c.codex.model, command: c.codex.command, reasoning_effort: c.codex.reasoning_effort || "", service_tier: c.codex.service_tier || "" },
-        agy: { model: (c.agy || {}).model || "", command: (c.agy || {}).command || "agy" },
         openai: { preset: o.preset, base_url: o.base_url, api: o.api, model: o.model, api_key: o.api_key, vision: o.vision,
           reasoning_effort: o.reasoning_effort || "", service_tier: o.service_tier || "" } };
     },

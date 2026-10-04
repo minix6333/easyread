@@ -5,7 +5,6 @@
   const name = (v) => names()[v] || v;
   PR.chatEffort = {
     levels(m, catalog) {
-      if (m.engine === "agy") return [];  // 思考強度在模型名裡
       if (m.engine === "claude") return /haiku/i.test(m.model || "") ? [] : ["low", "medium", "high", "xhigh", "max"];
       const source = catalog && catalog.codex;
       const hit = source && (source.models || []).find((x) => x.id === (m.model || source.default));
