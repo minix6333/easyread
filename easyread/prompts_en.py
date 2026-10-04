@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import json
 
-from . import langs
-from .prompts import _context, _page_texts, peek_note, rules
+from . import kinds, langs
+from .prompts import _context, _page_texts, localize, peek_note, rules
 from .store import Workspace
 
 RULES_EN = """整理要求（不翻译）：
@@ -38,15 +38,18 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 
 def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
     see = ""
-    if engine == "claude":
+    if engine in ("claude", "agy"):
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
-        see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
+        tool = "Read 工具" if engine == "claude" else "读文件的工具"  # i18n-ok 提示词
+        see = f"\n先用{tool}看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     see += peek_note(engine, pages, list(peek))
     look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要输出）=====\n" + next_head) if next_head else ""
-    return (f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages, skip_head=skip_head)}\n\n{RULES_EN}\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)
+    kind = kinds.of(ws.load("paper").get("meta"))
+    extra = kinds.rules(kind)
+    return (f"你在把一篇{kinds.noun(kind)}的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{RULES_EN}" + ("\n" + extra if extra else "") + f"\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:
@@ -74,16 +77,19 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     first = 1 in pages
     target = langs.of_paper(ws.load("paper").get("meta"))
     name = langs.prompt_name(target)
-    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target == "zh" else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
+    zh = langs.is_chinese(target)  # 簡體、繁體都走中文的說法；繁體在最後整段轉
+    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if zh else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
-    return (f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
-            f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target)}\n"
+    kind = kinds.of(ws.load("paper").get("meta"))
+    head = (f"你在把一篇{kinds.noun(kind)}译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
+            f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target, kind)}\n"
             f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。\n"
             + (f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。\n"
                if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
             "输出格式：只输出一个 JSON 对象，不要任何别的文字。\n{\n" + meta +
-            '  "glossary": [{"en": "standard error", "zh": "' + ("标准误差" if target == "zh" else name + "译名") + '"}],   // 本批新出现的核心术语\n'
+            '  "glossary": [{"en": "standard error", "zh": "' + ("标准误差" if zh else name + "译名") + '"}],   // 本批新出现的核心术语\n'
             '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // 原文有问题时才写\n'
             '  "zh": {"键": "' + name + '译文", …}   // 下面每个键都要有，一个不漏\n}\n'
-            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字符串里的中文引号用“”或「」。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
-            "要翻译的内容（键 → 英文）：\n" + json.dumps(items, ensure_ascii=False, indent=1))
+            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字符串里的中文引号用“”或「」。" if zh else "字符串里的英文双引号要转义。") + "\n\n"
+            "要翻译的内容（键 → 英文）：\n")
+    return localize(head, target) + json.dumps(items, ensure_ascii=False, indent=1)

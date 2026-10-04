@@ -69,6 +69,8 @@
   }
 
   function setNote(body) {
+    const ta = PR.$("#paperNote");
+    if (ta) ta.blur();
     PR.commit({ op: "paper_note", body });
     ai.mode = null;
     PR.renderNotesPanel();

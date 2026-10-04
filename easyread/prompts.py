@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import langs, sentences
+from . import kinds, langs, sentences, tw
 from .store import Workspace
 
 RULES = """翻译要求：
@@ -61,7 +61,7 @@ _SCHEMA_SWAP = [
 
 
 def _swap(text: str, pairs, target: str) -> str:
-    if target == "zh":
+    if langs.is_chinese(target):
         return text
     name = langs.prompt_name(target)
     for a, b in pairs:
@@ -69,16 +69,31 @@ def _swap(text: str, pairs, target: str) -> str:
     return text
 
 
-def rules(target: str = "zh") -> str:
+# 繁體中文（台灣）：上游的中文規則整段轉成繁體再加這幾條，模型才不會跟著提示詞寫簡體
+TW_RULES = """- 譯文一律用繁體中文（台灣）：只能出現繁體字，不可夾雜任何簡體字。用台灣學術界慣用的譯法，例如 資料、軟體、硬體、網路、演算法、變數、函式、機率、最佳化、記憶體、伺服器、程式、品質、影片、資訊、標準差、向量、矩陣、取樣、微調；不用大陸用語（数据、软件、网络、算法、概率、优化、内存、服务器、程序、质量、视频、信息、采样）。
+- 引號用「」，裡面再引用時用『』；標點一律全形。日期寫成「2024 年 11 月 4 日」。"""
+
+
+def localize(text: str, target: str) -> str:
+    """提示詞本身是簡體寫的；譯文語言是繁體時整段轉成繁體（只動漢字，英文和 TeX 不受影響）。"""
+    return tw.to_tw(text) if tw.is_tw(target) else text
+
+
+def rules(target: str = "zh", kind: str | None = None) -> str:
+    """kind：文件類型（kinds.py），投影片、講義多幾條規則；論文就是上游的規則原樣。"""
+    extra = kinds.rules(kind)
+    base = RULES + ("\n" + extra if extra else "")
     if target == "zh":
-        return RULES
+        return RULES if not extra else base
+    if tw.is_tw(target):
+        return tw.to_tw(base) + "\n" + TW_RULES
     name = langs.prompt_name(target)
-    return (_swap(RULES, _RULES_SWAP, target) +
+    return (_swap(RULES, _RULES_SWAP, target) + ("\n" + extra if extra else "") +
             f"\n- 译文语言是{name}：zh、caption_zh、image_zh、title_zh 这些字段名是历史叫法，里面一律写{name}，不要写中文。")
 
 
 def schema(target: str = "zh") -> str:
-    return _swap(SCHEMA, _SCHEMA_SWAP, target)
+    return localize(_swap(SCHEMA, _SCHEMA_SWAP, target), target)
 
 
 _NOTE = re.compile(r"^\s*(\$\^|[¹²³⁴⁵⁶⁷⁸⁹*†‡]|\d{1,2}\s*https?:)|^\S*https?://\S*\s*$")
@@ -102,7 +117,7 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
-    lines = [f"论文：{meta.get('title_en') or meta.get('source', '')}，共 {meta.get('page_count', '?')} 页。"]
+    lines = [f"{kinds.noun(kinds.of(meta))}：{meta.get('title_en') or meta.get('source', '')}，共 {meta.get('page_count', '?')} 页。"]
     gl = paper.get("glossary", [])
     if gl:
         lines.append("已有术语表（必须沿用）：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl))
@@ -154,13 +169,13 @@ def _page_texts(ws: Workspace, pages: list[int]) -> str:
 def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
     """分段并行的交界：两边的批次都看一眼相邻那页的原页图，按同一张图判断跨页那段在哪结束。
     只靠抽取文字不行：下一页的抽取文字常常先排着表格或图，开头 1500 字里可能根本没有那段的后半句。"""
-    if engine not in ("claude", "attached"):
+    if engine not in ("claude", "agy", "attached"):
         return ""
     out = []
     if engine == "attached" and peek:  # 附图不带页码：说清楚顺序（translate 里按页码排好了）
         out.append("附上的原页图按页码排，依次是第 " + "、".join(map(str, sorted({*pages, *peek}))) + " 页。")
     for n in peek:
-        img = f"Read 看 extract/page-{n:03d}.jpg" if engine == "claude" else f"看附上的第 {n} 页原页图"
+        img = f"Read 看 extract/page-{n:03d}.jpg" if engine == "claude" else f"读文件工具看 extract/page-{n:03d}.jpg" if engine == "agy" else f"看附上的第 {n} 页原页图"
         if n > pages[-1]:
             out.append(f"另外用 {img} 的开头：只用来把本批最后一段补完整（那段可能接着写到第 {n} 页，页首也可能先排着表格或图），第 {n} 页其余内容不要输出。")
         else:
@@ -174,16 +189,19 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     if next_head:
         look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要翻译）=====\n" + next_head)
     see = ""
-    if engine == "claude":
+    if engine in ("claude", "agy"):
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
-        see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
+        tool = "Read 工具" if engine == "claude" else "读文件的工具"  # i18n-ok 提示词
+        see = f"\n先用{tool}看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     see += peek_note(engine, pages, list(peek))
-    target = langs.of_paper(ws.load("paper").get("meta"))
-    return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else "")
-            + _page_texts(ws, pages) + look)
+    meta = ws.load("paper").get("meta")
+    target, kind = langs.of_paper(meta), kinds.of(meta)
+    head = (f"你在把一篇{kinds.noun(kind)}译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target, kind)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else ""))
+    # 只轉提示詞，不轉抽取的原文（原文是什麼就給模型什麼）
+    return localize(head, target) + _page_texts(ws, pages) + look
 
 
 def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> str:
@@ -193,14 +211,16 @@ def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> s
         for t in it["terms"]:
             terms[t["en"]] = {"术语表译法": t["want"], "全文用了术语表译法的段数": agree.get(t["en"], 0)}
     rows = [{"key": it["key"], "terms": [t["en"] for t in it["terms"]], "en": it["en"], "zh": it["zh"]} for it in items]
-    return (f"下面是一篇学术论文{target_name}译文里术语可能不统一的地方。terms 里是英文术语、术语表登记的译法、全文有几段用了这个译法；"
+    lead = (f"下面是一篇学术论文{target_name}译文里术语可能不统一的地方。terms 里是英文术语、术语表登记的译法、全文有几段用了这个译法；"
             "passages 是原文出现了这个术语、译文里却没用术语表译法的段落。只做判断，不要改写段落：\n"
             "1. use：给每个术语定一个全文统一用的译法。看全文多数段落怎么译、哪个说法在这个领域最通行，不一定是术语表登记的那个。\n"
             "2. fixes：逐段看，这段把术语译成了别的说法时，写出这段译文里那个说法的原样（from，必须是这段 zh 里一字不差的连续文字，"
             "只包含术语本身的译法，不带前后的字）。合理的省略、代词、缩写，或者这里的英文不是那个术语的意思，就不写这段。\n"
             '只输出一个 JSON 对象，不要任何别的文字：{"use": {"英文术语": "定下的译法"}, '
-            '"fixes": [{"key": "段的 key", "term": "英文术语", "from": "这段里的另一种说法"}]}\n\n'
-            + json.dumps({"terms": terms, "passages": rows}, ensure_ascii=False, indent=1))
+            '"fixes": [{"key": "段的 key", "term": "英文术语", "from": "这段里的另一种说法"}]}\n\n')
+    if target_name == langs.prompt_name("zh-TW"):
+        lead = tw.to_tw(lead)
+    return lead + json.dumps({"terms": terms, "passages": rows}, ensure_ascii=False, indent=1)
 
 
 def repair(original_json: str, problems: list[str]) -> str:
@@ -230,13 +250,14 @@ def answer(ws: Workspace, note: dict) -> str:
         section = f"{h.get('num', '')} {h.get('zh') or h.get('en', '')}" if h else ""
     ctx = "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near)
     focus = blocks[idx] if idx is not None else {}
-    return (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
+    text = (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
             f"读者读到「{section}」时在 [{note.get('anchor')}] 这段提了一个问题。\n\n"
             f"上下文（译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
             + (f"读者选中的{'英文原文' if note.get('side') == 'en' else '原话'}：「{note.get('quote')}」\n" if note.get("quote") else "")
             + f"读者的问题：{note.get('body', '')}\n\n"
             "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用" + langs.reply_lang(paper.get("meta")) + "，具体、讲清楚，能举例就举例，"
             "区分“论文里写了什么”和“你的补充解释”。行内公式用 $TeX$，段落之间空一行。只输出回答正文，不要客套。")
+    return localize(text, langs.reply_code(paper.get("meta")))
 
 
 def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
@@ -263,11 +284,12 @@ def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
     near = "\n".join(_block_text(x) for x in blocks[max(0, idx - 2): idx + 3] if x is not b)
     gl = "；".join(f"{g['en']} = {g['zh']}" for g in paper.get("glossary", []))
     target = langs.of_paper(paper.get("meta"))
-    return (f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。\n{rules(target)}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
+    text = (f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。\n{rules(target, kinds.of(paper.get('meta')))}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
             f"英文原文：\n{en}\n\n现在的译文：\n{zh}\n\n"
             + (f"读者觉得不好的地方：{hint}\n\n" if hint else "")
             + ("英文里的 ‖ 是句子分界：新译文在对应的句子交界处也插 ‖，个数和英文的一样。\n\n" if ends else "")
-            + '只输出 JSON：{"zh": "新译文"}'), ends
+            + '只输出 JSON：{"zh": "新译文"}')
+    return localize(text, target), ends
 
 
 def dump(obj) -> str:

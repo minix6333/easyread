@@ -56,8 +56,33 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
             images[rel] = f"{assets.name}/{dst.name}"
         else:
             images[rel] = _data_uri(src, "image/webp")
+    # 貼在筆記裡的圖片（clips/）：筆記、各頁筆記、整篇筆記裡提到的都帶上
+    mimes = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
+    for rel in sorted(set(re.findall(r"clips/[\w.\-]+", json.dumps(ws.load("reader"), ensure_ascii=False)))):
+        src = ws.root / rel
+        if not src.is_file() or src.suffix.lstrip(".").lower() not in mimes:
+            continue
+        if assets:
+            dst = assets / rel.replace("/", "-")
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(src.read_bytes())
+            images[rel] = f"{assets.name}/{dst.name}"
+        else:
+            images[rel] = _data_uri(src, mimes[src.suffix.lstrip(".").lower()])
     data = {n: ws.load(n) for n in ("discussion", "reader", "layout", "item")}
-    data.update({"paper": paper, "images": images}, **(extra or {}))
+    # PDF 文字層用的字元座標：單檔版內嵌；放到網站上時另存成檔案按需載入
+    chars = {}
+    for p in paper.get("meta", {}).get("pages", []):
+        f = ws.root / "extract" / f"page-{p['n']:03d}.chars.json"
+        if not f.exists():
+            continue
+        if assets:
+            dst = assets / f"chars-{p['n']:03d}.json"
+            dst.write_bytes(f.read_bytes())
+            chars[str(p["n"])] = f"{assets.name}/{dst.name}"
+        else:
+            chars[str(p["n"])] = json.loads(f.read_text(encoding="utf-8"))
+    data.update({"paper": paper, "images": images, "chars": chars}, **(extra or {}))
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     page = page.replace("<!--PR:DATA-->", f'<script id="pr-data" type="application/json">{payload}</script>')
     title = paper.get("meta", {}).get("title_zh") or paper.get("meta", {}).get("title_en") or i18n.tr("论文")

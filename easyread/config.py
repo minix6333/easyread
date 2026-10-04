@@ -26,8 +26,8 @@ DEFAULTS = {
     "library_dir": str(HOME / "library"),
     "port": 8765,
     "engine": "claude",          # claude | codex（本机 CLI 无头）| openai（任意 OpenAI 兼容接口）| none
-    "auto_translate": True,      # 导入后自动开始翻译
-    "target": "zh",              # 译文语言，见 langs.py
+    "auto_translate": False,     # 匯入後自動開始翻譯。本分支預設關：匯入只準備 PDF，要譯文時自己按（設定 → 模型可以開）
+    "target": "zh-TW",           # 译文语言，见 langs.py（本分支預設繁體中文）
     "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数
     "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
@@ -35,10 +35,14 @@ DEFAULTS = {
     "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "reasoning_effort": "", "service_tier": "", "extra_args": [], "timeout": 1200},
+    # Antigravity CLI（agy）：Google 的本機代理，用它登入的 Gemini 額度；模型 id 自帶思考強度（gemini-3.8-flash-low 這種）
+    "agy": {"command": "agy", "model": "", "extra_args": [], "timeout": 1200},
     # api：chat（/chat/completions）| responses（/responses），见 openai_api.py
     "openai": {"preset": "", "base_url": "", "api": "chat", "api_key": "", "model": "", "vision": False, "timeout": 600},
     # 阅读页右侧“问 AI”的模型名单和默认模型，见 chat_models.py
     "chat": copy.deepcopy(DEFAULT_CHAT),
+    # 選字翻譯（閱讀頁選字工具列的「翻譯」）用「問 AI」名單裡的哪個模型；空著跟問 AI 的預設一樣，見 quick.py
+    "quick": {"translate_model": ""},
 }
 
 def _merge(base: dict, over: dict) -> dict:

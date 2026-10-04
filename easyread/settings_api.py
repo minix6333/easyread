@@ -13,6 +13,11 @@ def save_config(patch: dict) -> dict:
         patch["target"] = langs.valid(patch["target"])
     if isinstance(patch.get("openai"), dict):
         patch["openai"] = config.with_key(patch["openai"])
+    if "auto_translate" in patch:
+        patch["auto_translate"] = patch["auto_translate"] is True
+    if "quick" in patch:  # 選字翻譯用的模型（「問 AI」名單裡的 id，空著跟預設）
+        q = patch["quick"] if isinstance(patch["quick"], dict) else {}
+        patch["quick"] = {"translate_model": str(q.get("translate_model") or "")[:60]}
     return {"config": config.public(config.save(patch))}
 
 

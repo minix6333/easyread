@@ -364,19 +364,34 @@ def engine_image(root: Path, n: int) -> Path:
 
 
 def page_variant(root: Path, rel: str, width: int) -> Path | None:
-    """原页图的缩小版（原图 2.4 倍渲染、约 1500 像素宽，右侧面板用不着那么大）。生成一次缓存在 pages/w{宽}/。"""
-    width = max(400, min(2000, width // 100 * 100))
+    """原页图按宽度给：比原图（2.4 倍渲染、约 1500 像素宽）小的缩小，比原图大的（PDF 优先模式放大看）从 PDF 重新渲染。
+    生成一次缓存在 pages/w{宽}/。"""
+    width = max(400, min(4000, width // 100 * 100))
     src = (root / rel).resolve()
     if not src.is_relative_to((root / "pages").resolve()) or not src.is_file():
         return None
     out = root / "pages" / f"w{width}" / src.name
-    if not out.exists():
-        from PIL import Image
-        out.parent.mkdir(exist_ok=True)
+    if out.exists():
+        return out
+    from PIL import Image
+    with Image.open(src) as im:
+        src_w, src_h = im.size
+    if src_w == width:
+        return src
+    out.parent.mkdir(exist_ok=True)
+    if src_w > width:
         with Image.open(src) as im:
-            if im.width <= width:
-                return src
-            im.resize((width, round(im.height * width / im.width)), Image.LANCZOS).save(out, "WEBP", quality=80, method=4)
+            im.resize((width, round(src_h * width / src_w)), Image.LANCZOS).save(out, "WEBP", quality=80, method=4)
+        return out
+    m = re.search(r"page-(\d+)\.webp$", src.name)
+    pdf = root / "source.pdf"
+    if not m or not pdf.exists():
+        return src
+    with open_pdf(pdf) as doc:
+        with closing(doc[int(m.group(1)) - 1]) as page:
+            w, _ = page.get_size()
+            with closing(page.render(scale=min(8.0, width / max(w, 1)))) as bitmap, bitmap.to_pil() as raw, raw.convert("RGB") as img:
+                img.save(out, "WEBP", quality=84, method=4)
     return out
 
 

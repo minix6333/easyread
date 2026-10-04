@@ -58,7 +58,7 @@ def _headers(o: dict, stream: bool = False) -> dict:
 
 
 def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: float | None) -> dict:
-    urls = ["data:image/jpeg;base64," + base64.b64encode(p.read_bytes()).decode() for p in images] if o.get("vision") else []
+    urls = [f"data:{_mime(p)};base64," + base64.b64encode(p.read_bytes()).decode() for p in images] if o.get("vision") else []
     if kind(o) == "responses":
         content = [{"type": "input_text", "text": prompt}] + [{"type": "input_image", "image_url": u} for u in urls]
         body = {"model": o["model"], "input": [{"role": "user", "content": content}], "store": False}
@@ -79,6 +79,10 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
         if kind(o) == "chat":
             body["stream_options"] = {"include_usage": True}  # 最后一块带上 token 用量；不认这个参数的接口会去掉再发
     return body
+
+
+def _mime(path: Path) -> str:
+    return {"png": "image/png", "gif": "image/gif", "webp": "image/webp"}.get(Path(path).suffix.lstrip(".").lower(), "image/jpeg")
 
 
 def _open(o: dict, body: dict, stream: bool):
@@ -216,10 +220,13 @@ def _sleep(seconds: float, cancel) -> None:
 
 
 # ---------- 逐字输出（问 AI 用） ----------
-def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
+def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = None) -> Iterator[str]:
+    """images：讀者這次附的圖片（框選的區域、貼進來的圖）。附了圖就當這個模型能看圖，照樣送；不能看的接口會自己報錯。"""
     if cancel.is_set():
         raise Cancelled()
-    body = _body(o, text, [], True, None if kind(o) == "responses" else 0.4)
+    if images:
+        o = {**o, "vision": True}
+    body = _body(o, text, list(images or []), True, None if kind(o) == "responses" else 0.4)
     try:
         r = _open(o, body, True)
     except urllib.error.HTTPError as e:

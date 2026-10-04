@@ -47,6 +47,7 @@ def _refresh(cfg: dict) -> dict:
 
     threads = [threading.Thread(target=cli, args=("claude", engines.claude_path)),
                threading.Thread(target=cli, args=("codex", engines.codex_path)),
+               threading.Thread(target=cli, args=("agy", engines.agy_path)),
                threading.Thread(target=lambda: out.__setitem__("ollama", _ollama()))]
     for t in threads:
         t.start()

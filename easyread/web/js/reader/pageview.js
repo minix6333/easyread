@@ -6,6 +6,9 @@
   let pvPage = 1, pvBlock = null;
   const pages = () => (S.paper.meta || {}).pages || [];
   const boxesOf = (loc) => loc.boxes && loc.boxes.length ? loc.boxes : [loc.box];
+  /* 原頁看得見：右側面板開著，或是 PDF 優先版面（pdfmode.js，PDF 一直在左邊） */
+  const visible = () => PR.side === "pages" || !!(PR.pdfMain && PR.pdfMain());
+  const articleOpen = () => !PR.articleOpen || PR.articleOpen();
 
   /* 右侧面板开关：pages | notes | null */
   /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
@@ -18,35 +21,41 @@
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
+    PR.syncFabs && PR.syncFabs();
     if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
     if (body.classList.contains("side-open") === !!name) return;  // 面板之间切换：正文宽度不变
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;
     body.classList.toggle("side-open", !!name);
+    if (PR.applyLayout) PR.applyLayout();  // PDF 優先：三欄擠不下時重新分配寬度
     PR.fitWide(); PR.renderMargin();
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
   };
 
   PR.togglePages = function (force) {
+    if (PR.pdfMain && PR.pdfMain()) { PR.toggleArticle && PR.toggleArticle(force); return; }  // PDF 優先：這顆按鈕開關的是譯文
     const open = force != null ? force : PR.side !== "pages";
     PR.openSide(open ? "pages" : null);
     if (open) PR.syncPage(true); else pair(null);
   };
   PR.openPage = function (page, blockId) {
     pvBlock = blockId || null;
-    if (PR.side !== "pages") PR.openSide("pages");
+    if (!visible()) PR.openSide("pages");
     showPage(page, blockId);
   };
 
-  /* 原图是 2.4 倍渲染（约 1500 像素宽、几百 KB），面板用不了那么大：要一张和面板一样宽的，服务端生成一次后缓存 */
+  /* 原图是 2.4 倍渲染（约 1500 像素宽、几百 KB），面板用不了那么大：要一张和面板一样宽的，服务端生成一次后缓存；
+     PDF 優先放大看時要更大的，服務端從 PDF 重新渲染 */
   function srcOf(n) {
     const p = pages()[n - 1];
     if (!p) return "";
     const base = PR.imageUrl(p.img);
     if (PR.store.mode !== "server") return base;
-    const need = (PR.$(".pv-scroll").clientWidth || 480) * (devicePixelRatio || 1);
-    return need <= 1000 ? base + "?w=1000" : need <= 1600 ? base + "?w=1600" : base;  // 1000 宽的服务端已提前生成好
+    const entry = pageNodes[n - 1];
+    const need = ((entry && entry.node.clientWidth) || PR.$(".pv-scroll").clientWidth || 480) * (devicePixelRatio || 1);
+    const w = need <= 1000 ? 1000 : need <= 1600 ? 1600 : need <= 2400 ? 2400 : need <= 3200 ? 3200 : 4000;  // 1000 宽的服务端已提前生成好
+    return base + "?w=" + w;
   }
   let pageNodes = [], pageSource = null;
   const scroller = PR.$(".pv-scroll");
@@ -55,10 +64,16 @@
     if (!entry) return;
     const src = srcOf(n);
     if (entry.img.getAttribute("src") === src) return;
-    entry.node.classList.add("loading");
-    entry.img.onload = () => entry.node.classList.remove("loading");
+    if (!entry.img.getAttribute("src")) {  // 換清晰度時舊圖留著，不要閃一下骨架
+      entry.node.classList.add("loading");
+      entry.img.onload = () => entry.node.classList.remove("loading");
+    }
     entry.img.setAttribute("src", src);
   }
+  PR.pageNodes = () => pageNodes;
+  PR.pdfPage = () => pvPage;
+  PR.pdfBlock = () => pvBlock;
+  PR.reloadPages = () => loadNearby(pvPage);  // 面板寬度、縮放變了：按新寬度換圖，不動捲動位置
   function loadNearby(n) {
     for (let i = Math.max(1, n - 2); i <= Math.min(pages().length, n + 2); i++) loadPage(i);
   }
@@ -76,15 +91,19 @@
       node.addEventListener("click", (e) => pickPage(e, i + 1));
       node.addEventListener("mousemove", (e) => {
         const r = node.getBoundingClientRect();
-        node.classList.toggle("pickable", !!blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, i + 1));
+        node.classList.toggle("pickable", articleOpen() && !!blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, i + 1));
       });
       return { node, img, hl };
     });
     scroller.replaceChildren(...pageNodes.map(p => p.node));
+    PR.resetTextLayers && PR.resetTextLayers();
+    PR.emit && PR.emit("pages-built", pageNodes);  // pdfmode / pdftext 在頁上加文字層、標記、筆記欄
   }
   PR.preloadPage = () => {}; // Images are loaded near the panel viewport.
   function updatePageLabel() {
-    PR.$(".pv-label").textContent = PR.t("第 {p} / {n} 页", { p: pvPage, n: pages().length });
+    const label = PR.$(".pv-label");
+    label.textContent = pvPage + " / " + pages().length;
+    label.title = PR.t("第 {p} / {n} 页", { p: pvPage, n: pages().length });
     const pdf = PR.$('[data-pv="pdf"]'), url = PR.pdfUrl(pvPage);
     pdf.style.display = url ? "" : "none";
     if (url) pdf.href = url;
@@ -124,12 +143,13 @@
     if (!node) return;
     pvBlock = best;
     highlightBlock(pvPage, best);
+    if (!articleOpen()) return;  // 譯文收著：只記住現在讀到哪段
     const rect = node.getBoundingClientRect();
     const fraction = bestBox ? Math.max(0, Math.min(1, (y - bestBox[1]) / Math.max(0.001, bestBox[3] - bestBox[1]))) : 0;
     window.scrollTo({ top: Math.max(0, window.scrollY + rect.top + fraction * rect.height - window.innerHeight * 0.3), behavior: "instant" });
   }
   scroller.addEventListener("scroll", () => {
-    if (!pageNodes.length || PR.side !== "pages") return;
+    if (!pageNodes.length || !visible()) return;
     // Native scrollbar drags can emit scroll without a DOM pointerdown.
     if (Date.now() >= programmaticUntil) panelInput = true;
     if (panelInput) holdUntil = Date.now() + 2000;
@@ -189,7 +209,7 @@
   }
   PR.on("block-rendered", (id) => { if (id === paired) { paired = null; pair(id); } });  // 段落重画后补回标记
   PR.on("rendered", () => { const id = paired; paired = null; pair(id); });
-  PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock); });
+  PR.on("remote", (changed) => { if (visible() && changed.includes("layout")) showPage(pvPage, pvBlock); });
 
   /* 点原页上的某一段 → 正文跳到那段译文（排版特殊、看不出语序时，从原文找回去） */
   function blockAt(x, y, page = pvPage) {
@@ -204,19 +224,23 @@
     }
     return best;
   }
+  PR.blockAt = blockAt;
   function pickPage(e, page) {
+    if (e.target && e.target.closest && e.target.closest(".pv-sticky, .pv-badge, a, button, textarea")) return;
+    if (typeof getSelection === "function" && String(getSelection())) return;  // 正在選字
     const r = e.currentTarget.getBoundingClientRect();
     const id = blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, page);
     if (!id) return;
     pvPage = page;
     pvBlock = id;
+    if (!articleOpen()) return;  // 譯文收著：點 PDF 不要彈出譯文（想看時自己按「譯文」），只記住讀到哪段
     holdUntil = Date.now() + 1500;  // 跳过去的滚动会触发“跟随阅读位置”，别让它把刚点的段换掉
     showPage(pvPage, id);
     PR.jumpTo("b-" + id);
   }
 
   PR.syncPage = function (force) {
-    if (PR.side !== "pages") return;
+    if (!visible()) return;
     if (!force && (!PR.$(".pv-follow input").checked || Date.now() < holdUntil)) return;
     const reading = PR.readingBlock();
     // Selection controls an explicit click; scrolling follows the viewport.
@@ -232,11 +256,11 @@
     showPage(loc ? loc.page : b.page, id);
   };
 
-  PR.$("#pageview").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-pv]");
+  document.addEventListener("click", (e) => {  // 工具列在 PDF 優先時搬到頂欄（pdfmode.js），所以掛在 document 上
+    const b = e.target && e.target.closest && e.target.closest("[data-pv]");
     if (!b) return;
     const act = b.dataset.pv;
-    if (act === "close") { PR.togglePages(false); pair(null); }
+    if (act === "close") { PR.openSide(null); pair(null); }
     if (act === "prev") PR.pageStep(-1);
     if (act === "next") PR.pageStep(1);
   });

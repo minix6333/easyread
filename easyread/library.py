@@ -50,6 +50,7 @@ class Library:
         return {
             "id": ws.id,
             "title_zh": meta.get("title_zh", ""), "title_en": meta.get("title_en", ""), "short_zh": meta.get("short_zh", ""), "target": meta.get("target", ""),
+            "kind": meta.get("kind", ""),
             "authors": meta.get("authors", ""), "affiliation": meta.get("affiliation", ""),
             "year": meta.get("year") or _year(meta.get("date", "")), "date": meta.get("date", ""),
             "venue": meta.get("venue", ""), "arxiv": meta.get("arxiv", ""), "url": _link(meta), "doi": meta.get("doi", ""),

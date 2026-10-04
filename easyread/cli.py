@@ -91,6 +91,9 @@ def cmd_import(a):
     if not fresh and ws.load("paper").get("meta", {}).get("pages"):
         out(f"已在库里：{ws.id}")
         return
+    kind = getattr(a, "kind", None)  # --kind paper|slides|notes；不給就自動判斷
+    if kind:
+        ws.update("paper", lambda p: p.setdefault("meta", {}).__setitem__("kind", kind))
     from .translate import prepare
     prepare(ws)
     out(f"{'已导入' if fresh else '已重新准备'}：{ws.id}（{ws.root}）")
@@ -220,7 +223,8 @@ def main(argv=None):
     p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（start.cmd / start.sh 用）")
     p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
-    p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.set_defaults(fn=cmd_import)
+    p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true")
+    p.add_argument("--kind", choices=["paper", "slides", "notes"], help="文件類型：論文 / 投影片 / 講義；不給就自動判斷"); p.set_defaults(fn=cmd_import)
     p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)
     for name, fn in (("status", cmd_status), ("check", cmd_check), ("locate", cmd_locate), ("export", cmd_export)):
         p = sub.add_parser(name); p.add_argument("id"); p.set_defaults(fn=fn)

@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import consistency, engines, front_context, langs, netcheck, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
+from . import consistency, engines, front_context, kinds, langs, netcheck, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, tw
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
@@ -25,17 +25,20 @@ _REF_LINE = re.compile(r"^\s*(\d+\.?\s*)?(references|bibliography|参考文献)\
 
 def prepare(ws: Workspace) -> None:
     pages = pdfwork.prepare(ws.root)
+    meta0 = ws.load("paper").get("meta", {})
+    kind = kinds.valid(meta0.get("kind")) or kinds.detect(pages, ws.root / "extract")  # 匯入時沒指定就自動判斷
     extra = {}
-    try:  # 本地拖进来的 PDF：从第一页的 arXiv 编号或 DOI 补上作者、年份、出处
-        first = ws.root / "extract" / "page-001.txt"
-        if first.exists():
-            extra = sources.enrich(first.read_text(encoding="utf-8", errors="replace"), ws.load("paper").get("meta", {}))
-    except Exception:  # noqa: BLE001
-        log.exception("补元数据失败 %s", ws.id)
+    if kind == "paper":
+        try:  # 本地拖进来的 PDF：从第一页的 arXiv 编号或 DOI 补上作者、年份、出处（投影片、講義不查）
+            first = ws.root / "extract" / "page-001.txt"
+            if first.exists():
+                extra = sources.enrich(first.read_text(encoding="utf-8", errors="replace"), meta0)
+        except Exception:  # noqa: BLE001
+            log.exception("补元数据失败 %s", ws.id)
 
     def apply(paper):
         meta = paper.setdefault("meta", {})
-        meta.update({"pages": pages, "page_count": len(pages)})
+        meta.update({"pages": pages, "page_count": len(pages), "kind": kind})
         for k, v in extra.items():
             if not meta.get(k) or (k == "title_en" and meta.get(k) == meta.get("source", "").removesuffix(".pdf")):
                 meta[k] = v
@@ -135,6 +138,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
     data = engines.parse_json(text)
     if not isinstance(data, dict) or not isinstance(data.get("zh"), dict):
         raise engines.EngineError(tr("模型输出的格式不对（缺 zh）"))
+    data = _guard(ws)(data)
     fake = [{"id": k, "type": "para", "zh": v} for k, v in data["zh"].items() if isinstance(v, str)]
     problems = _problems({"blocks": fake})
     if problems:
@@ -142,7 +146,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         try:
             fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
             if isinstance(fixed, dict) and isinstance(fixed.get("zh"), dict) and len(fixed["zh"]) >= len(data["zh"]):
-                data = fixed
+                data = _guard(ws)(fixed)
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     with _merge_lock:
@@ -151,6 +155,14 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         _save_checks(ws, data.get("checks"), batch)
     if missing:
         raise engines.EngineError(tr("漏译了 {n} 处（{ids}）", n=len(missing), ids=", ".join(missing[:5])))
+
+
+def _guard(ws: Workspace):
+    """譯文語言是繁體中文時的保險：模型回來的 JSON 整個過一遍簡轉繁（原文、TeX、id 不動）。
+    要在句子對齊（sentences.attach）之前做，因為詞組轉換可能改變字串長度。"""
+    if tw.is_tw(langs.of_paper(ws.load("paper").get("meta"))):
+        return tw.convert
+    return lambda data: data
 
 
 def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False,
@@ -172,13 +184,14 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     except engines.EngineError:
         (ws.root / "extract" / f"failed-{batch[0]:03d}.txt").write_text(text, encoding="utf-8")
         raise
-    data = _normalize(data, batch, _taken(ws, batch))
+    guard = (lambda d: d) if read else _guard(ws)  # 只读原文没有译文，不用转
+    data = _normalize(guard(data), batch, _taken(ws, batch))
     problems = _problems(data)
     if problems:  # 给一次修的机会
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
             fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
-            fixed = _normalize(fixed, batch, _taken(ws, batch))
+            fixed = _normalize(guard(fixed), batch, _taken(ws, batch))
             if fixed["blocks"] and len(_problems(fixed)) < len(problems):
                 data = fixed
         except engines.EngineError as e:
@@ -377,6 +390,8 @@ def answer(ws: Workspace, cfg: dict, note_id: str, cancel) -> None:
     text = engines.run(engines.for_translation(cfg), prompts.answer(ws, note), ws.root, None, cancel).strip()
     if not text:
         raise engines.EngineError(tr("模型没有给出回答"))
+    if tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))):
+        text = tw.to_tw(text)
     add_discussion(ws, [{"reply_to": note_id, "kind": "reply", "body": text, "by": engines.who(cfg)}])
 
 
@@ -386,5 +401,6 @@ def retranslate(ws: Workspace, cfg: dict, key: str, hint: str, cancel) -> None:
     zh = (data or {}).get("zh", "").strip() if isinstance(data, dict) else ""
     if not zh:
         raise engines.EngineError(tr("模型没有给出新译文"))
+    zh = _guard(ws)(zh)
     zh, sents = sentences.zh_sents(*en_ends, zh) if en_ends else (sentences.strip(zh), None)
     set_block_text(ws, key, zh, sents)

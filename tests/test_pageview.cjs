@@ -50,7 +50,7 @@ test("opening original pages at the paper title loads the first image", () => {
   const r = reader();
   r.PR.togglePages(true);
   assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp?w=1000");
-  assert.equal(r.node(".pv-label").textContent, "第 1 / 2 页");
+  assert.equal(r.node(".pv-label").textContent, "1 / 2");
 });
 
 test("scrolling follows the reading position after another block was selected", () => {

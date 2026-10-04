@@ -17,7 +17,7 @@
     const c = s.cfg, e = c.engine;
     if (m.engine !== e) return false;
     if (["reasoning_effort", "service_tier"].some((k) => (m[k] || "") !== (c[e][k] || ""))) return false;
-    if (e === "claude" || e === "codex") return (m.model || "") === (c[e].model || "");
+    if (e === "claude" || e === "codex" || e === "agy") return (m.model || "") === (c[e].model || "");
     const o = c.openai, p = preset(s, m.preset);
     return (m.preset || "") === (o.preset || "") && (m.model || "") === (o.model || "") &&
       (m.base_url || (p ? p.base_url : "")) === (o.base_url || "");
@@ -33,7 +33,7 @@
     const list = s.chat.models, seen = {};
     for (let i = 0; i < list.length; i++) {
       const m = list[i];
-      if (m.engine === "claude" || m.engine === "codex") {
+      if (m.engine === "claude" || m.engine === "codex" || m.engine === "agy") {
         const was = m.model || "";
         m.model = PR.cliPin(s, m.engine, was);
         if (!was && m.model) { const n = autoName(s, { kind: m.engine, model: m.model }); m.name = m.label = n; m.detail = m.model; }
@@ -96,11 +96,12 @@
     const f = s.form;
     const card = (k, title) => '<button data-cmk="' + k + '" class="' + (f.kind === k ? "on" : "") + '"><b>' + title + "</b></button>";
     let h = '<div class="mc-form"><h4 class="set-h">' + (s.editing === "new" ? PR.t("添加模型") : PR.t("修改")) + "</h4>" +
-      '<div class="engine-cards small">' + card("claude", "Claude Code") + card("codex", "Codex CLI") + card("api", PR.t("API 接口")) + "</div>";
-    if (f.kind === "claude" || f.kind === "codex") {
+      '<div class="engine-cards small">' + card("claude", "Claude Code") + card("codex", "Codex CLI") + card("agy", "Antigravity CLI") + card("api", PR.t("API 接口")) + "</div>";
+    if (f.kind === "claude" || f.kind === "codex" || f.kind === "agy") {
       const found = (s.found || {})[f.kind];
       h += '<label class="field"><span>' + PR.t("模型") + "</span>" + PR.cliModelSelect(s, f.kind, f.model, 'id="cmModel"') + "</label>" +
-        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : "Codex CLI" }) + "</p>" : "");
+        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : f.kind === "agy" ? "Antigravity CLI" : "Codex CLI" }) + "</p>" : "") +
+        (f.kind === "agy" ? '<p class="hint">' + PR.t("用 Antigravity 登入的 Google 帳號（Gemini 額度）；模型名裡的 Low／Medium／High 是思考強度。翻譯請選 Low：實測 Medium 會自己跑很多輪，一批燒掉上百萬 token。") + "</p>" : "");
     } else {
       h += PR.apiForm.html(s, f, { keyProp: "key", vision: false });
     }
@@ -109,9 +110,9 @@
       '<button class="btn sm" data-cm="cancel">' + (s.editing === "new" ? PR.t("取消") : PR.t("关闭")) + '</button>' + (s.editing === "new" ? '<button class="btn sm accent" data-cm="ok">' + PR.t("添加") + "</button>" : "") + "</div></div>";
   }
   function autoName(s, f) {
-    if (f.kind === "claude" || f.kind === "codex") {  // 卡片名就是模型名
+    if (f.kind === "claude" || f.kind === "codex" || f.kind === "agy") {  // 卡片名就是模型名
       const o = PR.cliModelOptions(s, f.kind, f.model).find(([v]) => v === (f.model || ""));
-      return o ? o[1] : f.model || (f.kind === "claude" ? "Claude" : "GPT");
+      return o ? o[1] : f.model || (f.kind === "claude" ? "Claude" : f.kind === "agy" ? "Gemini" : "GPT");
     }
     const p = preset(s, f.preset);
     return f.model ? PR.apiModelName(s, f.preset, f.model) : p ? p.name : "模型";  // i18n-ok 存进模型名单的名字
@@ -121,8 +122,8 @@
     return { engine: api ? "openai" : f.kind, preset: api ? f.preset : "",
       base_url: api && (!p || f.base_url !== p.base_url) ? f.base_url : "", api: api && (!p || f.api !== (p.api || "chat")) ? f.api : "", model: f.model, name, label: name,
       source: api ? (p ? p.name : "自定义地址") :  // i18n-ok 存进模型名单的来源名
-      f.kind === "claude" ? "Claude Code" : "Codex CLI",
-      reasoning_effort: f.reasoning_effort || "", service_tier: f.kind === "claude" ? "" : f.service_tier || "",
+      f.kind === "claude" ? "Claude Code" : f.kind === "agy" ? "Antigravity CLI" : "Codex CLI",
+      reasoning_effort: f.kind === "agy" ? "" : f.reasoning_effort || "", service_tier: f.kind === "claude" || f.kind === "agy" ? "" : f.service_tier || "",
       detail: f.model, ready: true };
   }
   function readForm(s) {
@@ -151,14 +152,19 @@
     const c = s.cfg, ti = transIndex(s), m = s.chat.models[ti];
     const e = c.engine;
     let h = '<h4 class="set-h">' + (m ? PR.t("翻译：{name}", { name: PR.esc(m.label || m.name) }) : PR.t("翻译")) + "</h4>";
-    if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "reasoning_effort")) +
+    if (m && e !== "agy") h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "reasoning_effort")) +
       (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "service_tier"))) + '</p>';
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";
     h += '<div class="grid2 translation-limits">' +
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
       '<label class="field" title="' + PR.t("把全文切成几段同时译，段内按顺序译；自动按篇幅每段约 2 批、最多 4 段；手动最多 8 段") + '"><span>' + PR.t("同时译几段") + '</span><select class="input" data-k="concurrency">' + PR.opt([[0, PR.t("自动")], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"], [6, "6"], [7, "7"], [8, "8"]], c.concurrency || 0) + "</select></label>" +
       '<label class="field"><span>' + PR.t("超过多少页先问我") + '</span><select class="input" data-k="page_cap">' + PR.opt([30, 60, 100, 200].map((n) => [n, PR.t("{n} 页", { n })]).concat([[0, PR.t("不限")]]), c.page_cap == null ? 60 : c.page_cap) + "</select></label></div>" +
-      '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>';
+      '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>' +
+      '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="auto_translate"' + (c.auto_translate ? " checked" : "") + ">" + PR.t("匯入後自動翻譯") + "</label>" +
+      '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("關著時匯入只準備 PDF，不會用到模型；要譯文時在閱讀頁按「譯文」。") + "</p>" +
+      '<label class="field" style="margin:14px 0 0;max-width:340px"><span>' + PR.t("選字翻譯用的模型") + '</span><select class="input" data-k="quick.translate_model">' +
+      PR.opt([["", PR.t("跟問 AI 的預設一樣")]].concat(s.chat.models.map((x) => [x.id, x.label || x.name])), (c.quick || {}).translate_model || "") + "</select></label>" +
+      '<p class="hint" style="margin:2px 0 0">' + PR.t("閱讀頁選字工具列的「翻譯」用它；挑一個快的比較順。") + "</p>";
     return h;
   }
   /* 页面上翻译那几项的值读回 cfg（存的时候 settings.js 从 cfg 取） */
@@ -166,7 +172,7 @@
     PR.$$("[data-k]", root()).forEach((el) => {
       const [a, b] = el.dataset.k.split(".");
       const v = el.type === "checkbox" ? el.checked : el.value;
-      if (b) s.cfg[a][b] = v; else s.cfg[a] = ["batch_pages", "concurrency", "page_cap"].includes(a) ? +v : v;
+      if (b) (s.cfg[a] = s.cfg[a] || {})[b] = v; else s.cfg[a] = ["batch_pages", "concurrency", "page_cap"].includes(a) ? +v : v;
     });
   }
 
@@ -231,7 +237,7 @@
         readForm(s);
         const f = s.form, kind = k.dataset.cmk;
         if (kind === f.kind) return false;
-        Object.assign(f, { kind, model: kind === "claude" ? "opus" : PR.cliPin(s, kind, ""), name: "", key: "", base_url: "", api: "", reasoning_effort: "", service_tier: "" });
+        Object.assign(f, { kind, model: kind === "claude" ? "opus" : kind === "agy" ? ((PR.cliModelOptions(s, "agy", "")[0] || [""])[0]) : PR.cliPin(s, kind, ""), name: "", key: "", base_url: "", api: "", reasoning_effort: "", service_tier: "" });
         s.fetchMsg = null; s.apiTyping = false;
         if (isApi(kind)) {  // 先给一家：翻译那边用的 API，没有就 DeepSeek
           const o = s.cfg.openai;

@@ -31,6 +31,24 @@ class LangsTest(unittest.TestCase):
         self.assertIn("译成中文，这次只处理第 1 页", text)
         self.assertIn("standard error 译“标准误差”", text)
 
+    def test_traditional_chinese_prompt(self):
+        """繁體中文：提示詞整段轉成繁體、多幾條台灣用語規則；抽取的原文不動。"""
+        set_meta(self.ws, target="zh-TW")
+        text = prompts.translate(self.ws, [1], "text", "")
+        self.assertIn("譯成繁體中文（台灣用語）", text)
+        self.assertIn("不可夾雜任何簡體字", text)
+        self.assertIn("standard error 譯「標準誤差」", text.replace("“", "「").replace("”", "」"))
+        head = text.split("=====")[0]
+        self.assertFalse(any(c in head for c in "译论术请这页数"), head[:200])  # 提示詞裡沒有簡體字
+        self.assertIn("Text of page 1.", text)
+        paper = self.ws.load("paper")
+        paper["blocks"] = [{"id": "p1-1", "type": "para", "page": 1, "en": "Hello world.", "zh": "你好，世界。"}]
+        write_json_atomic(self.ws.root / "paper.json", paper)
+        rt, _ = prompts.retranslate(self.ws, "p1-1", "")
+        self.assertIn("譯成繁體中文（台灣用語）", rt)
+        self.assertNotIn("请", rt)
+        self.assertIs(prompts.rules("zh"), prompts.RULES)
+
     def test_every_swap_applies(self):
         for old, _ in prompts._RULES_SWAP:
             self.assertIn(old, prompts.RULES)
@@ -47,16 +65,22 @@ class LangsTest(unittest.TestCase):
             self.assertNotIn("中文语序", text)
 
     def test_old_papers_count_as_chinese(self):
-        self.assertEqual(langs.of_paper({"title_zh": "旧论文"}, {"target": "ja"}), "zh")
+        self.assertEqual(langs.of_paper({"title_zh": "旧论文"}, {"target": "ja"}), "zh")  # 舊論文是簡體
         self.assertEqual(langs.of_paper({}, {"target": "ja"}), "ja")
         self.assertEqual(langs.of_paper({"target": "fr"}, {"target": "ja"}), "fr")
-        self.assertEqual(langs.of_paper({}, {"target": "xx"}), "zh")
+        self.assertEqual(langs.of_paper({}, {"target": "xx"}), "zh-TW")  # 預設繁體
 
     def test_reply_language(self):
         self.assertEqual(langs.reply_lang({"target": "de"}), "德语（Deutsch）")
-        self.assertEqual(langs.reply_lang({"title_zh": "旧论文"}), "中文")
+        with mock.patch("easyread.i18n.lang", lambda: "zh-TW"):
+            self.assertEqual(langs.reply_lang({"title_zh": "旧论文"}), "繁體中文（台灣用語）")  # 簡體舊論文也用繁體回答
+            self.assertEqual(langs.reply_lang({"target": "zh"}), "繁體中文（台灣用語）")
+            self.assertEqual(langs.reply_lang({}), "繁體中文（台灣用語）")
+        with mock.patch("easyread.i18n.lang", lambda: "zh"):
+            self.assertEqual(langs.reply_lang({"title_zh": "旧论文"}), "中文")  # 明確選了簡體介面才用簡體
         with mock.patch("easyread.i18n.lang", lambda: "en"):
             self.assertEqual(langs.reply_lang({}), "英文（English）")
+            self.assertEqual(langs.reply_lang({"target": "zh"}), "繁體中文（台灣用語）")
 
     def test_first_translation_records_target(self):
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
@@ -87,7 +111,7 @@ class LangsTest(unittest.TestCase):
 
     def test_settings_rejects_unknown_target(self):
         with mock.patch.object(settings_api.config, "save", lambda patch: patch), mock.patch.object(settings_api.config, "public", lambda c: c):
-            self.assertEqual(settings_api.save_config({"target": "xx"})["config"]["target"], "zh")
+            self.assertEqual(settings_api.save_config({"target": "xx"})["config"]["target"], "zh-TW")
             self.assertEqual(settings_api.save_config({"target": "es"})["config"]["target"], "es")
 
 

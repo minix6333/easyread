@@ -71,6 +71,8 @@ def target(cfg: dict) -> dict | None:
         url = _codex_base()
         official = "chatgpt.com" in url or "openai.com" in url
         return {"name": tr("OpenAI（Codex）") if official else tr("Codex 配置的中转地址"), "url": url, "vpn": official}
+    if e == "agy":
+        return {"name": "Antigravity", "url": "https://daily-cloudcode-pa.googleapis.com", "vpn": True}
     if e == "openai":
         o = cfg.get("openai") or {}
         url = (o.get("base_url") or "").strip().rstrip("/")
@@ -127,7 +129,19 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
         return None
 
 
+_LOGIN = re.compile(r"not logged in|run /login|oauth token (has )?expired|invalid api key · please run", re.I)
+
+
+def login_hint(cfg: dict, msg: str) -> str:
+    """Claude Code 還沒登入（或登入過期）：它自己的報錯只有一句英文，補上該怎麼做。"""
+    if cfg.get("engine") != "claude" or not _LOGIN.search(msg):
+        return msg
+    hint = tr("Claude Code 還沒登入：打開終端機執行 claude，輸入 /login 登入一次；或到「設定 → 模型」改用別的模型。")
+    return msg if hint in msg else msg + "\n" + hint
+
+
 def explain(cfg: dict, msg: str) -> str:
+    msg = login_hint(cfg, msg)
     t = target(cfg)
     if not t or any(k in msg for k in _MARKS):
         return msg

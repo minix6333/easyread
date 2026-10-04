@@ -94,7 +94,7 @@ def file_version(path: Path) -> str:
 
 
 def empty_reader() -> dict:
-    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "paper_note": {}, "progress": {}}
+    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "paper_note": {}, "page_notes": {}, "progress": {}}
 
 
 def empty_discussion() -> dict:
@@ -149,11 +149,24 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
             if _newer(at, cur.get("at")):
                 reader["paper_note"] = {"body": op.get("body", ""), "at": at}
                 applied.append("paper_note")
+        elif kind == "page_note":  # 每一頁自己的筆記（上課筆記）：鍵是頁碼
+            page = str(op.get("page") or "")
+            if not page.isdigit():
+                continue
+            by_page = reader.setdefault("page_notes", {})
+            cur = by_page.get(page) or {}
+            if _newer(at, cur.get("at")):
+                by_page[page] = {"body": op.get("body", ""), "at": at}
+                if op.get("star"):  # 標成重點的頁（老師說會考、要回頭複習）
+                    by_page[page]["star"] = True
+                applied.append(f"page_note:{page}")
         elif kind == "progress":
             if _newer(at, progress.get("at")):
                 progress.update({"block": op.get("block"), "at": at})
                 if op.get("ratio") is not None:
                     progress["ratio"] = op["ratio"]
+                if op.get("page") is not None:  # PDF 優先版面記的頁碼
+                    progress["page"] = op["page"]
             applied.append("progress")
     if applied:
         reader["rev"] = int(reader.get("rev", 0)) + 1

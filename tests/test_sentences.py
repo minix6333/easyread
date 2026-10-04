@@ -130,7 +130,7 @@ class MergeTest(unittest.TestCase):
 class PipelineTest(unittest.TestCase):
     def setUp(self):
         self.ws = make_ws(2)
-        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}}
+        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}, "target": "zh"}
         self.patches = [mock.patch.object(translate.pdfwork, "locate", lambda root: None),
                         mock.patch.object(translate, "tex_problems", lambda tex: [])]
         for p in self.patches:

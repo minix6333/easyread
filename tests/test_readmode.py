@@ -36,7 +36,7 @@ def fill_engine(calls: list, skip: set = frozenset()):
 class ReadModeTest(unittest.TestCase):
     def setUp(self):
         self.ws = make_ws(3)
-        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}}
+        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}, "target": "zh"}
         self.patches = [mock.patch.object(translate.pdfwork, "locate", lambda root: None),
                         mock.patch.object(translate, "tex_problems", lambda tex: [])]
         for p in self.patches:

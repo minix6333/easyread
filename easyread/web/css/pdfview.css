@@ -1,0 +1,94 @@
+/* 閱讀頁 · PDF 優先版面：PDF 在左邊當主畫面，譯文面板在右邊，中間的分割線可拖；
+   PDF 上的文字層、畫線標記、每頁的筆記欄。文章優先時原頁仍是右側面板（reader-panels.css）。 */
+:root { --pdf-w: 56vw; --pv-zoom: 1; --pv-margin-w: 280px; }
+
+/* ---------- 版面 ---------- */
+body.pdf-main #pageview { transform: none; left: 0; right: auto; width: var(--pdf-w); border-left: 0; border-right: 1px solid var(--rule); z-index: 30; transition: none; }
+body.pdf-main:not(.art-open) #pageview { width: 100vw; border-right: 0; }
+body.pdf-main.side-open:not(.art-open) #pageview { width: calc(100vw - var(--side-w)); }
+body.pdf-main:not(.art-open) #stage { display: none; }
+body.pdf-main.art-open #stage {
+  grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter);
+  width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--pdf-w) - 16px));
+  margin-left: max(calc(var(--pdf-w) + 8px), calc(var(--pdf-w) + (100vw - var(--pdf-w) - var(--measure) - 2 * var(--gutter)) / 2));
+  margin-right: 0;
+}
+body.pdf-main.art-open.side-open #stage {
+  width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--pdf-w) - var(--side-w) - 16px));
+  margin-left: max(calc(var(--pdf-w) + 8px), calc(var(--pdf-w) + (100vw - var(--pdf-w) - var(--side-w) - var(--measure) - 2 * var(--gutter)) / 2));
+}
+/* 譯文面板窄：邊注收成角標（和開著側面板時一樣） */
+body.pdf-main #margin { display: none; }
+body.pdf-main .note-pin { display: inline-block; }
+body.pdf-main .blk.notes-open > .inline-notes { display: block; }
+body.pdf-main .blk.pv-pair { background: var(--focus); box-shadow: 0 0 0 6px var(--focus); }
+body.pdf-main .blk.pv-pair::before { background: var(--pair-ring); opacity: 1; }
+/* 原頁上「現在對到哪一段」：不畫整個框（擋閱讀），只在段落左緣畫一道細線；譯文收著時連線都不畫 */
+.pv-region { background: transparent; box-shadow: none; border-left: 2.5px solid var(--pair-ring); border-radius: 0; margin-left: -6px; opacity: .8; }
+body.pdf-main:not(.art-open) .pv-hl { display: none; }
+body.pdf-main #progress { left: var(--pdf-w); }
+body.pdf-main:not(.art-open) #progress { display: none; }
+body.pdf-main .jump-back { left: calc(var(--pdf-w) + 20px); }
+
+/* 分割線：一直看得見，拖的時候變成強調色 */
+.split-grip { display: none; position: fixed; top: var(--bar-h); bottom: 0; left: calc(var(--pdf-w) - 4px); width: 9px; cursor: col-resize; z-index: 46; }
+body.pdf-main.art-open .split-grip { display: block; }
+.split-grip::after { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 1px; background: var(--rule-2); transition: background .15s, width .15s, left .15s; }
+.split-grip:hover::after, body.resizing .split-grip::after { left: 3px; width: 3px; background: var(--accent); }
+/* 右側面板的把手也一直看得見、任何寬度都能拖（side-resize.js） */
+body.side-open .panel-grip { display: block; }
+.panel-grip::after { content: ""; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: transparent; transition: background .15s; }
+.panel-grip:hover::after, body.resizing .panel-grip::after { left: 1px; width: 3px; background: var(--accent); }
+.panel-grip:hover, body.resizing .panel-grip { background: none; }
+@media (max-width: 760px) { .panel-grip, .split-grip { display: none !important; } }
+
+/* ---------- PDF 面板本身 ---------- */
+body.pdf-main .pv-scroll { padding: 22px 24px 40vh; }
+/* 頁面不要撐滿整個寬螢幕：最寬約一張 A4 的閱讀寬度，置中；縮放是在這個基礎上放大 */
+body.pdf-main .pv-page { max-width: calc(min(100%, 920px) * var(--pv-zoom)); }
+.pv-head [hidden] { display: none !important; }
+.pv-page { width: calc(100% * var(--pv-zoom)); }
+.pv-page.pickable { cursor: pointer; }
+
+/* 文字層：透明的字鋪在原頁圖上，可以選、可以拖 */
+.pv-text { position: absolute; inset: 0; overflow: hidden; line-height: 1; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.pv-text > span { position: absolute; white-space: pre; color: transparent; transform-origin: 0 0; cursor: text; }
+.pv-text > span::selection { background: rgba(47, 99, 232, .32); }
+:root[data-theme="dark"] .pv-text > span::selection { background: rgba(126, 162, 255, .4); }
+
+/* 畫線、筆記的標記 */
+.pv-marks { position: absolute; inset: 0; pointer-events: none; }
+.pv-mark { position: absolute; pointer-events: auto; cursor: pointer; border-radius: 2px; background: var(--hl-yellow); mix-blend-mode: multiply; }
+.pv-mark.c-green { background: var(--hl-green); }
+.pv-mark.c-blue { background: var(--hl-blue); }
+.pv-mark.c-pink { background: var(--hl-pink); }
+.pv-mark.s-ul { background: transparent; mix-blend-mode: normal; border-bottom: 2.5px solid var(--ul-yellow); border-radius: 0; }
+.pv-mark.s-ul.c-green { border-color: var(--ul-green); }
+.pv-mark.s-ul.c-blue { border-color: var(--ul-blue); }
+.pv-mark.s-ul.c-pink { border-color: var(--ul-pink); }
+.pv-mark.q { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mine) 70%, transparent); }
+.pv-mark.active { outline: 2px solid color-mix(in srgb, var(--mine) 55%, transparent); outline-offset: 1px; }
+:root[data-theme="dark"] .pv-mark { mix-blend-mode: normal; }
+
+/* 每頁右邊的筆記欄：本頁筆記在最上面，卡片貼著標記的位置 */
+body.pdf-main .pv-scroll.has-margin { padding-right: calc(24px + var(--pv-margin-w)); }
+.pv-margin { display: none; position: absolute; left: calc(100% + 16px); top: 0; width: calc(var(--pv-margin-w) - 16px); height: 100%; font-size: 13.5px; }
+.pv-scroll.has-margin .pv-margin { display: block; }
+.pv-pnote { display: block; width: 100%; min-height: 4.6em; resize: none; overflow: hidden; border: 0; outline: 0; border-radius: 9px; padding: 9px 11px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule); font: 13.5px/1.65 var(--ui); color: var(--ink); }
+.pv-pnote::placeholder { color: var(--ink-3); }
+.pv-pnote:focus { box-shadow: inset 0 0 0 1.5px var(--mine); }
+#popover .pv-pnote { min-height: 8em; }
+.pv-cards { position: absolute; inset: 0; pointer-events: none; }
+.pv-cards .card { position: absolute; left: 0; right: 0; pointer-events: auto; background: color-mix(in srgb, var(--surface) 70%, transparent); border-radius: 0 6px 6px 0; }
+.pv-cards .card .quote { font-family: var(--serif-en); }
+
+/* ---------- 右下角的浮動按鈕：本頁筆記、筆記面板、問 AI（主要動作，強調色加一圈） ---------- */
+.pv-fabs { position: absolute; right: 22px; bottom: 22px; z-index: 6; display: none; flex-direction: column; gap: 10px; }
+body.pdf-main .pv-fabs { display: flex; }
+.fab { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); border: 1px solid var(--rule-2); box-shadow: var(--shadow); transition: transform .12s, background .12s, color .12s; }
+.fab:hover { background: var(--surface-2); transform: translateY(-1px); }
+.fab.on { color: var(--accent); border-color: var(--accent); }
+.fab.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent), var(--shadow); }
+.fab.primary:hover, .fab.primary.on { background: var(--accent); color: var(--accent-ink); filter: brightness(1.1); }
+.fab.has-note::after { content: ""; position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--mine); box-shadow: 0 0 0 2px var(--surface); }
+.fab svg.i { width: 19px; height: 19px; }

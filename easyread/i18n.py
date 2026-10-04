@@ -1,7 +1,8 @@
-"""界面语言：中文系统显示中文，其余显示英文；设置里可以手动指定。
+"""介面語言：中文系統顯示繁體中文（台灣），其餘顯示英文；設定裡可以手動指定（含簡體中文）。
 
-代码里只写中文：前端 `PR.t("中文 {n}", {n})`，后端 `tr("中文 {n}", n=…)`。
-中文原文就是词条的键，英文在 web/i18n/en.json；缺了哪条英文，tests/test_i18n.py 会报出来。
+程式碼裡只寫中文：前端 `PR.t("中文 {n}", {n})`，後端 `tr("中文 {n}", n=…)`。
+中文原文就是詞條的鍵（上游用簡體寫；本分支新加的字串直接寫繁體，繁體詞典查不到就原樣顯示），
+英文在 web/i18n/en.json，繁體在 web/i18n/zh-TW.json（scripts/i18n_tw.py 產生）；缺了哪條英文，tests/test_i18n.py 會報出來。
 """
 from __future__ import annotations
 
@@ -12,21 +13,37 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-# 不导入 config：config 间接导入了很多用 tr 的模块，这里保持没有包内依赖
-EN_PATH = Path(__file__).resolve().parent / "web" / "i18n" / "en.json"
-CHOICES = ("auto", "zh", "en")
+# 不匯入 config：config 間接匯入了很多用 tr 的模組，這裡保持沒有套件內依賴
+I18N_DIR = Path(__file__).resolve().parent / "web" / "i18n"
+EN_PATH = I18N_DIR / "en.json"
+TW_PATH = I18N_DIR / "zh-TW.json"
+LANGS = ("zh-TW", "zh", "en")      # zh 是簡體中文（上游原文）
+CHOICES = ("auto",) + LANGS
+HTML_LANG = {"zh-TW": "zh-TW", "zh": "zh-CN", "en": "en"}
 
 
-@lru_cache(maxsize=1)
-def _dict_cached(mtime: float) -> dict:
-    return json.loads(EN_PATH.read_text(encoding="utf-8"))
+@lru_cache(maxsize=4)
+def _dict_cached(path: str, mtime: float) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _load(path: Path) -> dict:
+    try:
+        return _dict_cached(str(path), path.stat().st_mtime)
+    except (OSError, ValueError):
+        return {}
 
 
 def en_dict() -> dict:
-    try:
-        return _dict_cached(EN_PATH.stat().st_mtime)
-    except (OSError, ValueError):
-        return {}
+    return _load(EN_PATH)
+
+
+def tw_dict() -> dict:
+    return _load(TW_PATH)
+
+
+def dict_for(language: str) -> dict:
+    return en_dict() if language == "en" else tw_dict() if language == "zh-TW" else {}
 
 
 def _is_zh(tag: str | None) -> bool:
@@ -36,33 +53,34 @@ def _is_zh(tag: str | None) -> bool:
 
 @lru_cache(maxsize=1)
 def system_lang() -> str:
-    # 桌面版由 Electron 传进来（macOS 从启动台打开时拿不到 LANG）
+    """中文系統（不分簡繁）一律繁體中文；簡體只在設定裡手動選。"""
+    # 桌面版由 Electron 傳進來（macOS 從啟動台開啟時拿不到 LANG）
     tag = os.environ.get("EASYREAD_SYSTEM_LANG")
     if tag:
-        return "zh" if _is_zh(tag) else "en"
+        return "zh-TW" if _is_zh(tag) else "en"
     for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
         value = os.environ.get(var)
         if value and value not in ("C", "POSIX", "C.UTF-8"):
-            return "zh" if _is_zh(value) else "en"
+            return "zh-TW" if _is_zh(value) else "en"
     if sys.platform == "win32":
         try:
             import ctypes
-            return "zh" if ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF == 0x04 else "en"
+            return "zh-TW" if ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF == 0x04 else "en"
         except (AttributeError, OSError):
             pass
     if sys.platform == "darwin":
         try:
             out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True, timeout=3).stdout
             first = next((line.strip(' ",()') for line in out.splitlines() if line.strip(' ",()')), "")
-            return "zh" if _is_zh(first) else "en"
+            return "zh-TW" if _is_zh(first) else "en"
         except (OSError, subprocess.SubprocessError):
             pass
-    return "zh"  # 判断不出来时保持原来的中文
+    return "zh-TW"  # 判斷不出來時用繁體中文
 
 
 def choice() -> str:
-    forced = os.environ.get("EASYREAD_LANG")  # 测试、排查问题时临时指定，优先于设置
-    if forced in ("zh", "en"):
+    forced = os.environ.get("EASYREAD_LANG")  # 測試、排查問題時臨時指定，優先於設定
+    if forced in LANGS:
         return forced
     from . import prefs
     value = (prefs.load().get("ui") or {}).get("lang")
@@ -71,24 +89,26 @@ def choice() -> str:
 
 def lang() -> str:
     value = choice()
-    return value if value in ("zh", "en") else system_lang()
+    return value if value in LANGS else system_lang()
 
 
 def tr(text: str, **kw) -> str:
-    """中文原文 → 当前语言；{name} 占位符用 kw 填。"""
-    if lang() == "en":
-        text = en_dict().get(text) or text
+    """中文原文 → 目前語言；{name} 佔位符用 kw 填。"""
+    d = dict_for(lang())
+    if d:
+        text = d.get(text) or text
     return text.format(**kw) if kw else text
 
 
 def inject(page: str, language: str | None = None) -> str:
-    """返回页面时写上语言，英文时把词典也塞进去，前端同步就能用。"""
-    picked = choice() if language is None else language  # 设置里的“界面语言”要显示当前选的是哪项
+    """返回頁面時寫上語言；不是簡體時把詞典也塞進去，前端同步就能用。"""
+    picked = choice() if language is None else language  # 設定裡的「介面語言」要顯示目前選的是哪項
     language = language or lang()
-    from . import config, langs  # 用到时再导入，见文件开头
-    target = langs.valid(config.load().get("target"))  # 设置里的译文语言：按钮文字、没译过的论文用它
-    page = page.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}" data-lang-choice="{picked}" data-target="{target}">', 1)
-    if language == "en":
-        payload = json.dumps(en_dict(), ensure_ascii=False).replace("<", "\\u003c")
+    from . import config, langs  # 用到時再匯入，見檔案開頭
+    target = langs.valid(config.load().get("target"))  # 設定裡的譯文語言：按鈕文字、沒譯過的論文用它
+    page = page.replace('<html lang="zh-CN">', f'<html lang="{HTML_LANG.get(language, language)}" data-lang-choice="{picked}" data-target="{target}">', 1)
+    d = dict_for(language)
+    if d:
+        payload = json.dumps(d, ensure_ascii=False).replace("<", "\\u003c")
         page = page.replace("</title>", f'</title>\n<script id="pr-i18n" type="application/json">{payload}</script>', 1)
     return page

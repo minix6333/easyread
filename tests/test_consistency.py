@@ -53,7 +53,7 @@ class FrontContextTest(unittest.TestCase):
         self.assertFalse(any("Smith" in t for t in toc))
 
     def test_only_first_batch_of_each_later_segment_gets_it(self):
-        cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
         seen = {}
 
         def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None):
@@ -70,7 +70,8 @@ class FrontContextTest(unittest.TestCase):
         self.assertFalse(seen[1])
 
     def test_prompt_places_reference_before_pages(self):
-        p = prompts.translate(self.ws, [4], "text", "", front=front_context.build(self.ws.root, 4))
+        with mock.patch.object(prompts.langs, "of_paper", lambda meta, cfg=None: "zh"):  # 本分支預設繁體，這裡要簡體提示詞
+            p = prompts.translate(self.ws, [4], "text", "", front=front_context.build(self.ws.root, 4))
         self.assertLess(p.index("前文参考"), p.index("===== 第 4 页"))
 
 
@@ -196,7 +197,7 @@ class ConsistencyTest(unittest.TestCase):
     def test_cancel_during_check_keeps_finished_job(self):
         ws = make_ws(4)
         self.addCleanup(shutil.rmtree, ws.root, True)
-        cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
         cancel = threading.Event()
 
         def engine(cfg, prompt, cwd, images=None, cancel_=None, meter=None):
@@ -236,7 +237,7 @@ class SeamTest(unittest.TestCase):
         ws = make_ws(8)
         self.addCleanup(shutil.rmtree, ws.root, True)
         (ws.root / "extract" / "page-005.txt").write_text("Table 3 header row " * 120 + "THE-CONTINUATION ends here.", encoding="utf-8")
-        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
         seen = {}
         run_pages(ws, cfg, list(range(1, 9)), self.engine(seen), plan=lambda pages, size, k, root: [pages[:4], pages[4:]])
         self.assertIn("THE-CONTINUATION", seen[3][0])  # 第 3–4 页是前一段最后一批：拿到第 5 页全文
@@ -250,7 +251,7 @@ class SeamTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, ws.root, True)
         # 第 5 页上次已经译完（跳过了页首续文），这次只续传第 3–4 页
         ws.update("paper", lambda p: p["translation"].update(done_pages=[1, 2, 5, 6]))
-        cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 1, "claude": {}}
+        cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 1, "claude": {}, "target": "zh"}
         seen = {}
         with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"extract/page-{n:03d}.jpg"):
             run_pages(ws, cfg, [3, 4], self.engine(seen))

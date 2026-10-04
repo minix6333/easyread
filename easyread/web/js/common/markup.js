@@ -1,5 +1,7 @@
 /* 行内标记：$TeX$ / \(TeX\)、**粗体**、*斜体*、`代码`、[n] 引用，以及“公式 (1) / 表 2 / 第 2.2 节 / 附录 A”这类交叉引用。
-   译文、讨论、笔记都用同一套，用户编辑时看到的就是这套原始标记。 */
+   译文、讨论、笔记都用同一套，用户编辑时看到的就是这套原始标记。
+   筆記另外還認：# 標題（一到三個 # 字級不同）、~~刪除線~~、[文字](網址)、- [ ] 待辦，
+   以及貼進筆記的圖片 ![](clips/…)（只認這份文件 clips/ 底下的圖，不會去載外面的網址）。 */
 (function (PR) {
   "use strict";
   // 先识别代码和完整公式，避免分段、Markdown 和表格的 | 拆坏 TeX。
@@ -59,13 +61,14 @@
 
   function xrefLinks(s) {
     // 公式 (9) 和 (10)：把这一串里每个编号都链上
-    s = s.replace(/公式\s*[（(]\d+[）)](?:\s*(?:和|与|及|、|或|,|，)\s*[（(]\d+[）)])*/g,
+    // 簡體、繁體譯文都要認得：图／圖、节／節、附录／附錄、与／與
+    s = s.replace(/公式\s*[（(]\d+[）)](?:\s*(?:和|与|與|及|、|或|,|，)\s*[（(]\d+[）)])*/g,
       (m) => m.replace(/[（(](\d+)[）)]/g, (mm, n) => xref("eq", n, mm)));
     s = s.replace(/公式\s*(\d+)(?![\d.）)])/g, (m, n) => xref("eq", n, m));
     s = s.replace(/表\s*(\d+)/g, (m, n) => xref("tab", n, m));
-    s = s.replace(/图\s*(\d+)/g, (m, n) => xref("fig", n, m));
-    s = s.replace(/第\s*(\d+(?:\.\d+)*)\s*节/g, (m, n) => xref("sec", n, m));
-    s = s.replace(/附录\s*([A-Z])(?![a-zA-Z])/g, (m, n) => xref("sec", n, m));
+    s = s.replace(/[图圖]\s*(\d+)/g, (m, n) => xref("fig", n, m));
+    s = s.replace(/第\s*(\d+(?:\.\d+)*)\s*[节節]/g, (m, n) => xref("sec", n, m));
+    s = s.replace(/附[录錄]\s*([A-Z])(?![a-zA-Z])/g, (m, n) => xref("sec", n, m));
     // 英文原文里的
     s = s.replace(/\b(Equations?)\s+(\d+)(?:\s+(and)\s+(\d+))?/g, (m, w, a, and, b) =>
       w + " " + xref("eq", a, a) + (b ? " " + and + " " + xref("eq", b, b) : ""));
@@ -87,8 +90,16 @@
 
   function inline(text, opts) {
     let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
+    // 貼進筆記的圖片：只認 clips/ 底下的檔名；方括號裡寫 50% 這種就是顯示寬度
+    s = s.replace(/!\[([^\]\n]*)\]\((clips\/[\w.\-]+)\)/g, (m, alt, src) => {
+      const url = PR.imageUrl ? PR.imageUrl(src) : src;
+      const w = /^\d{1,3}%$/.test(alt.trim()) ? ' style="width:' + alt.trim() + '"' : "";
+      return url ? '<img class="md-img" src="' + url + '" data-src="' + src + '" alt=""' + w + ' loading="lazy">' : "";
+    });
+    s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+    s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
     if (opts.cite !== false) s = citeLinks(s);
     if (opts.xref !== false) s = xrefLinks(s);
     return s.replace(/\n/g, "<br>");
@@ -199,8 +210,9 @@
     const hIdx = lines.findIndex((l) => /^#{1,6}\s+.+$/.test(l));
     if (hIdx >= 0) {
       const h = lines[hIdx].replace(/^#{1,6}\s+/, "");
+      const level = Math.min(3, lines[hIdx].match(/^#+/)[0].length);  // 字級：# 最大，### 和內文一樣大只加粗
       return (hIdx ? para(lines.slice(0, hIdx).join("\n"), opts) : "") +
-        '<p class="md-h">' + PR.md(h, opts) + "</p>" +
+        '<p class="md-h" data-l="' + level + '">' + PR.md(h, opts) + "</p>" +
         (hIdx + 1 < lines.length ? para(lines.slice(hIdx + 1).join("\n"), opts) : "");
     }
 
@@ -211,7 +223,11 @@
       const ordered = /^\s*\d/.test(lines[k]);
       const start = ordered ? lines[k].match(/^\s*(\d+)/)[1] : "";
       return (k ? "<p>" + PR.md(lines.slice(0, k).join("\n"), opts) + "</p>" : "") + (ordered ? '<ol' + (start === "1" ? "" : ' start="' + start + '"') + '>' : "<ul>") +
-        lines.slice(k).map((l) => "<li>" + PR.md(l.replace(/^\s*([-*•]|\d+[.、)])\s+/, ""), opts) + "</li>").join("") + (ordered ? "</ol>" : "</ul>");
+        lines.slice(k).map((l) => {
+          const item = l.replace(/^\s*([-*•]|\d+[.、)])\s+/, "");
+          const todo = item.match(/^\[([ xX])\]\s+/);  // - [ ] 待辦、- [x] 做完了
+          return todo ? '<li class="todo' + (todo[1] === " " ? "" : " done") + '"><i></i>' + PR.md(item.slice(todo[0].length), opts) + "</li>" : "<li>" + PR.md(item, opts) + "</li>";
+        }).join("") + (ordered ? "</ol>" : "</ul>");
     }
 
     return "<p>" + PR.md(p, opts) + "</p>";
@@ -220,6 +236,6 @@
   /* 去掉标记的纯文字，给目录、列表摘要用 */
   PR.plain = (text) => {
     const saved = tokens(String(text || ""), false);
-    return saved.text.replace(saved.inline, (m, i) => saved.values[i].text).replace(/\*\*|`/g, "");
+    return saved.text.replace(saved.inline, (m, i) => saved.values[i].text).replace(/!\[[^\]\n]*\]\(clips\/[\w.\-]+\)/g, "").replace(/\*\*|`/g, "");
   };
 })(window.PR);

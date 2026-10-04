@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="/web/css/sentences.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
 <link rel="stylesheet" href="/web/css/reader-chat.css">
+<link rel="stylesheet" href="/web/css/pdfview.css">
+<link rel="stylesheet" href="/web/css/notes.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
@@ -28,17 +30,19 @@
     <span class="bar-section"></span>
   </div>
   <span class="grow"></span>
-  <span class="job-state" id="jobState"></span>
+  <button class="job-state" id="jobState" data-act="job" hidden></button>
   <div class="seg view-seg" role="group" aria-label="正文显示">
     <button data-view="original"></button>
     <button data-view="translation"></button>
     <button data-view="both"></button>
     <button class="order-caret" data-order-menu aria-haspopup="menu" aria-expanded="false"></button>
   </div>
-  <button class="btn" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
-  <button class="btn" data-act="notes" title="笔记面板（M）"></button>
-  <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
-  <button class="btn" data-act="settings" title="字号、版心、字体（=、- 调字号）">Aa</button>
+  <button class="btn icon" data-act="find" title="搜尋這份文件（⌘F）"></button>
+  <button class="btn icon" data-act="layout" title="PDF 優先／文章優先（L）"></button>
+  <button class="btn icon" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
+  <button class="btn icon" data-act="notes" title="笔记面板（M）"></button>
+  <button class="btn icon" data-act="chat" title="边读边问 AI（A）"></button>
+  <button class="btn icon" data-act="settings" title="字号、版心、字体（=、- 调字号）"></button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
 
@@ -60,15 +64,27 @@
 
 <section id="pageview" class="side-panel" aria-label="PDF 原页">
   <div class="pv-head">
-    <button class="btn icon" data-pv="prev" title="上一页（[）">‹</button>
-    <span class="pv-label"></span>
-    <button class="btn icon" data-pv="next" title="下一页（]）">›</button>
-    <span class="grow"></span>
-    <label class="pv-follow" title="左右双向跟随阅读位置"><input type="checkbox" checked> 跟随</label>
-    <a class="btn sm" data-pv="pdf" target="_blank" rel="noopener">PDF</a>
-    <button class="btn icon" data-pv="close" title="关闭（O）">×</button>
+    <div class="pv-l"><label class="pv-follow btn icon" title="左右双向跟随阅读位置"><input type="checkbox" checked></label></div>
+    <div class="pv-c">
+      <button class="btn icon" data-pv="prev" title="上一页（[）"></button>
+      <span class="pv-label"></span>
+      <button class="btn icon" data-pv="next" title="下一页（]）"></button>
+      <span class="pv-sep"></span>
+      <button class="btn icon" data-pv="zoom-out" title="縮小（-）"></button>
+      <button class="btn sm pv-zoom-lbl" data-pv="zoom-fit" title="適合寬度（0）">100%</button>
+      <button class="btn icon" data-pv="zoom-in" title="放大（=）"></button>
+    </div>
+    <div class="pv-r">
+      <a class="btn icon" data-pv="pdf" target="_blank" rel="noopener" title="打开原 PDF"></a>
+      <button class="btn icon" data-pv="close" title="关闭（O）"></button>
+    </div>
   </div>
   <div class="pv-scroll"><div class="pv-page"><img alt=""><div class="pv-hl"></div></div></div>
+  <div class="pv-fabs">
+    <button class="fab" data-fab="region" title="框選：問 AI、寫筆記（S）"></button>
+    <button class="fab" data-fab="notes" title="笔记面板（M）"></button>
+    <button class="fab primary" data-fab="chat" title="边读边问 AI（A）"></button>
+  </div>
 </section>
 
 <section id="notespanel" class="side-panel" aria-label="笔记"></section>
@@ -96,19 +112,27 @@
 <script src="/web/js/common/theme.js"></script>
 <script src="/web/js/common/markup.js"></script>
 <script src="/web/js/reader/store.js"></script>
+<script src="/web/js/reader/undo.js"></script>
 <script src="/web/js/reader/render.js"></script>
 <script src="/web/js/reader/sentences.js"></script>
 <script src="/web/js/reader/margin.js"></script>
+<script src="/web/js/reader/mded.js"></script>
 <script src="/web/js/reader/anchor.js"></script>
 <script src="/web/js/reader/actions.js"></script>
 <script src="/web/js/reader/editor.js"></script>
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
+<script src="/web/js/reader/pdftext.js"></script>
+<script src="/web/js/reader/pdfmode.js"></script>
+<script src="/web/js/reader/sticky.js"></script>
+<script src="/web/js/reader/region.js"></script>
+<script src="/web/js/reader/pdffind.js"></script>
 <script src="/web/js/reader/side-resize.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat-effort.js"></script>
 <script src="/web/js/reader/chat.js"></script>
+<script src="/web/js/reader/ask.js"></script>
 <script src="/web/js/reader/notehelp.js"></script>
 <script src="/web/js/reader/jumpback.js"></script>
 <script src="/web/js/reader/keys.js"></script>

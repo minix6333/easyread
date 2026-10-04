@@ -5,7 +5,7 @@
   "use strict";
 
   /* 阅读页排版的默认值（Aa 面板和设置 → 阅读共用；主题单独存） */
-  PR.TYPE_DEFAULTS = { fs: 21, measure: 35, lh: 1.9, font: "serif", margin: true };  // 只管排版；显示方式（mode / lead）不在这里，恢复默认不碰它
+  PR.TYPE_DEFAULTS = { fs: 21, measure: 35, lh: 1.9, font: "sans", margin: true };  // 只管排版；显示方式（mode / lead）不在这里，恢复默认不碰它
 
   /* [id, 名字, 默认开关, 说明] */
   PR.FEATURES = [
@@ -22,6 +22,8 @@
     ["fontUp", PR.t("字号变大"), "=", PR.t("阅读")], ["fontDown", PR.t("字号变小"), "-", PR.t("阅读")], ["fontReset", PR.t("恢复默认字号"), "0", PR.t("阅读")],
     ["notes", PR.t("笔记面板"), "m", PR.t("面板")], ["chat", PR.t("问 AI（带当前段）"), "a", PR.t("面板"), "chat"],
     ["pages", PR.t("原页面板"), "o", PR.t("面板"), "pages"], ["pagePrev", PR.t("原页上一页"), "[", PR.t("面板"), "pages"], ["pageNext", PR.t("原页下一页"), "]", PR.t("面板"), "pages"],
+    ["layout", PR.t("PDF 優先／文章優先"), "l", PR.t("面板"), "pages"],
+    ["region", PR.t("框選（問 AI、寫筆記）"), "s", PR.t("面板"), "pages"],
     ["note", PR.t("给当前段写笔记"), "n", PR.t("当前段")], ["question", PR.t("给当前段提问"), "q", PR.t("当前段")],
     ["en", PR.t("展开这段英文"), "y", PR.t("当前段"), "en"], ["edit", PR.t("改译文"), "e", PR.t("当前段"), "edit"],
     ["redo", PR.t("让模型重译这段"), "", PR.t("当前段"), "retranslate"],

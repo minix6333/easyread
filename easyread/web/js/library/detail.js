@@ -71,7 +71,7 @@
       '<a class="btn accent" href="/read/' + i.id + '">' + PR.icon("book", "sm") + readLabel + "</a>" +
       '<a class="btn line" href="/p/' + i.id + '/source.pdf" target="_blank" rel="noopener">' + PR.icon("pdf", "sm") + PR.t("打开原 PDF") + "</a>" +
       '<div class="act-row"><button class="btn line" data-d="cite" title="' + PR.t("复制参考文献格式：GB/T 7714、APA、BibTeX") + '">' + PR.icon("copy", "sm") + PR.t("复制引用") + "</button>" +
-      '<button class="btn icon line" data-d="star" title="' + PR.t("星标（S）") + '" style="color:' + (i.starred ? "#c9a24a" : "") + '">' + PR.icon("star", "sm").replace('class="i sm"', 'class="i sm"' + (i.starred ? ' style="fill:currentColor"' : "")) + "</button>" +
+      '<button class="btn icon line" data-d="star" title="' + PR.t("星标（S）") + '" style="color:' + (i.starred ? "var(--gold)" : "") + '">' + PR.icon("star", "sm").replace('class="i sm"', 'class="i sm"' + (i.starred ? ' style="fill:currentColor"' : "")) + "</button>" +
       '<button class="btn icon line" data-d="more" title="' + PR.t("更多：导出、打开文件夹、回收站") + '">' + PR.icon("more", "sm") + "</button></div></div></div>" +
       titleFields(i) +
       '<div class="cats">' + cats + '<button class="catchip add" data-d="newcat">' + PR.icon("plus", "sm") + PR.t("新分类") + "</button>" +

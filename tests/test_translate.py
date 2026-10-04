@@ -35,7 +35,7 @@ def fake_engine(fail_pages: set, calls: list):
 class TranslateTest(unittest.TestCase):
     def setUp(self):
         self.ws = make_ws(6)
-        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}}
+        self.cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
         self.patches = [mock.patch.object(translate.pdfwork, "locate", lambda root: None),
                         mock.patch.object(translate, "tex_problems", lambda tex: [])]
         for p in self.patches:

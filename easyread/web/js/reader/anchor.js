@@ -88,12 +88,14 @@
     for (const e of S.discussion.entries || []) if (e.quote && e.anchor) items.push({ n: e, attrs: { class: "hl agent", "data-card": e.id } });
     for (const { n, attrs } of items) {
       if (onlyBlock && n.anchor !== onlyBlock) continue;
+      if (n.side === "pdf" && !PR.blockById[n.anchor]) continue;  // 畫在 PDF 上、沒對到段落的：只畫在 PDF 上
       const at = locate(n);
-      if (!at) { lost.add(n.id); continue; }
+      if (!at) { if (n.side !== "pdf") lost.add(n.id); continue; }  // PDF 上畫的原話在譯文裡找不到很正常，不算丟
       lost.delete(n.id);
       wrap(at.el, at.i, at.i + n.quote.length, attrs);
     }
     PR.applyMirrors && PR.applyMirrors(scope);
+    PR.renderPdfMarks && PR.renderPdfMarks();
   };
 
   /* ---------- 选中文字 -> 浮动条 ---------- */
@@ -105,6 +107,7 @@
     if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
     const range = sel.getRangeAt(0);
     const startEl = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    if (startEl && startEl.closest("#pageview .pv-text") && PR.pdfSelection) return PR.pdfSelection();  // 選的是 PDF 上的字
     // 译文 .zh 和原文 .en 都能划：原文的记 side: "en"（只读原文没译的块，.zh 里排的就是英文）
     const el = startEl && startEl.closest("#paper .zh, #paper .en");
     if (!el || !el.contains(range.endContainer) || el.querySelector("textarea")) return null;
@@ -122,25 +125,32 @@
   }
   PR.hasPendingSelection = () => !!pendingSel && selbar().classList.contains("open");
 
+  PR.pendingSelection = () => (PR.hasPendingSelection() ? pendingSel : null);
+  /* 細細一條、只有圖示：左邊筆和顏色，中間筆記、翻譯、複製，最右邊圓的是「問 AI」 */
   function showSelbar() {
-    pendingSel = readSelection();
+    pendingSel = document.body.classList.contains("region-mode") ? null : readSelection();
     const bar = selbar();
     if (!pendingSel) { bar.classList.remove("open"); return; }
     PR.hideBlockbar && PR.hideBlockbar();
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
+    const canAsk = !!(PR.canChat && PR.canChat() && PR.feature("chat"));
+    const pdf = pendingSel.side === "pdf";
+    const key = (k) => (PR.keysOn ? PR.t("（{k}）", { k }) : "");
+    const btn = (s, icon, title, cls) => '<button data-s="' + s + '"' + (cls ? ' class="' + cls + '"' : "") + ' title="' + title + '">' + PR.icon(icon, "sm") + "</button>";
     bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：涂底色") + '">' + PR.icon("marker", "sm") + "</button>" +
       '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
-      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? PR.t("（{k}）", { k: i + 1 }) : "") + '"></button>').join("") + "</span>" +
-      '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
-      '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
-      (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
-      (pendingSel.side ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
-      '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>";
+      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + key(i + 1) + '"></button>').join("") + "</span>" +
+      btn("note", "note", PR.t("笔记") + key("N")) +
+      (pdf && canAsk ? btn("translate", "en", PR.t("翻譯") + key("T")) : "") +
+      (pendingSel.side ? "" : btn("en", "en", PR.t("看这段英文"))) +
+      btn("copy", "copy", PR.t("复制")) +
+      (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
+      (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
     bar.classList.add("open");
     const r = pendingSel.rect, w = bar.offsetWidth;
     const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
-    const y = r.top - 48 < 58 ? r.bottom + 8 : r.top - 48;
+    const y = r.top - 46 < 58 ? r.bottom + 8 : r.top - 46;
     bar.style.left = x + "px"; bar.style.top = y + "px";
   }
   document.addEventListener("mouseup", (e) => { if (!(e.target.closest && e.target.closest("#selbar, #blockbar"))) setTimeout(showSelbar, 10); });
@@ -149,21 +159,26 @@
 
   PR.selectionAction = function (kind, color) {
     if (!pendingSel) return;
-    const { anchor, key, quote, prefix, suffix, side } = pendingSel;
+    const { anchor, key, quote, prefix, suffix, side, page, range, rects } = pendingSel;
     selbar().classList.remove("open");
     getSelection().removeAllRanges();
     pendingSel = null;
     if (kind === "en") { PR.toggleEn(anchor, true); return; }
-    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
-    if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
-    const note = { anchor, key, quote, prefix, suffix, kind, color: color || "yellow" };
-    if (side) note.side = side;
+    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"), null, 1200)); return; }
+    if (kind === "chat") { PR.chatAsk({ anchor, quote, page }); return; }
+    if (kind === "translate") { if (side === "pdf" && PR.translateSelection) PR.translateSelection({ anchor, page, range, rects, quote }); return; }
+    // PDF 上選的：記頁碼、字元範圍和框，錨到落在的那一段（可能沒有）；譯文上選的：原話＋前後文
+    const note = side === "pdf" ? { anchor: anchor || null, page, range, rects, quote, kind, color: color || "yellow", side }
+      : { anchor, key, quote, prefix, suffix, kind, color: color || "yellow" };
+    if (kind === "question") delete note.color;  // 提問不是畫線：原文上只留一道點線
+    if (side && side !== "pdf") note.side = side;
     if (PR.prefs.pen === "underline") note.style = "underline";
+    const redraw = () => { PR.applyMarks(PR.blockById[anchor] ? anchor : undefined); PR.renderMargin(); };
     if (kind === "highlight") {
       Object.assign(note, { id: PR.uid("n"), body: "", created: PR.nowIso() });
       PR.saveNote(note);
-      PR.applyMarks(anchor);
-      PR.toast(PR.t("已划线　点划线可以写笔记或改颜色"), { label: PR.t("撤销"), fn: () => { PR.commit({ op: "note_del", id: note.id }); PR.applyMarks(anchor); } }, 2600);
+      redraw();
+      PR.toast(PR.t("已划线　点划线可以写笔记或改颜色"), { label: PR.t("撤销"), fn: () => { PR.commit({ op: "note_del", id: note.id }); redraw(); } }, 2600);
     } else PR.startNote(note);
   };
   selbar().addEventListener("mousedown", (e) => e.preventDefault()); // 点按钮时别丢掉选区
@@ -189,20 +204,27 @@
   }, true);
   /* 点划线（或另一边的同步标记 m）：划线弹出改色菜单，笔记和问题打开编辑 */
   PR.noteMarkClick = function (m, n) {
-    if (n.kind !== "highlight") { PR.openNoteEditor(n.id); return; }
+    if (n.kind !== "highlight") {
+      if (n.side === "pdf" && PR.openSticky && PR.pdfMain && PR.pdfMain()) PR.openSticky(n.id);  // PDF 上的：打開便利貼（先看，點內容再改）
+      else PR.openNoteEditor(n.id);
+      return;
+    }
     const ul = n.style === "underline";
     PR.popover(m, '<div class="hd">' + PR.t("我的划线") + '</div><div class="hl-edit"><span class="pens"><button data-hl-style="marker" class="' + (ul ? "" : "on") + '" title="' + PR.t("荧光笔") + '">' + PR.icon("marker", "sm") + '</button><button data-hl-style="underline" class="' + (ul ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + (ul ? "underline" : "marker") + '">' + PR.HL_COLORS.map(([c, name]) =>
       '<button data-hl-color="' + c + '" title="' + name + '" class="dot-' + c + ((n.color || "yellow") === c ? " on" : "") + '"></button>').join("") + "</span></div>" +
-      '<div style="display:flex;gap:6px"><button class="btn sm line" data-hl="note">' + PR.t("写笔记") + '</button><button class="btn sm line" data-hl="question">' + PR.t("提问") + '</button><button class="btn sm danger" data-hl="del">' + PR.t("删除划线") + '</button></div>', { sticky: true });
+      '<div style="display:flex;gap:6px"><button class="btn sm line" data-hl="note">' + PR.icon("note", "sm") + PR.t("笔记") + '</button><button class="btn sm line" data-hl="question">' + PR.icon("sparkle", "sm") + PR.t("提问") + '</button><span style="flex:1"></span><button class="btn sm danger" data-hl="del">' + PR.icon("trash", "sm") + PR.t("删除") + '</button></div>', { sticky: true });
     PR.$("#popover").onclick = (ev) => {
       const c = ev.target.closest("[data-hl-color]"), b = ev.target.closest("[data-hl]");
-      if (c) { PR.saveNote(Object.assign({}, n, { color: c.dataset.hlColor })); PR.applyMarks(n.anchor); PR.hidePopover(); return; }
+      const scope = PR.blockById[n.anchor] ? n.anchor : undefined;  // PDF 上沒對到段落的：整頁重畫
+      if (c) { PR.saveNote(Object.assign({}, n, { color: c.dataset.hlColor })); PR.applyMarks(scope); PR.hidePopover(); return; }
       const sty = ev.target.closest("[data-hl-style]");
-      if (sty) { const x = Object.assign({}, n); if (sty.dataset.hlStyle === "underline") x.style = "underline"; else delete x.style; PR.saveNote(x); PR.applyMarks(n.anchor); PR.hidePopover(); return; }
+      if (sty) { const x = Object.assign({}, n); if (sty.dataset.hlStyle === "underline") x.style = "underline"; else delete x.style; PR.saveNote(x); PR.applyMarks(scope); PR.hidePopover(); return; }
       if (!b) return;
       PR.hidePopover();
-      if (b.dataset.hl === "del") { PR.commit({ op: "note_del", id: n.id }); PR.applyMarks(n.anchor); }
+      if (b.dataset.hl === "del") { PR.commit({ op: "note_del", id: n.id }); PR.applyMarks(scope); PR.renderMargin(); }
+      else if (b.dataset.hl === "question" && n.side === "pdf") PR.startNote({ side: "pdf", anchor: n.anchor || null, page: n.page, range: n.range, rects: n.rects, quote: n.quote, kind: "question" });  // 畫線留著，另外開一個提問
+      else if (n.side === "pdf" && PR.openSticky && PR.pdfMain && PR.pdfMain()) PR.openSticky(n.id, { edit: true });  // 寫了字才會變成筆記
       else { PR.saveNote(Object.assign({}, n, { kind: b.dataset.hl })); PR.openNoteEditor(n.id); }
     };
   };

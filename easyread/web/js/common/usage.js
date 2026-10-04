@@ -8,7 +8,7 @@ window.PR = window.PR || {};
     n = Number(n) || 0;
     if (n < 10000) return n.toLocaleString();
     if (PR.lang === "en") return n < 1e6 ? (n / 1000).toFixed(n < 1e5 ? 1 : 0).replace(/\.0$/, "") + "k" : (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + " 万";  // i18n-ok 英文走上一行
+    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + PR.t(" 万");  // 英文走上一行
   }
   PR.fmtTokens = tokens;
 
@@ -25,7 +25,7 @@ window.PR = window.PR || {};
     const d = new Date(ts * 1000);
     const time = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
     if (PR.lang === "en") return "Resets " + ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()] + ", " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()] + " " + d.getDate() + " " + time;
-    return (d.getMonth() + 1) + " 月 " + d.getDate() + " 日 周" + "日一二三四五六"[d.getDay()] + " " + time + " 重置";  // i18n-ok
+    return PR.t("{m} 月 {d} 日 周{w} {time} 重置", { m: d.getMonth() + 1, d: d.getDate(), w: "日一二三四五六"[d.getDay()], time });  // i18n-ok 星期的字
   }
 
   /* 额度进度条（Claude 订阅才有），排版学 Claude 桌面端：名字在左，“几小时后重置 + 百分比”在右，下面一根细条。

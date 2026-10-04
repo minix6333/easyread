@@ -1,75 +1,98 @@
-/* EasyRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
+/* EasyRead · 共用的設計變數與基礎元件（文獻庫頁和閱讀頁都用）
+   視覺參考 alphaXiv 的閱讀頁：白底、暖黑字、酒紅強調，細邊線、膠囊按鈕、Lucide 細線圖示；深色是暖黑底配珊瑚紅。 */
 [hidden] { display: none !important; }  /* 元素设了 hidden 就一定藏起来，别被自己的 display 盖掉 */
 :root {
-  --bg: #f6f3ec;
-  --surface: #fbfaf6;
-  --surface-2: #efebe2;
-  --ink: #23211d;
-  --ink-2: #5a554c;
-  --ink-3: #8c8579;
-  --rule: #e2dcd0;
-  --rule-2: #d3cbbb;
-  --accent: #2d6173;
-  --accent-soft: rgba(45, 97, 115, .08);
-  --accent-soft-2: rgba(45, 97, 115, .14);
-  --mine: #9c5f1c;
-  --mine-soft: rgba(156, 95, 28, .09);
-  --danger: #b0472f;
-  --ok: #4f7f52;
-  --hl: rgba(236, 196, 92, .38);
-  --hl-yellow: rgba(236, 196, 92, .40);
-  --hl-green: rgba(126, 181, 118, .34);
-  --hl-blue: rgba(110, 160, 214, .32);
-  --hl-pink: rgba(226, 92, 92, .26);
-  --ul-yellow: #d9a42a; --ul-green: #5b9a52; --ul-blue: #4a82c3; --ul-pink: #d0473f;
-  --hl-q: rgba(45, 97, 115, .16);
-  --focus: rgba(45, 97, 115, .05);
-  --shadow: 0 1px 2px rgba(35, 33, 29, .05), 0 8px 28px rgba(35, 33, 29, .10);
-  --shadow-lg: 0 2px 6px rgba(35, 33, 29, .06), 0 24px 60px rgba(35, 33, 29, .18);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f5f4;                  /* 懸停、標籤底 */
+  --card: #fafafa;                       /* 卡片、建議問題 */
+  --ink: #1d1b1a;
+  --ink-2: #57534e;
+  --ink-3: #8a8380;
+  --rule: #e7e5e4;
+  --rule-2: #d4d4d4;
+  --accent: #9a2036;                     /* 酒紅：品牌、AI、連結、選中的分頁 */
+  --accent-ink: #ffffff;                 /* 壓在強調色上的字 */
+  --accent-soft: rgba(154, 32, 54, .06);
+  --accent-soft-2: rgba(154, 32, 54, .12);
+  --mine: #2f5fcf;                       /* 藍：我的筆記、我改過的地方（和紅色的 AI 分開） */
+  --mine-soft: rgba(47, 95, 207, .09);
+  --danger: #c62828;
+  --ok: #2f8f5b;
+  --gold: #e0a800;
+  --hl: rgba(255, 214, 0, .42);
+  --hl-yellow: rgba(255, 214, 0, .42);
+  --hl-green: rgba(94, 210, 120, .40);
+  --hl-blue: rgba(96, 165, 255, .38);
+  --hl-pink: rgba(255, 112, 140, .34);
+  --ul-yellow: #e8b100; --ul-green: #35a85b; --ul-blue: #3b7ff0; --ul-pink: #e8456b;
+  --hl-q: rgba(154, 32, 54, .12);
+  --focus: rgba(154, 32, 54, .045);
+  --pair: rgba(154, 32, 54, .10);        /* 原頁框和對應段落的配對色 */
+  --pair-ring: rgba(154, 32, 54, .5);
+  --canvas: #ffffff;                     /* PDF 頁面底下：和頁面一樣白，頁與頁之間只留空隙 */
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 15px -3px rgba(0, 0, 0, .08), 0 4px 6px -4px rgba(0, 0, 0, .06);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, .12), 0 8px 10px -6px rgba(0, 0, 0, .08);
 
-  --serif-zh: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "STSong", serif;
-  --sans-zh: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
-  --serif-en: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif SC", serif;
-  --ui: "Noto Sans SC", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
-  --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  /* 預設是繁體中文（台灣）字型；簡體介面、其他譯文語言在下面另外指定 */
+  --serif-zh: "Noto Serif TC", "Source Han Serif TC", "Source Han Serif TW", "Songti TC", "PingFang TC", "Noto Serif SC", "Songti SC", serif;
+  --sans-zh: "Noto Sans TC", "Source Han Sans TC", "PingFang TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans SC", sans-serif;
+  --serif-en: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif TC", serif;
+  --ui: "Noto Sans", -apple-system, "SF Pro Text", "PingFang TC", "Segoe UI", "Microsoft JhengHei UI", "Noto Sans TC", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --round-zh: "Yuanti TC", "GenSenRounded TW", "jf-openhuninn-2.0", "Yuanti SC", "PingFang TC", "Microsoft JhengHei UI", sans-serif;
+  --read-zh: var(--sans-zh);             /* 內文、筆記用的字型：預設黑體；閱讀頁的 Aa 可以換圓體、宋體 */
   --bar-h: 50px;
 }
-/* 英文界面：西文字体排前面，否则中文字体会把弯引号、撇号画成全角 */
+/* 英文介面：西文字型排前面，否則中文字型會把彎引號、撇號畫成全形 */
 html[lang="en"] {
-  --ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
-  --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif;
-  --sans-zh: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  --ui: "Noto Sans", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
+  --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif TC", "Songti TC", serif;
+  --sans-zh: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
 }
-/* 译文不是中文时换正文字体（变量名沿用 -zh，指“译文”） */
+/* 簡體介面、簡體譯文：用 SC 字型，字形才是大陸標準 */
+html[lang="zh-CN"], html[data-target="zh"] {
+  --serif-zh: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "STSong", serif;
+  --sans-zh: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+html[lang="zh-CN"] { --ui: "Noto Sans SC", "PingFang SC", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; }
+/* 譯文不是中文時換內文字型（變數名沿用 -zh，指「譯文」） */
 html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif; --sans-zh: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif; }
 html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", AppleMyungjo, Batang, serif; --sans-zh: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
 html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
-  --bg: #1a1917;
-  --surface: #22211e;
-  --surface-2: #2a2825;
-  --ink: #ddd7cb;
-  --ink-2: #b2aa9c;
-  --ink-3: #7d766b;
-  --rule: #33312d;
-  --rule-2: #45423c;
-  --accent: #86b8c9;
-  --accent-soft: rgba(134, 184, 201, .09);
-  --accent-soft-2: rgba(134, 184, 201, .16);
-  --mine: #d8a35c;
-  --mine-soft: rgba(216, 163, 92, .10);
-  --danger: #e08a72;
-  --ok: #8fbf8f;
-  --hl: rgba(216, 163, 92, .28);
-  --hl-yellow: rgba(216, 163, 92, .30);
-  --hl-green: rgba(126, 181, 118, .26);
-  --hl-blue: rgba(110, 160, 214, .26);
-  --hl-pink: rgba(232, 108, 104, .26);
-  --ul-yellow: #d8a652; --ul-green: #8fbf84; --ul-blue: #86ade0; --ul-pink: #e8837c;
-  --hl-q: rgba(134, 184, 201, .16);
-  --focus: rgba(134, 184, 201, .05);
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .45);
-  --shadow-lg: 0 2px 6px rgba(0, 0, 0, .3), 0 24px 60px rgba(0, 0, 0, .55);
+  /* 暖黑底、米白字、珊瑚紅強調 */
+  --bg: #0e0c0c;
+  --surface: #0e0c0c;
+  --surface-2: #1d1b1a;
+  --card: #1d1b1a;
+  --ink: #e6e1e0;
+  --ink-2: #b5aeab;
+  --ink-3: #857e7b;
+  --rule: #2c2928;
+  --rule-2: #46413f;
+  --accent: #ffb3ad;
+  --accent-ink: #3b0d12;
+  --accent-soft: rgba(255, 179, 173, .09);
+  --accent-soft-2: rgba(255, 179, 173, .16);
+  --mine: #9db8ff;
+  --mine-soft: rgba(157, 184, 255, .12);
+  --danger: #ff8a80;
+  --ok: #6fcf97;
+  --gold: #e8b84a;
+  --hl: rgba(255, 214, 0, .28);
+  --hl-yellow: rgba(255, 214, 0, .28);
+  --hl-green: rgba(94, 210, 120, .28);
+  --hl-blue: rgba(96, 165, 255, .28);
+  --hl-pink: rgba(255, 112, 140, .26);
+  --ul-yellow: #e8b100; --ul-green: #4fc274; --ul-blue: #6ea3ff; --ul-pink: #ff6b8a;
+  --hl-q: rgba(255, 179, 173, .16);
+  --focus: rgba(255, 179, 173, .06);
+  --pair: rgba(255, 179, 173, .12);
+  --pair-ring: rgba(255, 179, 173, .55);
+  --canvas: #0e0c0c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 20px -4px rgba(0, 0, 0, .55);
+  --shadow-lg: 0 20px 30px -6px rgba(0, 0, 0, .65), 0 8px 12px -6px rgba(0, 0, 0, .5);
 }
 
 * { box-sizing: border-box; }
@@ -78,62 +101,67 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 var(-
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 a { color: inherit; }
-::selection { background: rgba(236, 196, 92, .45); }
-svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+::selection { background: rgba(154, 32, 54, .18); }
+:root[data-theme="dark"] ::selection { background: rgba(255, 179, 173, .28); }
+/* 圖示：Lucide 的細線風格（24 格），顏色跟著文字 */
+svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 svg.i.sm { width: 15px; height: 15px; }
 
 /* 顶栏：常驻 */
 .topbar {
   position: fixed; inset: 0 0 auto 0; height: var(--bar-h); z-index: 50;
-  display: flex; align-items: center; gap: 12px; padding: 0 14px;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
-  backdrop-filter: saturate(1.2) blur(12px);
+  display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  background: var(--bg);
   border-bottom: 1px solid var(--rule);
 }
 .topbar .grow { flex: 1; min-width: 0; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font: 650 17px/1 var(--ui); letter-spacing: -.01em; text-decoration: none; color: var(--ink); white-space: nowrap; }
-.brand .mark { width: 26px; height: 26px; flex: none; display: block; }
+.brand .mark { width: 26px; height: 25px; flex: none; display: block; }
+.mark, .hero { color: var(--accent); }  /* 標誌是單色線條，用強調色 */
 .brand b { font-weight: 700; color: var(--accent); }
 .brand-back { gap: 3px; padding: 0 8px 0 4px; color: var(--ink-3); }
-.brand-back .mark { width: 24px; height: 24px; }
+.brand-back .mark { width: 23px; height: 22px; }
 .brand small { font: 400 12.5px/1 var(--ui); color: var(--ink-3); letter-spacing: .02em; margin-left: 2px; }
 
-/* 按钮 */
+/* 按钮：膠囊形 */
 .btn {
-  height: 32px; padding: 0 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13.5px; color: var(--ink-2); white-space: nowrap; text-decoration: none;
+  height: 32px; padding: 0 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; color: var(--ink-2); white-space: nowrap; text-decoration: none; transition: background .12s, color .12s;
 }
-.btn:hover { background: var(--accent-soft); color: var(--ink); }
-.btn.on { background: var(--accent-soft-2); color: var(--accent); }
+.btn:hover { background: var(--surface-2); color: var(--ink); }
+.btn.on { background: var(--accent-soft); color: var(--accent); }
 .btn.line { box-shadow: inset 0 0 0 1px var(--rule-2); }
 .btn.primary { background: var(--ink); color: var(--bg); }
 .btn.primary:hover { opacity: .9; background: var(--ink); color: var(--bg); }
-.btn.accent { background: var(--accent); color: #fff; }
-:root[data-theme="dark"] .btn.accent { color: #10201f; }
-.btn.accent:hover { opacity: .9; background: var(--accent); }
+.btn.accent { background: var(--accent); color: var(--accent-ink); }
+.btn.accent:hover { filter: brightness(1.1); background: var(--accent); color: var(--accent-ink); }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
-.btn.sm { height: 26px; padding: 0 9px; font-size: 12.5px; border-radius: 7px; }
-.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn.sm { height: 26px; padding: 0 10px; font-size: 12.5px; }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn.sm.icon { width: 26px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
 
-.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--rule) 60%, transparent); }
-.seg button { height: 26px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
-.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+/* 分段選擇：一排膠囊，選中的是強調色 */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--surface-2); }
+.seg button { height: 26px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; transition: background .12s, color .12s; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--bg); color: var(--accent); box-shadow: 0 0 0 1px var(--rule), 0 1px 2px rgba(0, 0, 0, .06); }
 
 .field { display: block; margin: 0 0 14px; }
 .field > span { display: block; font-size: 12.5px; color: var(--ink-3); margin-bottom: 5px; }
 .input, select.input, textarea.input {
-  width: 100%; height: 34px; padding: 0 10px; border-radius: 8px; border: 0; outline: 0;
-  background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule-2); color: var(--ink);
+  width: 100%; height: 34px; padding: 0 12px; border-radius: 10px; border: 0; outline: 0;
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--rule-2); color: var(--ink);
 }
-textarea.input { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.7; }
+textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height: 1.7; }
 .input:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .hint { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
 
-.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; color: var(--ink-2); background: var(--surface-2); white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 11px; font-size: 12px; color: var(--ink-2); background: var(--surface-2); white-space: nowrap; }
 .chip button { color: var(--ink-3); font-size: 13px; line-height: 1; }
 .chip button:hover { color: var(--danger); }
+.chip.kind { color: var(--accent); background: var(--accent-soft); }
 .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; white-space: nowrap; }
 .pill.unread { color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule-2); }
 .pill.reading { color: var(--accent); background: var(--accent-soft); }
@@ -144,7 +172,7 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* 浮层 */
 .menu, .popover {  /* 菜单要能盖住设置对话框（.dialog-backdrop 是 90） */
   position: fixed; z-index: 100; background: var(--surface); color: var(--ink);
-  box-shadow: 0 0 0 1px var(--rule), var(--shadow); border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--rule-2), var(--shadow); border-radius: 12px;
   opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity .14s, transform .14s;
 }
 .menu.open, .popover.open { opacity: 1; pointer-events: auto; transform: none; }
@@ -157,21 +185,22 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .confirm .cf-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .btn.danger-fill { background: var(--danger); color: #fff; }
 .btn.danger-fill:hover { background: var(--danger); opacity: .9; }
-.menu-list button, .menu-list a { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border-radius: 7px; font-size: 13.5px; color: var(--ink-2); text-align: left; text-decoration: none; }
-.menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--accent-soft); color: var(--ink); }
+:root[data-theme="dark"] .btn.danger-fill { color: #2a0b08; }
+.menu-list button, .menu-list a { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13.5px; color: var(--ink-2); text-align: left; text-decoration: none; }
+.menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--surface-2); color: var(--ink); }
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .menu-list hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 4px; }
 
-.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(20, 18, 15, .28); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .18s; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(14, 12, 12, .36); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .18s; }
 .dialog-backdrop.open { opacity: 1; pointer-events: auto; }
-.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 22px 24px; transform: translateY(8px); transition: transform .18s; }
+.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 0 0 1px var(--rule), var(--shadow-lg); padding: 22px 24px; transform: translateY(8px); transition: transform .18s; }
 .dialog-backdrop.open .dialog { transform: none; }
-.dialog h2 { font: 600 18px/1.4 var(--serif-zh); margin: 0 0 16px; }
+.dialog h2 { font: 600 18px/1.4 var(--ui); margin: 0 0 16px; }
 .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 #toast {
   position: fixed; left: 50%; bottom: 26px; z-index: 95; transform: translate(-50%, 12px);
-  padding: 9px 14px; border-radius: 10px; background: var(--ink); color: var(--bg);
+  padding: 9px 16px; border-radius: 999px; background: var(--ink); color: var(--bg);
   font-size: 13px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .2s;
   display: flex; gap: 12px; align-items: center; max-width: 92vw;
 }

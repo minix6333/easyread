@@ -16,10 +16,10 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from . import answer_styles, engines, netcheck, openai_api, usage
-from . import langs
+from . import kinds, langs, tw
 from .i18n import tr
 from .log import log
-from .prompts import _block_text
+from .prompts import _block_text, localize
 from .store import Workspace
 
 HISTORY = 12  # 带上最近几轮对话
@@ -29,7 +29,16 @@ PAPER_BUDGET = 30000  # STE 问答带上正文，长论文各段取节选，保�
 
 
 # ---------- 提示词 ----------
-def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | None = None) -> str:
+def _page_text(ws: Workspace, n) -> str:
+    """原 PDF 某一頁抽取的文字（還沒整理成段落的 PDF，問 AI 時拿這個當上下文）。"""
+    try:
+        p = ws.root / "extract" / f"page-{int(n):03d}.txt"
+        return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+    except (TypeError, ValueError):
+        return ""
+
+
+def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | None = None, page=None) -> str:
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
@@ -38,6 +47,8 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     if abstract:
         lines.append("摘要：" + abstract[:1500])  # i18n-ok
     idx = next((i for i, b in enumerate(blocks) if b.get("id") == anchor), None)
+    if idx is None and page:  # 讀者在原 PDF 上（沒對到段落，或這篇還沒整理）：給那一頁抽取的文字
+        lines.append(f"读者正在看原 PDF 的第 {page} 页，这一页抽取的文字（公式和表格可能是乱的）：\n" + _page_text(ws, page)[:6000])  # i18n-ok
     if idx is not None:
         h = next((b for b in reversed(blocks[:idx + 1]) if b.get("type") == "heading"), None)
         if h:
@@ -55,6 +66,9 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
         for r in extra[:12]:
             b = by_id.get(r.get("anchor")) or {}
             q = (r.get("quote") or "").strip()
+            if not b and r.get("page"):  # PDF 上選的、沒對到段落：給原話，沒原話就給整頁文字
+                parts.append(f"[原 PDF 第 {r['page']} 页] " + (f"读者选中：「{q[:800]}」" if q else "这一页的文字：\n" + _page_text(ws, r["page"])[:2000]))  # i18n-ok
+                continue
             parts.append(f"[{r.get('anchor')}] " + (f"读者选中：「{q[:800]}」\n  所在段落：" if q else "") + _block_text(b)[:1200])  # i18n-ok
         lines.append("读者引用了这几处（问题可能是在问它们之间的关系）：\n" + "\n".join(parts))  # i18n-ok
     gl = paper.get("glossary", [])
@@ -140,12 +154,14 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
             + "\n".join(parts) + ("\n（标记太多，只列了一部分；Claude Code 可以 Read reader.json 看全部）" if used > MARKS_BUDGET else ""))  # i18n-ok
 
 
-MARK_WORDS = re.compile(r"标[红黄绿蓝记了过的出注]|划线|划过|划的|画线|高亮|涂|颜色|[红黄绿蓝][色的]|笔记|批注|标记|我的问题|highlight", re.I)  # i18n-ok
+MARK_WORDS = re.compile(r"标[红黄绿蓝记了过的出注]|划线|划过|划的|画线|画过|画的|高亮|涂|颜色|[红黄绿蓝][色的]|笔记|批注|标记|我的问题|highlight", re.I)  # i18n-ok
 
 
 def wants_marks(text: str) -> tuple[bool, set[str] | None]:
-    """问题里提到“标红的”“划线”“我的笔记”这类词，才把读者的标记带上；提到具体颜色就只带那几种。"""
-    if not MARK_WORDS.search(text or ""):
+    """问题里提到“标红的”“划线”“我的笔记”这类词，才把读者的标记带上；提到具体颜色就只带那几种。
+    讀者用繁體問（「標紅的」「畫線」「筆記」）：先轉成簡體再比對。"""
+    text = tw.to_cn(text or "")
+    if not MARK_WORDS.search(text):
         return False, None
     colors = {c for c in "红黄绿蓝" if re.search(c + "[色的]|标" + c, text)}  # i18n-ok
     return True, (colors | {"无颜色"} if colors and re.search(r"笔记|问题|批注", text) else colors or None)  # i18n-ok
@@ -162,8 +178,27 @@ def _marks_summary(ws: Workspace) -> str:
     return "读者在论文上做过 " + str(len(notes)) + " 处标记（" + "、".join(f"{k} {v}" for k, v in counts.items()) + "），这次问题没提到，就没附上。"  # i18n-ok
 
 
+def images_note(images) -> str:
+    """對話記錄裡，之前某一問附過圖：在那句後面記一筆（Claude Code 需要時可以再 Read 一次）。"""
+    names = [str(x) for x in (images or []) if x]
+    return ("\n（这一问附了图片：" + "、".join(names) + "）") if names else ""  # i18n-ok 提示词
+
+
+def _images_hint(images, engine: str) -> str:
+    """這次提問附了圖（在原 PDF 上框選的區域、貼進來的圖片）：告訴模型圖在哪。"""
+    names = [str(x) for x in (images or []) if x]
+    if not names:
+        return ""
+    if engine in ("claude", "agy"):
+        return ("\n\n读者这次附了 " + str(len(names)) + " 张图片，先用" + ("Read" if engine == "claude" else "读文件的") + "工具把每一张都看过再回答（路径相对当前目录）：\n"  # i18n-ok
+                + "\n".join("- " + n for n in names)
+                + "\n以图片里看到的内容为准；图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
+    return ("\n\n读者这次附了 " + str(len(names)) + " 张图片（就在这条消息的附件里），先看图再回答；"  # i18n-ok
+            "图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
+
+
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
-           answer_style: str = answer_styles.DEFAULT) -> str:
+           answer_style: str = answer_styles.DEFAULT, page=None, images=None) -> str:
     answer_style = answer_styles.parse(answer_style)
     history = messages[-HISTORY:]
     convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])  # i18n-ok
@@ -175,23 +210,29 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
              else "用" + langs.reply_lang(ws.load("paper").get("meta")) + "，直接、具体，能举例就举例。\n")  # i18n-ok
     whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
-    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。\n" + style  # i18n-ok
+    noun = kinds.noun(kinds.of(ws.load("paper").get("meta")))
+    text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。\n" + style  # i18n-ok
             + "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
             "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
             r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok
             "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
             "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
-            + _context(ws, anchor, quote, refs)
+            + _context(ws, anchor, quote, refs, page)
             + ("\n\n" + whole if whole else "")
             + ("\n\n" + marks if marks else "")
             + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
+            + _images_hint(images, engine)
             + f"\n\n读者现在问：{ask}")  # i18n-ok
+    # 回答語言是繁體時整段提示詞轉成繁體，模型才不會跟著提示詞寫簡體（讀者的問題、原文和 TeX 不受影響）
+    return localize(text, langs.reply_code(ws.load("paper").get("meta")))
 
 
 # ---------- 流式输出 ----------
-def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None) -> Iterator[str]:
-    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。"""
+def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images=None) -> Iterator[str]:
+    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。
+    images：這次附的圖片檔。Claude Code 自己用 Read 讀（提示詞裡寫了路徑），Codex 和 API 當附件送。"""
     e = ecfg.get("engine")
+    images = list(images or [])
     bad = netcheck.problem(ecfg)
     if bad:
         raise engines.EngineError(bad)
@@ -199,11 +240,14 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
         if e == "claude":
             yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
         elif e == "openai":
-            yield from openai_api.stream(ecfg["openai"], text, cancel, meter)
-        else:  # codex 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
-            yield engines.run(engines.for_translation(ecfg), text, cwd, None, cancel, meter)
+            yield from openai_api.stream(ecfg["openai"], text, cancel, meter, images)
+        else:  # codex / agy 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
+            yield engines.run(engines.for_translation(ecfg), text, cwd, images or None, cancel, meter)
     except engines.EngineError as err:
-        raise engines.EngineError(netcheck.explain(ecfg, str(err))) from None
+        msg = netcheck.explain(ecfg, str(err))
+        if images and e == "openai" and tr("（這個模型可能不能看圖") not in msg:
+            msg += "\n" + tr("（這個模型可能不能看圖：換一個能看圖的模型，或不附圖片再問）")
+        raise engines.EngineError(msg) from None
 
 
 def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:

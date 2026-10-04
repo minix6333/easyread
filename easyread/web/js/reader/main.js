@@ -6,6 +6,8 @@
 
   /* 当前阅读的块：视口上部 30% 那条线穿过的块 */
   PR.readingBlock = function () {
+    // PDF 優先、譯文收著：正在讀的就是 PDF 視窗中間那一段（pageview.js 記著）
+    if (PR.pdfMain && PR.pdfMain() && !(PR.articleOpen && PR.articleOpen())) return (PR.pdfBlock && PR.pdfBlock()) || "head";
     const line = innerHeight * 0.3;
     let best = null;
     for (const el of PR.$$("#paper > .blk, #paper > .paper-head")) {
@@ -30,8 +32,10 @@
     const max = document.documentElement.scrollHeight - innerHeight;
     const ratio = Math.round((max > 0 ? scrollY / max : 0) * 100) / 100;
     const p = S.reader.progress || {};
-    if (id !== p.block || Math.abs((p.ratio || 0) - ratio) > 0.02) PR.commit({ op: "progress", block: id, ratio: Math.max(ratio, 0) });
+    const page = PR.pdfMain && PR.pdfMain() && PR.pdfPage ? PR.pdfPage() : null;  // PDF 優先：也記頁碼，下次直接翻到
+    if (id !== p.block || Math.abs((p.ratio || 0) - ratio) > 0.02 || (page && page !== p.page)) PR.commit({ op: "progress", block: id, ratio: Math.max(ratio, 0), ...(page ? { page } : {}) });
   }, 5000);
+  PR.saveProgressSoon = saveProgress;
 
   const onScroll = PR.throttle(() => {
     const max = document.documentElement.scrollHeight - innerHeight;
@@ -54,6 +58,7 @@
       const m = { 1: "yellow", 2: "green", 3: "blue", 4: "pink" }[k];
       if (m) { e.preventDefault(); return PR.selectionAction("highlight", m); }
       if (k === "n" || k === "q") { e.preventDefault(); return PR.selectionAction(k === "n" ? "note" : "question"); }
+      if (k === "t" && (PR.pendingSelection() || {}).side === "pdf" && PR.canChat && PR.canChat()) { e.preventDefault(); return PR.selectionAction("translate"); }
     }
     if (k === "escape") {
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
@@ -65,6 +70,16 @@
     }
     const act = PR.keyAction(k);  // 键位可在“说明 → 快捷键”里改
     if (act && PR.runAction(act)) e.preventDefault();
+  });
+
+  /* ⌘S：本來就自動存，按了就把還沒送出的馬上寫進去，說一聲（也免得跳出瀏覽器的「儲存網頁」） */
+  document.addEventListener("keydown", (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "s") return;
+    e.preventDefault();
+    if (document.activeElement && document.activeElement.matches("textarea")) document.activeElement.dispatchEvent(new Event("input", { bubbles: true }));
+    PR.autosaveNote && PR.autosaveNote.flush();
+    PR.flush && PR.flush();
+    PR.toast(PR.t("已儲存（平常會自動存）"), null, 1400);
   });
 
   /* ---------- 数据变化 ---------- */
@@ -156,7 +171,8 @@
         .then(() => PR.jumpTo(id, { noBack: true, instant: true, noFlash: true }));
     } else {
       const b = PR.blockById[(S.reader.progress || {}).block];
-      if (b && scrollY < 50) {
+      const pdfFirst = PR.pdfMain && PR.pdfMain();  // PDF 優先：pdfmode.js 直接翻到上次的頁，不用問
+      if (b && scrollY < 50 && !pdfFirst) {
         let h = null;
         for (const x of S.paper.blocks) { if (x.type === "heading") h = x; if (x.id === b.id) break; }
         PR.toast(h ? PR.t("上次读到「{sec}」", { sec: (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id)) }) : PR.t("上次读到第 {page} 页", { page: b.page }),
@@ -165,6 +181,7 @@
         PR.ls.set("easyread-hint-seen", true);
         const touch = matchMedia("(pointer: coarse)").matches;  // 手机上没有右键和键盘
         const tip = S.demo ? PR.t("在线演示：点段落、选中文字试试划线和笔记；顶栏“问 AI”里有一段真实的 AI 对话。")
+          : pdfFirst ? PR.t("選字可以畫線、寫筆記、翻譯、問 AI；選不到字的地方按右下角的框選。")
           : touch ? PR.t("点一下段落出现操作条；长按选中文字，可以划线、写笔记。")
           : PR.t("点一下段落出现操作条，右键有完整菜单；选中文字可以划线、写笔记。") + (PR.keysOn ? PR.t("<kbd>=</kbd> <kbd>-</kbd> 调字号") : "");
         setTimeout(() => PR.toast(tip, null, 9000), 800);

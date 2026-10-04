@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -101,14 +101,29 @@ class Handler(BaseHTTPRequestHandler):
         options = chat_options.apply(ecfg, body.get("chat_options"))
         model = chat_models.label(m)
         tid = thread["id"] if thread else chat_store.new_id()
-        refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000]}
-                for r in (body.get("refs") or [])[:12] if isinstance(r, dict) and r.get("anchor")]
+        refs = []
+        for r in (body.get("refs") or [])[:12]:  # 引用：段落 id，或原 PDF 的頁碼（沒對到段落時）
+            if not isinstance(r, dict) or not (r.get("anchor") or r.get("page")):
+                continue
+            try:
+                page = int(r["page"]) if r.get("page") else None
+            except (TypeError, ValueError):
+                page = None
+            refs.append({"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000], **({"page": page} if page else {})})
         first = refs[0] if refs else {}
-        user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "quote": (body.get("quote") or first.get("quote") or "")[:1000],
+        try:
+            page = int(body.get("page") or first.get("page") or 0) or None
+        except (TypeError, ValueError):
+            page = None
+        images = clips.resolve(ws.root, body.get("images"))  # 這次附的圖（框選的區域、貼進來的圖片）
+        user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "page": page, "quote": (body.get("quote") or first.get("quote") or "")[:1000],
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options}
+        if images:
+            user["images"] = [clips.rel(p) for p in images]
         past = (thread or {}).get("messages", [])
-        convo = [{"role": x["role"], "content": x["content"]} for x in past] + [{"role": "user", "content": text}]
-        prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style)
+        convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
+        prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
+                                  images=user.get("images"))
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -128,9 +143,16 @@ class Handler(BaseHTTPRequestHandler):
                 chat_models.remember(m.get("model", ""), actual)
                 if m.get("engine") == "claude":
                     send({"model": chat_models.label(m)})
-            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter):
-                pieces.append(piece)
-                send({"t": piece})
+            guard = tw.Stream(tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))))  # 繁體保險：模型夾帶的簡體字轉掉
+            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {})):
+                piece = guard.feed(piece)
+                if piece:
+                    pieces.append(piece)
+                    send({"t": piece})
+            tail = guard.flush()
+            if tail:
+                pieces.append(tail)
+                send({"t": tail})
             msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot())
             send({"done": True, "id": msg["id"], "usage": msg.get("usage")})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
@@ -152,13 +174,15 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError(tr("文件太大"))
         return self.rfile.read(n) if n else b""
 
-    def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target=""):
+    def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target="", kind=""):
         # A failed first preparation still leaves a library entry. Re-importing
         # that PDF must retry preparation instead of silently skipping it.
         paper = ws.load("paper") or {}
         active = (ws.load("job") or {}).get("state") in ("queued", "running")
         queued = fresh or (not paper.get("meta", {}).get("pages") and not active)
         if queued:
+            if kinds.valid(kind):  # 匯入框裡選的文件類型；沒選就準備好頁面後自動判斷
+                ws.update("paper", lambda p: p.setdefault("meta", {}).__setitem__("kind", kind))
             if translate_after and not read:
                 langs.remember(ws, target)  # 导入框里选的译文语言
             self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model)
@@ -201,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
-                                    "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg),
+                                    "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg), "auto_translate": bool(cfg.get("auto_translate")),
                                     "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root))})
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
             return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
@@ -266,8 +290,10 @@ class Handler(BaseHTTPRequestHandler):
                     w = 1000
                 variant = pdfwork.page_variant(ws.root, rel, w)
                 return self._file(variant or _safe(ws.root, rel), cache=True)
-            if ws and (rel.split("/", 1)[0] in ("pages", "figures") or rel == "source.pdf"):
+            if ws and (rel.split("/", 1)[0] in ("pages", "figures", clips.DIR) or rel == "source.pdf"):
                 return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")
+            if ws and rel.startswith("extract/") and rel.endswith((".chars.json", ".txt")):  # PDF 文字層用的字元座標
+                return self._file(_safe(ws.root, rel), cache=True)
         return self._json(404, {"error": "not found"})
 
     # ---------- POST ----------
@@ -318,13 +344,13 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
             return self._import_result(ws, fresh, q.get("translate", "1") == "1", q.get("scope"),
-                                       read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""))
+                                       read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""), kind=q.get("kind", ""))
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400
             ws, fresh = lib.create_from_pdf(data, name, meta)
             return self._import_result(ws, fresh, bool(body.get("translate", True)), body.get("scope"),
-                                       read=bool(body.get("read")), model=str(body.get("model") or ""), target=str(body.get("target") or ""))
+                                       read=bool(body.get("read")), model=str(body.get("model") or ""), target=str(body.get("target") or ""), kind=str(body.get("kind") or ""))
         if path in settings_api.POST:  # 设置页：保存配置、模型名单、试一下、取模型列表
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":
@@ -344,6 +370,12 @@ class Handler(BaseHTTPRequestHandler):
             if not ws:
                 return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
+            if action == "clip":  # 給模型看的圖：請求體是圖片（貼進對話的），或 JSON {page, rect}（在原 PDF 上框選的一塊）
+                raw = self._body()
+                if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower().startswith("image/"):
+                    return self._json(200, {"src": clips.save_upload(ws.root, raw)})
+                spec = json.loads(raw or b"{}")
+                return self._json(200, {"src": clips.region(ws.root, spec.get("page"), spec.get("rect"))})
             body = json.loads(self._body() or b"{}")
             if action == "chat" and len(parts) > 5:
                 sub, tid = parts[5], body.get("thread", "")
@@ -358,6 +390,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._chat(ws, body)
             if action == "notehelp":
                 return notehelp.handle(self, ws, body)
+            if action == "quick":
+                return quick.handle(self, ws, body)
             if action == "discussion_del":
                 return self._json(200, {"deleted": paperdata.delete_discussion(ws, str(body.get("id", "")))})
             if action == "ops":

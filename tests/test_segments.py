@@ -124,7 +124,7 @@ class SkipHeadTest(unittest.TestCase):
         return seen
 
     def test_lane_start_told_to_skip_continuation(self):
-        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
         seen = self.run_job(cfg, list(range(1, 9)))
         self.assertEqual(sorted(seen), [1, 3, 5, 7])
         self.assertIn("第 4 页由另一批负责", seen[5])  # 第二段开头
@@ -134,7 +134,7 @@ class SkipHeadTest(unittest.TestCase):
         self.assertNotIn("另外用", seen[1])  # openai 不看图：不提相邻页
 
     def test_seam_batches_peek_neighbour_image(self):
-        cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 2, "claude": {}}
+        cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 2, "claude": {}, "target": "zh"}
         with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"page-{n}.jpg"), \
                 mock.patch.object(translate.netcheck, "problem", lambda cfg: None):
             seen = self.run_job(cfg, list(range(1, 9)))
@@ -144,12 +144,12 @@ class SkipHeadTest(unittest.TestCase):
         self.assertNotIn("另外用", seen[7])
 
     def test_serial_and_range_never_skip(self):
-        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}, "target": "zh"}
         seen = self.run_job(cfg, [5, 6, 7, 8])  # 第 4 页不在这次范围里：页首续文要译
         self.assertTrue(all("由另一批负责" not in p for p in seen.values()))
 
     def test_conflicting_terms_unified_on_merge(self):
-        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}, "target": "zh"}
         self.run_job(cfg, list(range(1, 9)), gl=lambda page: [{"en": "error bar", "zh": "误差棒" if page > 4 else "误差线"}])
         paper = self.ws.load("paper")
         self.assertEqual({b["zh"] for b in paper["blocks"]}, {"误差线"})
@@ -157,7 +157,7 @@ class SkipHeadTest(unittest.TestCase):
         self.assertIn("术语统一", (self.ws.root / "job.log").read_text(encoding="utf-8"))
 
     def test_only_one_references_block(self):
-        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}, "target": "zh"}
 
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
             page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])

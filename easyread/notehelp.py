@@ -8,11 +8,11 @@ from __future__ import annotations
 import json
 import threading
 
-from . import langs
+from . import langs, tw
 from . import chat, chat_models, config, engines
 from .i18n import tr
 from .log import log
-from .prompts import _block_text
+from .prompts import _block_text, localize
 from .store import Workspace
 
 PAPER_BUDGET = 14000  # 不能自己读文件的引擎：随提示词附上的译文字数上限
@@ -48,8 +48,9 @@ def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     title = meta.get("title_zh") or meta.get("title_en") or ""
     paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"  # i18n-ok 提示词
              if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))  # i18n-ok
-    return (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
+    text = (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
             + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
+    return localize(text, langs.reply_code(meta))
 
 
 def handle(handler, ws: Workspace, body: dict) -> None:
@@ -75,8 +76,14 @@ def handle(handler, ws: Workspace, body: dict) -> None:
         handler.wfile.flush()
     try:
         send({"model": chat_models.label(m)})
+        guard = tw.Stream(tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))))  # 繁體保險
         for piece in chat.stream(ecfg, text, ws.root, cancel):
-            send({"t": piece})
+            piece = guard.feed(piece)
+            if piece:
+                send({"t": piece})
+        tail = guard.flush()
+        if tail:
+            send({"t": tail})
         send({"done": True})
     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
         cancel.set()  # 读者点了停止或关了页面

@@ -43,8 +43,12 @@
       } else if (op.op === "paper_note") {
         const cur = reader.paper_note || {};
         if (at >= (cur.at || "")) reader.paper_note = { body: op.body || "", at };
+      } else if (op.op === "page_note") {  // 每一頁自己的筆記，鍵是頁碼
+        reader.page_notes = reader.page_notes || {};
+        const page = String(op.page || ""), cur = reader.page_notes[page] || {};
+        if (/^\d+$/.test(page) && at >= (cur.at || "")) reader.page_notes[page] = Object.assign({ body: op.body || "", at }, op.star ? { star: true } : {});
       } else if (op.op === "progress") {
-        if (at >= (reader.progress.at || "")) Object.assign(reader.progress, { block: op.block, at }, op.ratio != null ? { ratio: op.ratio } : {});
+        if (at >= (reader.progress.at || "")) Object.assign(reader.progress, { block: op.block, at }, op.ratio != null ? { ratio: op.ratio } : {}, op.page != null ? { page: op.page } : {});
       }
     }
     return reader;
@@ -65,6 +69,7 @@
     if (op.op === "note") outbox = outbox.filter((o) => !(o.op === "note" && o.note.id === op.note.id));
     if (op.op === "edit") outbox = outbox.filter((o) => !(o.op === "edit" && o.block === op.block));
     if (op.op === "progress" || op.op === "paper_note") outbox = outbox.filter((o) => o.op !== op.op);
+    if (op.op === "page_note") outbox = outbox.filter((o) => !(o.op === "page_note" && String(o.page) === String(op.page)));
     outbox.push(op);
     saveOutbox();
     rebuildReader();
@@ -201,6 +206,7 @@
     for (const [block, e] of Object.entries(S.reader.edits || {})) if (e.zh != null) ops.push({ op: "edit", block, zh: e.zh, base: e.base, at: e.at });
     for (const n of Object.values(S.reader.notes || {})) ops.push({ op: "note", note: n, at: n.updated });
     if ((S.reader.paper_note || {}).body) ops.push({ op: "paper_note", body: S.reader.paper_note.body, at: S.reader.paper_note.at });
+    for (const [page, pn] of Object.entries(S.reader.page_notes || {})) if (pn && (pn.body || pn.star)) ops.push(Object.assign({ op: "page_note", page: +page, body: pn.body || "", at: pn.at }, pn.star ? { star: true } : {}));
     return { paper: PR.paperKey, exported: PR.nowIso(), ops };
   };
 })(window.PR);

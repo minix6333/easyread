@@ -21,11 +21,12 @@ from .log import log
 from .presets import PRESETS
 
 _probing = threading.Lock()
-CLAUDE_ALIASES = [("opus", "Opus", "最强"), ("sonnet", "Sonnet", "快、省"), ("haiku", "Haiku", "最快最省")]  # i18n-ok 显示时用 _alias_desc()
+CLAUDE_ALIASES = [("fable", "Fable", "最新"), ("opus", "Opus", "最强"), ("sonnet", "Sonnet", "快、省"), ("haiku", "Haiku", "最快最省")]  # i18n-ok 显示时用 _alias_desc()
+PROBE_TTL = 6 * 3600  # 別名對應的版本每隔這麼久重查一次（登入、換訂閱後對應會變）
 
 
 def _alias_desc(alias: str) -> str:
-    return {"opus": tr("最强"), "sonnet": tr("快、省"), "haiku": tr("最快最省")}.get(alias, "")
+    return {"fable": tr("最新"), "opus": tr("最强"), "sonnet": tr("快、省"), "haiku": tr("最快最省")}.get(alias, "")
 
 
 def codex() -> dict:
@@ -44,6 +45,32 @@ def codex() -> dict:
     return {"default": chat_models.codex_default_model(), "models": out,
             "configured_reasoning": chat_models.codex_config_value("model_reasoning_effort"),
             "configured_tier": chat_models.codex_config_value("service_tier")}
+
+
+_agy_cache: dict = {}
+
+
+def agy() -> dict:
+    """{"default": "", "models": [{"id": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]}：跑一次 `agy models`（要幾秒），記一小時。"""
+    import subprocess, time
+    exe = engines.agy_path({})
+    if not exe:
+        return {"default": "", "models": []}
+    if _agy_cache and time.time() - _agy_cache.get("at", 0) < 3600:
+        return _agy_cache["data"]
+    out: list[dict] = []
+    try:
+        text = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=60, creationflags=engines._NO_WINDOW).stdout
+        for line in text.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 2 and not line.lower().startswith("fetching"):
+                out.append({"id": parts[0].strip(), "name": parts[1].strip()})
+    except Exception:  # noqa: BLE001 —— 沒登入、沒網路：清單空著，設定頁會顯示「還不能用」
+        log.info("查 Antigravity 模型清單失敗", exc_info=True)
+    data = {"default": "", "models": out}
+    if out:
+        _agy_cache.update(at=time.time(), data=data)
+    return data
 
 
 def claude_default() -> str:
@@ -72,8 +99,10 @@ def claude() -> dict:
 def probe_claude(c: dict, version: str) -> None:
     """让 Claude Code 报一下 opus / sonnet / haiku 现在各指向哪个版本。
     它启动时第一行（init 事件）就带着实际模型名，这时还没发请求；读到就结束进程，不花 token。"""
+    import time
     exe = engines.claude_path(c)
-    if not exe or (chat_models.actual_of("_claude_version") == version
+    fresh = time.time() - float(chat_models.actual_of("_probed_at") or 0) < PROBE_TTL
+    if not exe or (fresh and chat_models.actual_of("_claude_version") == version
                    and all(chat_models.actual_of(a) for a in [x for x, _, _ in CLAUDE_ALIASES] + ["_default"])):
         return
     if not _probing.acquire(blocking=False):  # 上一轮还没查完
@@ -105,10 +134,11 @@ def _probe(exe: str, version: str) -> None:
         finally:
             proc.kill()
     chat_models.remember("_claude_version", version)
+    chat_models.remember("_probed_at", str(int(__import__("time").time())))
 
 
 def listing() -> dict:
-    return {"claude": claude(), "codex": codex()}
+    return {"claude": claude(), "codex": codex(), "agy": agy()}
 
 
 def engine_label(cfg: dict) -> str:
@@ -121,9 +151,12 @@ def engine_label(cfg: dict) -> str:
     if e == "claude":  # 带上实际用的模型：Claude Code · Claude Opus 5.5
         m = cfg["claude"].get("model") or ""
         actual = chat_models.actual_of(m) if m else ""
-        model = chat_models.pretty(actual) if actual else ("Claude " + m.capitalize() if m in ("opus", "sonnet", "haiku") else m) if m else claude_default()
+        model = chat_models.pretty(actual) if actual else ("Claude " + m.capitalize() if m in ("opus", "sonnet", "haiku", "fable") else m) if m else claude_default()
     elif e == "codex":
         model = chat_models.label({"engine": "codex", "model": cfg["codex"].get("model") or ""})
+    elif e == "agy":
+        m = cfg["agy"].get("model") or ""
+        model = next((x["name"] for x in agy()["models"] if x["id"] == m), m)
     else:
         model = ""
     return f"{name} · {model}" if model and model != "GPT" else name

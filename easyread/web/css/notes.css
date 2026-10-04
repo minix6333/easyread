@@ -1,0 +1,269 @@
+/* 閱讀頁 · 筆記這一整套的樣子（排在 reader.css、reader-panels.css、reader-chat.css、pdfview.css 後面，蓋掉舊的）：
+   筆記卡片（頁邊、筆記面板、PDF 上的便利貼共用）、PDF 上的標記和小圓點、框選、筆記面板三個分頁、
+   聊天的附圖、頂欄併成一條、內文字型、深色模式的螢光筆。 */
+
+/* ---------- 內文字型：預設黑體（PingFang TC／思源黑體），Aa 裡可以換圓體、宋體 ---------- */
+body { --read-zh: var(--sans-zh); text-autospace: ideograph-alpha ideograph-numeric; }
+.pv-scroll:focus { outline: 0; }
+body.font-serif { --read-zh: var(--serif-zh); }
+body.font-round { --read-zh: var(--round-zh); }
+#paper, body.font-sans #paper { font-family: var(--read-zh); letter-spacing: .015em; }
+table.tbl th, #popover .cap, .np-ai-body, .np-preview, .ch-empty b { font-family: var(--read-zh); }
+
+/* ---------- 筆記卡片 ---------- */
+.card { padding: 10px 12px 11px; border: 1px solid var(--rule); border-left: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13.5px/1.7 var(--read-zh); color: var(--ink); transition: top .25s ease, border-color .15s, box-shadow .15s; }
+.card.mine { border-left-color: var(--rule); }
+.card.check { border-style: dashed; }
+.card:hover, .card.linked { border-color: var(--rule-2); color: var(--ink); }
+.card.editing { border-color: var(--mine); box-shadow: 0 0 0 3px var(--mine-soft); background: var(--surface); }
+.card .hd, .card .rhd { display: flex; align-items: center; gap: 6px; min-height: 22px; font: 12px/1 var(--ui); color: var(--ink-3); letter-spacing: 0; }
+.card .hd { margin: 0 0 6px; }
+.card .ic { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: none; color: var(--mine); background: var(--mine-soft); }
+.card .ic svg { width: 12px; height: 12px; }
+.card .ic.ai, .card.agent > .hd .ic { color: var(--accent); background: var(--accent-soft-2); }
+.card .lbl, .card.mine .lbl { display: inline; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--ink-2); white-space: nowrap; }
+.card .where { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card .where::before { content: "·"; margin-right: 6px; }
+.card .meta, .card .lbl .meta { margin: 0; font-size: 11px; color: var(--ink-3); opacity: 0; transition: opacity .15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card:hover > .hd .meta, .card .reply:hover .meta, .card .meta.on { opacity: 1; }
+.card .grow { flex: 1; min-width: 4px; }
+.card .acts { display: inline-flex; gap: 1px; margin: 0; font-size: 12px; opacity: 0; transition: opacity .15s; }
+.card:hover > .hd .acts, .card:focus-within > .hd .acts, .card .reply:hover .acts, .card .acts.on { opacity: 1; }
+.card .acts button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
+.card .acts button:hover { background: var(--surface-2); color: var(--ink); }
+.card .acts button[data-a="del"]:hover, .card .acts button[data-a="adel"]:hover { color: var(--danger); }
+.card .acts svg { width: 14px; height: 14px; }
+@media (hover: none) { .card .acts, .card .meta { opacity: 1; } }
+/* 原話：左邊一道和畫線同色的線，最多三行 */
+.card .quote, .card.mine.c-green .quote, .card.mine.c-blue .quote, .card.mine.c-pink .quote { margin: 0 0 6px; padding: 1px 0 1px 9px; box-shadow: none; border-left: 3px solid var(--ul-yellow); font: 12.5px/1.55 var(--ui); color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.card.mine.c-green .quote { border-left-color: var(--ul-green); }
+.card.mine.c-blue .quote { border-left-color: var(--ul-blue); }
+.card.mine.c-pink .quote { border-left-color: var(--ul-pink); }
+.card.k-question .quote, .card.agent .quote, .card.tr .quote { border-left-color: var(--rule-2); }
+.card .quote.lost::after { content: "（譯文已改，沒找到這段話）"; font-size: 11px; }
+html[lang="zh-CN"] .card .quote.lost::after { content: "（译文已改，未找到这段话）"; }
+html[lang="en"] .card .quote.lost::after { content: " (text changed, quote not found)"; }
+.card .q::before { content: "問　"; }
+html[lang="zh-CN"] .card .q::before { content: "问　"; }
+html[lang="en"] .card .q::before { content: "Q  "; }
+.card .clip { margin: 0 0 7px; max-width: 100%; border-radius: 8px; background-color: #fff; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--rule); }
+:root[data-theme="dark"] .card .clip { filter: invert(.888) hue-rotate(180deg); }
+.card .body { overflow-wrap: anywhere; }
+.card.mine:not(.editing) > .body { cursor: text; }
+.card.clamp .body { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+.card .body.clamp { max-height: 12em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.card .more { font: 12px var(--ui); color: var(--accent); margin-top: 2px; }
+.card .thinking { padding: 2px 0; }
+/* AI 的回答：嵌在筆記卡片裡，上面一道細線隔開 */
+.card .reply { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.card .rhd { margin-bottom: 4px; }
+.card .rhd .who { font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .reply.err .body, .card .body .err { color: var(--danger); font: 12.5px/1.6 var(--ui); white-space: pre-wrap; }
+/* 編輯 */
+.card textarea, .card textarea:focus { display: block; width: 100%; min-height: 2.6em; resize: none; overflow: hidden; border: 0; outline: 0; box-shadow: none; border-radius: 0; background: transparent; padding: 0; font: inherit; color: var(--ink); }
+.card textarea::placeholder { color: var(--ink-3); }
+.card .kinds { display: flex; gap: 6px; margin: 8px 0 0; align-items: center; flex-wrap: wrap; font: 12px var(--ui); }
+.card .kinds > button { padding: 0; border-radius: 0; }
+.card .kseg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--surface-2); }
+.card .kseg button { height: 22px; padding: 0 10px; border-radius: 999px; color: var(--ink-3); }
+.card .kseg button.on { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
+.card .hint { margin: 0; font-size: 11px; color: var(--ink-3); }
+.card .qchips { display: flex; gap: 6px; margin-top: 8px; }
+.card .qchips button { height: 24px; padding: 0 11px; border-radius: 999px; font: 12px var(--ui); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule-2); }
+.card .qchips button:hover { color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.card .kinds > .ask-model { display: inline-flex; align-items: center; gap: 3px; height: 24px; max-width: 150px; padding: 0 8px; border-radius: 999px; font: 12px var(--ui); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule-2); }
+.card .ask-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .ask-model svg { width: 12px; height: 12px; }
+.card .kinds > .send { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.card .kinds > .send:hover { filter: brightness(1.1); }
+.inline-notes .card { margin: 0 0 10px; }
+/* 顏色圓點：用實色，深色模式也看得清 */
+.dot-yellow { background: var(--ul-yellow); } .dot-green { background: var(--ul-green); } .dot-blue { background: var(--ul-blue); } .dot-pink { background: var(--ul-pink); }
+.legend-agent, .legend-mine { width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 1px 2px; }
+
+/* ---------- PDF 上的標記 ---------- */
+.pv-mark { pointer-events: none; cursor: default; }
+.pv-page.on-mark .pv-text > span { cursor: pointer; }
+/* 提問：只有一道細點線，不蓋底色（上面還能再畫螢光筆） */
+.pv-mark.q { background: transparent; mix-blend-mode: normal; box-shadow: none; border-radius: 0; border-bottom: 1.5px dotted color-mix(in srgb, var(--accent) 75%, transparent); }
+.pv-mark.q.active { background: var(--accent-soft-2); outline: 0; }
+/* 框選的區域：只在四個角畫一小段（像取景框），不把圖整個框死；打開它的便利貼時才鋪一層很淡的底 */
+.pv-area { --c: color-mix(in srgb, var(--mine) 78%, transparent); --l: clamp(7px, 12%, 13px); position: absolute; pointer-events: none; border-radius: 3px;
+  background:
+    linear-gradient(var(--c), var(--c)) left top / var(--l) 2px no-repeat, linear-gradient(var(--c), var(--c)) left top / 2px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / var(--l) 2px no-repeat, linear-gradient(var(--c), var(--c)) right top / 2px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / var(--l) 2px no-repeat, linear-gradient(var(--c), var(--c)) left bottom / 2px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / var(--l) 2px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 2px var(--l) no-repeat; }
+.pv-area.q { --c: color-mix(in srgb, var(--accent) 78%, transparent); }
+.pv-area.active { background-color: var(--mine-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--mine) 30%, transparent); }
+.pv-area.q.active { background-color: var(--accent-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+/* 小圓點：筆記是和畫線同色的點，提問是一顆「?」；點它打開便利貼 */
+.pv-badge { position: absolute; z-index: 2; transform: translate(-30%, -60%); width: 9px; height: 9px; padding: 0; border-radius: 50%; pointer-events: auto; cursor: pointer; background: var(--ul-yellow);
+  box-shadow: 0 0 0 1.5px #fff, 0 1px 2px rgba(0, 0, 0, .28); font: 700 8.5px/12px var(--ui); color: var(--accent-ink); transition: transform .12s; }
+.pv-badge.c-green { background: var(--ul-green); } .pv-badge.c-blue { background: var(--ul-blue); } .pv-badge.c-pink { background: var(--ul-pink); }
+.pv-badge.q { width: 12px; height: 12px; background: #fff; color: var(--accent); box-shadow: 0 0 0 1.2px var(--accent); text-align: center; }
+.pv-badge::after { content: ""; position: absolute; inset: -6px; }  /* 點變小了，可以點的範圍留大一點 */
+.pv-badge.q.done { background: var(--accent); color: var(--accent-ink); }
+.pv-badge.q.busy { animation: badge-pulse 1s ease-in-out infinite; }
+@keyframes badge-pulse { 50% { opacity: .35; } }
+.pv-badge:hover, .pv-badge.active { transform: translate(-30%, -60%) scale(1.35); }
+:root[data-theme="dark"] .pv-badge { box-shadow: 0 0 0 1.5px #1c1b1b, 0 1px 2px rgba(0, 0, 0, .5); }
+:root[data-theme="dark"] .pv-badge.q { background: #1c1b1b; box-shadow: 0 0 0 1.2px var(--accent); }
+:root[data-theme="dark"] .pv-badge.q.done { background: var(--accent); }
+/* 深色模式的螢光筆：頁面是深底淺字，用濾色（screen）疊一層深一點的實色——底色明顯、字還是亮的 */
+:root[data-theme="dark"] .pv-mark:not(.s-ul):not(.q) { mix-blend-mode: screen; background: #7d6500; }
+:root[data-theme="dark"] .pv-mark.c-green:not(.s-ul):not(.q) { background: #1c6e3c; }
+:root[data-theme="dark"] .pv-mark.c-blue:not(.s-ul):not(.q) { background: #23539a; }
+:root[data-theme="dark"] .pv-mark.c-pink:not(.s-ul):not(.q) { background: #8d2f4c; }
+:root[data-theme="dark"] { --hl: rgba(255, 214, 0, .34); --hl-yellow: rgba(255, 214, 0, .34); --hl-green: rgba(94, 210, 120, .34); --hl-blue: rgba(96, 165, 255, .36); --hl-pink: rgba(255, 112, 140, .34); }
+
+/* 框選模式：十字游標，拖出來的框 */
+body.region-mode .pv-page, body.region-mode .pv-text > span { cursor: crosshair; }
+body.region-mode .pv-text, body.region-mode .pv-badge { pointer-events: none; }
+body.region-mode .pv-scroll { user-select: none; -webkit-user-select: none; }
+.pv-rubber { position: absolute; z-index: 7; border: 1.5px solid var(--accent); background: var(--accent-soft-2); border-radius: 4px; pointer-events: none; }
+
+/* 便利貼：貼在標記旁邊的小卡片 */
+.pv-sticky { position: absolute; z-index: 9; }
+.pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: 14px; }
+.pv-sticky .card.editing { border-color: var(--rule-2); box-shadow: var(--shadow-lg); }
+.pv-sticky .card .acts, .pv-sticky .card .meta { opacity: 1; }
+.pv-sticky .card > .body, .pv-sticky .card .reply .body { max-height: min(42vh, 440px); overflow-y: auto; scrollbar-width: thin; }
+.pv-sticky .card textarea { min-height: 3.2em; max-height: 40vh; overflow-y: auto; }
+.pv-sticky .card.tr .meta { opacity: 1; margin-left: 2px; }
+
+/* ---------- 筆記面板 ---------- */
+#notespanel { background: var(--bg); }
+.np-head .seg button .n { font-style: normal; font-size: 11px; color: var(--ink-3); margin-left: 3px; }
+.np-page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.np-phead { display: flex; align-items: center; gap: 2px; padding: 12px 14px 8px; flex: none; }
+.np-pnum { min-width: 96px; text-align: center; font: 600 14px var(--ui); color: var(--ink); font-variant-numeric: tabular-nums; }
+.np-chip { height: 24px; padding: 0 10px; margin-right: 4px; border-radius: 999px; font-size: 12px; color: var(--accent); background: var(--accent-soft-2); white-space: nowrap; }
+.np-star.on { color: var(--gold); }
+.np-star.on svg { fill: currentColor; }
+.np-pnote { flex: none; margin: 0 16px; width: calc(100% - 32px); min-height: 136px; max-height: 44vh; resize: none; overflow-y: auto !important; border: 0; outline: 0; border-radius: 12px; padding: 12px 14px;
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); font: 14.5px/1.8 var(--read-zh); color: var(--ink); }
+.np-pnote::placeholder, #paperNote::placeholder { color: var(--ink-3); }
+.np-pnote:focus { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--mine); }
+.np-ptools { display: flex; gap: 6px; padding: 10px 16px 0; flex: none; }
+.np-sub { flex: none; padding: 16px 18px 6px; font: 600 12px var(--ui); color: var(--ink-3); }
+.np-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 90px; }
+.np-list .card { position: relative; top: auto !important; margin: 0 0 10px; cursor: pointer; }
+.np-list .card .acts { opacity: 0; }
+.np-list .card:hover > .hd .acts, .np-list .card .reply:hover .acts, .np-list .card .acts.on { opacity: 1; }
+.np-sec { display: flex; align-items: center; gap: 6px; margin: 16px 2px 8px; padding: 0; border: 0; font: 600 12px var(--ui); color: var(--ink-3); letter-spacing: 0; }
+.np-sec:first-child { margin-top: 8px; }
+.np-sec .st { color: var(--gold); display: inline-flex; }
+.np-sec .st svg { width: 12px; height: 12px; fill: currentColor; }
+.np-search { display: flex; align-items: center; gap: 8px; flex: none; margin: 12px 16px 0; padding: 0 6px 0 12px; height: 34px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--rule-2); color: var(--ink-3); }
+.np-search:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.np-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 13.5px; color: var(--ink); }
+.np-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; flex: none; padding: 10px 16px 6px; }
+.np-filters .grow { flex: 1; }
+.np-filters > button { height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule); }
+.np-filters > button.on { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.np-empty { padding: 26px 6px; line-height: 1.8; }
+.card.pnote .ic { color: var(--ink-2); background: var(--surface-2); }
+.np-paper { padding: 12px 16px 16px; }
+#paperNote { background: var(--card); border-radius: 12px; padding: 14px 16px; font: 15px/1.85 var(--read-zh); }
+#paperNote:focus { background: var(--surface); }
+
+/* ---------- 翻譯狀態 ---------- */
+.job-state { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 999px; font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.job-state:hover { background: var(--surface-2); }
+.job-state.err { color: var(--danger); }
+.job-pop p { margin: 0 0 8px; color: var(--ink); }
+.job-pop .err { color: var(--danger); font-size: 12.5px; overflow-wrap: anywhere; }
+.job-pop .acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.job-pop .page-cap { margin: 0 0 8px; }
+/* 儲存狀態：平常只留一顆小點，連不上、出錯才顯示文字 */
+.save-state span { display: none; }
+.save-state[data-s="offline"] span, .save-state[data-s="error"] span { display: inline; }
+
+/* ---------- 頂欄：PDF 優先時頁碼和縮放併到頂欄正中間 ---------- */
+.topbar > .pv-head { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; width: auto; height: 100%; padding: 0; border: 0; background: transparent; grid-template-columns: none; }
+.topbar > .pv-head .pv-label { min-width: 62px; }
+.topbar > .pv-head .pv-sep { margin: 0 6px; }
+body.pdf-main .bar-titles { max-width: max(80px, calc(50vw - 330px)); }
+body.pdf-main .bar-title { max-width: 100%; }
+body.pdf-main .bar-section { display: none; }
+body.pdf-main:not(.art-open) #bar > .view-seg { display: none; }
+.pv-follow { position: relative; margin: 0; color: var(--ink-3); }
+.pv-follow input { position: absolute; opacity: 0; pointer-events: none; }
+.pv-follow:has(input:checked) { color: var(--accent); background: var(--accent-soft); }
+.blk-heading.appendix-start::after { content: "附錄"; }
+html[lang="zh-CN"] .blk-heading.appendix-start::after { content: "附录"; }
+html[lang="en"] .blk-heading.appendix-start::after { content: "Appendix"; letter-spacing: .08em; }
+
+/* ---------- 選字工具列：只有圖示 ---------- */
+#selbar > button { width: 28px; padding: 0; justify-content: center; }
+#selbar > button.primary { width: 28px; padding: 0; margin-left: 4px; border-radius: 50%; }
+.hl-edit + div .btn svg { width: 13px; height: 13px; }
+
+/* ---------- 問 AI：附圖 ---------- */
+.ch-imgs { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 6px; }
+.ch-img { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 1px var(--rule-2); }
+.ch-img.busy { background: var(--surface-2); color: var(--ink-3); }
+.ch-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ch-img button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0, 0, 0, .62); color: #fff; font-size: 12px; line-height: 18px; }
+.cm-imgs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.cm-imgs img { display: block; max-width: 220px; max-height: 160px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--rule-2); }
+:root[data-theme="dark"] .cm-imgs img.pdf, :root[data-theme="dark"] .ch-img img.pdf { filter: invert(.888) hue-rotate(180deg); }
+.ch-attach { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink-3); }
+.ch-attach:hover { background: var(--surface-2); color: var(--ink); }
+.ch-attach:disabled { opacity: .5; }
+.cm.ai { font-family: var(--read-zh); }
+#chatpanel.drop-ok .ch-compose::after { content: "放開，引用這段"; }
+html[lang="zh-CN"] #chatpanel.drop-ok .ch-compose::after { content: "松手，引用这段"; }
+html[lang="en"] #chatpanel.drop-ok .ch-compose::after { content: "Drop to quote"; }
+
+/* ---------- 筆記編輯器：工具列、公式預覽 ---------- */
+.md-ed { display: flex; flex-direction: column; min-width: 0; }
+.md-bar { display: flex; align-items: center; gap: 1px; margin: 0 0 6px -4px; flex: none; }
+.md-bar button { width: 26px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
+.md-bar button:hover { background: var(--surface-2); color: var(--ink); }
+.md-bar svg { width: 14px; height: 14px; }
+.md-prev { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); font-size: 14px; color: var(--ink); overflow-x: auto; overflow-y: hidden; text-align: center; }
+.md-prev .katex-display { margin: 0; }
+/* 排好的樣子：標題字級、圖片、待辦 */
+.md-h { font-weight: 600; margin: .5em 0 .3em; }
+.md-h[data-l="1"] { font-size: 1.3em; line-height: 1.4; }
+.md-h[data-l="2"] { font-size: 1.14em; line-height: 1.45; }
+img.md-img { display: block; max-width: 100%; max-height: 340px; margin: 4px 0; border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); cursor: zoom-in; background: #fff; }
+li.todo { list-style: none; position: relative; }
+li.todo > i { position: absolute; left: -1.25em; top: .42em; width: .82em; height: .82em; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+li.todo.done { color: var(--ink-3); text-decoration: line-through; }
+li.todo.done > i { background: var(--ok); box-shadow: none; }
+li.todo.done > i::after { content: ""; position: absolute; left: 26%; top: 10%; width: 28%; height: 52%; border: solid #fff; border-width: 0 1.6px 1.6px 0; transform: rotate(42deg); }
+.card .body pre, .np-pview pre, .np-preview pre { margin: .4em 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); overflow-x: auto; font: 12.5px/1.6 var(--mono); }
+.card .body a, .np-pview a, .np-preview a { color: var(--accent); }
+#lightbox { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 28px; background: rgba(14, 12, 12, .78); cursor: zoom-out; }
+#lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; background: #fff; box-shadow: var(--shadow-lg); }
+/* 本頁筆記、整篇筆記：平常是排好的樣子，點一下才變成輸入框 */
+.np-page > .md-ed { flex: none; margin: 0 16px; }
+.np-page > .md-ed .np-pnote { margin: 0; width: 100%; }
+.np-pview { flex: none; margin: 0 16px; padding: 12px 14px; min-height: 96px; max-height: 44vh; overflow-y: auto; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); font: 14.5px/1.8 var(--read-zh); color: var(--ink); cursor: text; overflow-wrap: anywhere; }
+.np-pview:hover, .np-preview:hover { box-shadow: inset 0 0 0 1px var(--rule-2); }
+.np-pview p, .np-preview p { margin: 0 0 .6em; }
+.np-pview p:last-child { margin-bottom: 0; }
+.np-pview ul, .np-pview ol, .np-preview ul, .np-preview ol { margin: .2em 0 .6em; padding-left: 1.4em; }
+.np-paper > .md-ed { flex: 1; min-height: 0; }
+.np-paper > .md-ed #paperNote { flex: 1; min-height: 0; overflow-y: auto; }
+.np-preview { flex: 1; padding: 14px 16px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); cursor: text; font: 15px/1.85 var(--read-zh); }
+
+/* ---------- 在 PDF 裡找字 ---------- */
+body:not(.pdf-main) [data-act="find"] { display: none; }
+#findbar { position: absolute; top: 10px; right: 22px; z-index: 12; display: flex; align-items: center; gap: 4px; height: 38px; padding: 0 6px 0 12px; border-radius: 999px; background: var(--surface); color: var(--ink-3); box-shadow: 0 0 0 1px var(--rule-2), var(--shadow); }
+#findbar input { width: 190px; border: 0; outline: 0; background: transparent; font-size: 13.5px; color: var(--ink); }
+#findbar .n { min-width: 46px; text-align: right; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#findbar button { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); }
+#findbar button:hover { background: var(--surface-2); color: var(--ink); }
+.pv-find { position: absolute; inset: 0; pointer-events: none; }
+.pv-hit { position: absolute; border-radius: 2px; background: rgba(255, 170, 0, .34); mix-blend-mode: multiply; }
+.pv-hit.cur { background: rgba(255, 120, 0, .5); outline: 2px solid rgba(255, 120, 0, .9); outline-offset: 1px; }
+:root[data-theme="dark"] .pv-hit { mix-blend-mode: screen; background: #6b4a00; }
+:root[data-theme="dark"] .pv-hit.cur { background: #a85a00; outline-color: #ffa94d; }
+
+.about .keyrows.wide { grid-template-columns: minmax(96px, auto) 1fr; }
+.about .keyrows.wide kbd { white-space: nowrap; min-width: 0; }

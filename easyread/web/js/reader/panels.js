@@ -5,12 +5,16 @@
   const body = document.body;
 
   /* ---------- 偏好 ---------- */
-  const DEF = Object.assign({ theme: "auto", mode: "zh", lead: "translation", biOrder: "translation" }, PR.TYPE_DEFAULTS);
+  const DEF = Object.assign({ theme: "auto", mode: "zh", lead: "translation", biOrder: "translation", layout: "pdf", pdfZoom: 1 }, PR.TYPE_DEFAULTS);
   /* 1.3.1 测试版存过 readingLanguage（zh / en），换成 lead；传进来的是存下的原样，还没合默认值 */
   PR.migratePrefs = function (p) {
     if (p.lead == null && p.readingLanguage != null) p.lead = p.readingLanguage === "en" ? "original" : "translation";
     if (p.biOrder == null && p.readingLanguage != null) p.biOrder = p.lead;
     delete p.readingLanguage;
+    if (p.fontGen !== 2) {  // 這一版起內文預設用黑體（以前是宋體）：存過的偏好換一次，之後改回宋體就照你的
+      if (p.font === "serif") p.font = "sans";
+      p.fontGen = 2;
+    }
     return p;
   };
   PR.prefs = Object.assign({}, DEF, PR.migratePrefs(PR.ls.get("easyread-prefs", {})));
@@ -21,9 +25,12 @@
     root.style.setProperty("--measure", p.measure + "em");
     PR.applyTheme(p.theme);
     body.classList.toggle("font-sans", p.font === "sans");
+    body.classList.toggle("font-serif", p.font === "serif");
+    body.classList.toggle("font-round", p.font === "round");
     body.classList.toggle("mode-bi", p.mode === "bi");
     body.classList.toggle("no-margin", !p.margin);
     if (PR.applyReadingLanguage) PR.applyReadingLanguage();
+    if (PR.applyLayout) PR.applyLayout();  // PDF 優先 / 文章優先（pdfmode.js）
     PR.ls.set("easyread-prefs", Object.assign(PR.migratePrefs(PR.ls.get("easyread-prefs", {})), p));
     if (PR.store.mode === "server") PR.savePrefs("reader", p);
   };
@@ -51,8 +58,9 @@
   PR.renderSettings = function () {
     PR.$("#settings").innerHTML =
       '<div class="row view-row-narrow">' + PR.viewSegHtml(true) + "</div>" +
+      '<div class="row"><span>' + PR.t("版面") + "</span>" + segHtml("layout", [["pdf", PR.t("PDF 優先")], ["article", PR.t("文章優先")]]) + "</div>" +
       slider("fs", PR.t("字号"), 13, 28, 1, " px") + slider("measure", PR.t("版心"), 26, 50, 1, PR.t(" 字")) + slider("lh", PR.t("行距"), 1.5, 2.4, 0.05, "") +
-      '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["serif", PR.t("宋体")], ["sans", PR.t("黑体")]]) + "</div>" +
+      '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["sans", PR.t("黑体")], ["round", PR.t("圓體")], ["serif", PR.t("宋体")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("边注") + "</span>" + segHtml("margin", [[true, PR.t("显示")], [false, PR.t("收起")]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>' + PR.t("恢复默认") + '</button><span class="grow"></span>' +
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">' + PR.t("更多设置…") + "</button>" : "") + "</div>";
@@ -77,6 +85,7 @@
     if (!b) return;
     let v = b.dataset.v;
     if (b.dataset.p === "margin") v = v === "true";
+    if (b.dataset.p === "layout" && PR.setLayout) return PR.setLayout(v);
     PR.setPref(b.dataset.p, v);
   });
   /* 排版全部回到默认（主题不动）；opts 传进来就用它（设置里改过的默认值） */
@@ -98,10 +107,14 @@
     PR.$("#bar .save-state").before(pill);
   };
   PR.$('[data-act="drawer"]').innerHTML = PR.icon("menu");
-  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>PDF</span>";
+  /* 頂欄只放圖示（名字在滑鼠提示裡） */
+  PR.$('[data-act="pages"]').innerHTML = PR.icon("page");
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
-  PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
-  PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
+  PR.$('[data-act="notes"]').innerHTML = PR.icon("notebook");
+  PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle");
+  PR.$('[data-act="layout"]').innerHTML = PR.icon("panel");
+  PR.$('[data-act="find"]').innerHTML = PR.icon("search");
+  PR.$('[data-act="settings"]').innerHTML = PR.icon("type");
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
   PR.applyFeatures = function () {
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
@@ -120,14 +133,17 @@
     const act = a.dataset.act;
     if (act === "drawer") PR.toggleDrawer();
     if (act === "pages") PR.togglePages();
+    if (act === "layout" && PR.setLayout) PR.setLayout(PR.pdfMain && PR.pdfMain() ? "article" : "pdf");
     if (act === "notes") PR.toggleNotesPanel();
     if (act === "chat") PR.toggleChat();
     if (act === "settings") { PR.renderSettings(); PR.$("#settings").classList.toggle("open"); }
     if (act === "about") PR.toggleDrawer(true, "about");
+    if (act === "job" && PR.jobPopover) PR.jobPopover(a);
+    if (act === "find" && PR.openFind) PR.findOpen() ? PR.closeFind() : PR.openFind();
   });
   document.addEventListener("mousedown", (e) => {
     if (!e.target.closest("#settings, [data-act=settings]")) PR.$("#settings").classList.remove("open");
-    if (!e.target.closest("#popover, a.cite, a.xref, mark.hl, .stale-tag, #blockbar")) PR.hidePopover();
+    if (!e.target.closest("#popover, a.cite, a.xref, mark.hl, .stale-tag, #blockbar, #jobState, [data-act=pages], #ctxmenu")) PR.hidePopover();
   });
   PR.on("status", ({ s, text }) => {
     const el = PR.$(".save-state");
@@ -135,14 +151,19 @@
     el.querySelector("span").textContent = text;
     el.title = s === "saved" ? PR.t("修改已写入 reader.json") : text;
   });
+  /* 翻譯狀態：一顆小按鈕（進度或警示），點開是說明和「重試／取消」（pdfmode.js 的 jobPopover） */
   PR.renderJobState = function () {
     const j = S.job || {};
     const el = PR.$("#jobState");
-    if (j.state === "confirm") { el.textContent = PR.t("等你确认"); return; }
-    if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || PR.t("翻译中")) + (j.total ? " " + j.done + "/" + j.total : "");
-    else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
-    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
-    else el.innerHTML = "";
+    let html = "", title = "", cls = "";
+    if (j.state === "confirm") { html = PR.icon("alert", "sm"); title = PR.t("等你确认"); }
+    else if (["queued", "running"].includes(j.state)) { html = '<span class="spin"></span>' + (j.total ? "<span>" + j.done + "/" + j.total + "</span>" : ""); title = j.message || PR.t("翻译中"); }
+    else if (j.state === "error") { html = PR.icon("alert", "sm"); cls = "err"; title = (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + (j.error ? PR.t("：") + j.error : ""); }
+    else if (j.state === "partial") { html = PR.icon("alert", "sm"); cls = "err"; const n = Object.keys(j.failed || {}).length; title = (j.read ? PR.t("{n} 页没整理成功", { n }) : PR.t("{n} 页没译成功", { n })) + (j.error ? PR.t("：") + j.error : ""); }
+    el.innerHTML = html;
+    el.title = title;
+    el.className = "job-state" + (cls ? " " + cls : "");
+    el.hidden = !html;
   };
 
   /* ---------- 抽屉 ---------- */
@@ -217,10 +238,10 @@
       "<h3>" + PR.t("保存") + "</h3><p>" + status + "</p>" + (PR.store.pending ? "<p>" + PR.t("还有 {n} 条修改在等待写入。", { n: PR.store.pending }) + "</p>" : "") +
       '<div class="row">' + (pdf ? '<a class="btn sm line" href="' + pdf + '" target="_blank" rel="noopener">' + PR.t("打开原 PDF") + "</a>" : "") +
       '<button class="btn sm line" data-x="md">' + PR.t("导出笔记…") + "</button>" + (PR.store.mode === "static" && !S.demo ? '<button class="btn sm line" data-x="ops">' + PR.t("导出我的修改") + "</button>" : "") + "</div>" +
-      "<h3>" + PR.t("怎么用") + "</h3><p>" + PR.t("点一下段落，上方出现操作条：笔记、提问、问 AI、原文、改译文、原页。右键段落是完整菜单。选中文字可以用四种颜色划线、写笔记、提问；打开问 AI 时，选中的文字可以直接拖进输入框，一次引用多段。双击一段直接改译文。") + "</p>" +
+      "<h3>" + PR.t("怎么用") + "</h3><p>" + PR.t("在 PDF 上選字：畫線、寫筆記、翻譯、問 AI。選不到字的圖和投影片用右下角的框選。筆記收起來是一顆小圓點，點它打開。上課時開筆記面板的「本頁」，跟著頁面邊聽邊打。") + "</p>" +
       "<h3>" + PR.t("快捷键") + "</h3>" + (PR.keysOn
         ? '<div class="keyrows">' + PR.KEY_ACTIONS.filter(([id, , , , need]) => PR.keymap[id] && (!need || PR.feature(need))).map(([id, label]) => "<kbd>" + PR.esc(PR.keyOf(id)) + "</kbd><span>" + label + "</span>").join("") +
-          "<kbd>1–4</kbd><span>" + PR.t("选中文字后：四色划线") + "</span><kbd>Esc</kbd><span>" + PR.t("关闭面板、取消选中") + "</span></div>"
+          "<kbd>1–4</kbd><span>" + PR.t("选中文字后：四色划线") + "</span><kbd>Esc</kbd><span>" + PR.t("关闭面板、取消选中") + "</span></div>" + PR.shortcutRows()
         : "<p>" + PR.t("快捷键已关闭。") + "</p>") +
       '<button class="btn sm line" data-x="keys">' + PR.t("设置快捷键和功能") + "</button></div>";
   }

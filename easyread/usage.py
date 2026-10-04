@@ -99,6 +99,14 @@ def from_codex(event: dict) -> dict:
             "output": int(u.get("output_tokens") or 0)}
 
 
+def from_agy(res: dict) -> dict:
+    """agy --print --output-format json 的 usage：input_tokens 不含命中快取的，cache_read_tokens 另外算；思考 token 算進輸出。"""
+    u = (res or {}).get("usage") or {}
+    cached = int(u.get("cache_read_tokens") or 0)
+    return {"input": int(u.get("input_tokens") or 0) + cached, "cached": cached,
+            "output": int(u.get("output_tokens") or 0) + int(u.get("thinking_tokens") or 0)}
+
+
 def from_openai(res: dict) -> dict:
     """Chat Completions 或 Responses 返回的 usage（DeepSeek 的缓存命中数字段名不一样）。"""
     u = (res or {}).get("usage") or {}

@@ -14,7 +14,7 @@ from __future__ import annotations
 import difflib
 import re
 
-from . import engines, langs, prompts, sentences
+from . import engines, langs, prompts, sentences, tw
 from .i18n import tr
 from .terms import _MATH, _mentions, _swap, mentions_count, occurrences
 
@@ -165,9 +165,11 @@ def check(ws, cfg: dict, pages: list[int], cancel, meter, journal, lock) -> int:
     if not items:
         journal(ws, tr("术语一致性检查：没有发现不一致"))
         return 0
-    name = langs.prompt_name(langs.of_paper(paper.get("meta")))
-    data = engines.parse_json(engines.run(cfg, prompts.consistency(items, agree, name), ws.root, None, cancel, meter))
+    target = langs.of_paper(paper.get("meta"))
+    data = engines.parse_json(engines.run(cfg, prompts.consistency(items, agree, langs.prompt_name(target)), ws.root, None, cancel, meter))
     data = data if isinstance(data, dict) else {}
+    if tw.is_tw((paper.get("meta") or {}).get("target")):  # 譯過的論文都記了語言；只看記下的，不猜
+        data = tw.convert(data)  # 保險：定下的譯法不能夾簡體字
     asked = {t["en"]: t["want"] for it in items for t in it["terms"]}
     use = {en: _clean(v) for en, v in (data.get("use") or {}).items() if en in asked and len(_clean(v)) >= 2}
     # 统一成纯英文缩写（supervised fine-tuning → SFT）不算译法，不换；保留原词（Transformer）的照常

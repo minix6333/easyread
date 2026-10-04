@@ -13,6 +13,7 @@ dependencies = [
   "pypdf>=4",
   "truststore>=0.10",
   "certifi>=2024.8.30",
+  "opencc-python-reimplemented>=0.1.7",
 ]
 
 [project.scripts]

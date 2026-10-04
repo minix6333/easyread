@@ -24,7 +24,7 @@
     PR.setPref("mode", "bi");
   };
 
-  const CARET = '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
+  const CARET = PR.icon("chevron", "sm");
   function viewTitle(k, L) {
     if (k !== "both") return L[k + "Full"];
     return PR.t("双语，{what}在前（B）", { what: PR.prefs.biOrder === "original" ? L.original : L.translation });
