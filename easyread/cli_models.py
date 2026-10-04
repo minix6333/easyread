@@ -50,27 +50,37 @@ def codex() -> dict:
 _agy_cache: dict = {}
 
 
+_agy_lock = threading.Lock()
+
+
 def agy() -> dict:
-    """{"default": "", "models": [{"id": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]}：跑一次 `agy models`（要幾秒），記一小時。"""
-    import subprocess, time
+    """{"default": "", "models": [{"id": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]}。
+    `agy models` 要連 Google，正常一兩秒，服務出狀況時會卡一分鐘：所以這裡永遠馬上回上次查到的（沒有就空），查詢放到背景跑，記一小時。"""
+    import time
     exe = engines.agy_path({})
     if not exe:
         return {"default": "", "models": []}
-    if _agy_cache and time.time() - _agy_cache.get("at", 0) < 3600:
-        return _agy_cache["data"]
-    out: list[dict] = []
+    fresh = _agy_cache and time.time() - _agy_cache.get("at", 0) < 3600
+    if not fresh and _agy_lock.acquire(blocking=False):
+        threading.Thread(target=_agy_refresh, args=(exe,), daemon=True).start()
+    return _agy_cache.get("data") or {"default": "", "models": []}
+
+
+def _agy_refresh(exe: str) -> None:
+    import subprocess, time
     try:
-        text = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=60, creationflags=engines._NO_WINDOW).stdout
+        out: list[dict] = []
+        text = subprocess.run([exe, "models"], capture_output=True, text=True, timeout=90, creationflags=engines._NO_WINDOW).stdout
         for line in text.splitlines():
             parts = line.strip().split("\t")
             if len(parts) >= 2 and not line.lower().startswith("fetching"):
                 out.append({"id": parts[0].strip(), "name": parts[1].strip()})
-    except Exception:  # noqa: BLE001 —— 沒登入、沒網路：清單空著，設定頁會顯示「還不能用」
+        if out:
+            _agy_cache.update(at=time.time(), data={"default": "", "models": out})
+    except Exception:  # noqa: BLE001 —— 沒登入、沒網路：清單先空著，下次再查
         log.info("查 Antigravity 模型清單失敗", exc_info=True)
-    data = {"default": "", "models": out}
-    if out:
-        _agy_cache.update(at=time.time(), data=data)
-    return data
+    finally:
+        _agy_lock.release()
 
 
 def claude_default() -> str:

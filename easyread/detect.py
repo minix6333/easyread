@@ -58,6 +58,9 @@ def _refresh(cfg: dict) -> dict:
     if out.get("claude", {}).get("found"):
         from .cli_models import probe_claude
         threading.Thread(target=probe_claude, args=(cfg["claude"], out["claude"]["version"]), daemon=True).start()
+    if out.get("agy", {}).get("found"):
+        from .cli_models import agy
+        agy()  # 先把 Gemini 模型清單查起來（背景），打開設定時就有
     return out
 
 

@@ -267,3 +267,4 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 
 .about .keyrows.wide { grid-template-columns: minmax(96px, auto) 1fr; }
 .about .keyrows.wide kbd { white-space: nowrap; min-width: 0; }
+.thinking .wait-hint { margin-left: 8px; font: 12px var(--ui); color: var(--ink-3); align-self: center; }

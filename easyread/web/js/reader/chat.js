@@ -87,6 +87,12 @@
     return true;
   }
 
+  /* 不會逐字串流的引擎（Codex、Antigravity）：等的時候說一聲，不然看起來像當掉 */
+  PR.waitHint = function (id) {
+    const m = st.models.find((x) => x.id === (id || st.model));
+    if (!m || m.engine === "claude" || m.engine === "openai") return "";
+    return '<span class="wait-hint">' + PR.t("{model} 寫完才會一次顯示，通常 10–30 秒", { model: PR.esc(m.label || m.name) }) + "</span>";
+  };
   /* 現在用哪個模型：問 AI 面板、便利貼裡的提問、筆記卡片共用一個（ask.js、margin.js 用） */
   PR.chatModel = {
     load: () => load(),
@@ -119,7 +125,7 @@
       // 设置变更只刷新模型，不能覆盖尚未发送的模式或正在流式回答的对话。
       if (!modelsOnly) st.threads = d.threads || [];
       st.models = d.models || []; st.def = d.default; st.limits = d.limits || null;
-      if (!st.catalog) st.catalog = ((await PR.api("/api/engines").catch(() => ({}))).models || {});
+      if (!st.catalog) PR.api("/api/engines").then((d) => { st.catalog = d.models || {}; }).catch(() => {});  // 只給思考強度的選單用，不等它
       const last = PR.ls ? PR.ls.get("easyread-chat-model", "") : "";  // 上次手動換過的模型
       if (!st.model && last && st.models.some((m) => m.id === last && m.ready !== false)) st.model = last;
       if (!st.model || !st.models.some((m) => m.id === st.model)) st.model = st.def;
@@ -188,7 +194,7 @@
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i>' + PR.waitHint(st.model) + "</p>") + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }

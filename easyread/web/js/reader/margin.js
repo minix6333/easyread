@@ -61,7 +61,7 @@
     if (!l) return "";
     return '<div class="reply live' + (l.error ? " err" : "") + '"><div class="rhd"><span class="ic ai">' + PR.icon("sparkle", "sm") + '</span><span class="who">' + PR.esc(l.model || "AI") + "</span>" + (l.error ? "" : '<span class="spin"></span>') +
       '<span class="grow"></span><span class="acts on">' + (l.error ? act("ask", "redo", PR.t("再試一次")) + act("dismiss", "x", PR.t("关闭")) : act("stop", "stop", PR.t("停止"))) + "</span></div>" +
-      '<div class="body">' + (l.error ? PR.esc(l.error) : l.text ? PR.mdBlocks(l.text) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div></div>";
+      '<div class="body">' + (l.error ? PR.esc(l.error) : l.text ? PR.mdBlocks(l.text) : '<p class="thinking"><i></i><i></i><i></i>' + (PR.waitHint ? PR.waitHint() : "") + "</p>") + "</div></div>";
   }
   const pageOf = (d) => (d.side === "pdf" && d.page) || (PR.blockById[d.anchor] || {}).page || 0;
 
