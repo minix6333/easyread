@@ -54,6 +54,9 @@ def detect() -> list[dict]:
         for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
             add("gdrive", "Google Drive", Path(f"{letter}:/My Drive"))
 
+    # 鏡像模式下串流路徑可能只是指到鏡像根目錄的替身：根目錄底下還有一層「我的雲端硬碟」的，不算（真正的內容在那一層）
+    found[:] = [f for f in found if f["id"] != "gdrive" or not any((Path(f["root_path"]) / sub).is_dir() for sub in drive_subs)]
+
     # Dropbox 官方支持 info.json，包含 personal/business 两种账户。
     # help.dropbox.com/installs/locate-dropbox-folder
     infos = [home / ".dropbox" / "info.json"]
