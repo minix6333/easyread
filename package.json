@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "build:backend": "python scripts/build_backend.py",
+    "build:backend": "python3 scripts/build_backend.py || python scripts/build_backend.py",
     "dist": "npm run build:backend && electron-builder --publish never"
   },
   "devDependencies": {
