@@ -236,6 +236,8 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
     noun = kinds.noun(kinds.of(ws.load("paper").get("meta")))
     text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。\n" + style  # i18n-ok
+            # 结论先行：第一句就是答案，读者一两秒内就看到有用的东西，再往下展开（回答逐字流出来，开头最值钱）
+            + "第一句直接给出结论或答案，再往下展开说明；不要先铺垫背景。"  # i18n-ok
             + "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
             "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
             r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok

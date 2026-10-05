@@ -261,9 +261,9 @@
   const live = { msg: null, at: 0, html: "" };
   function safeCut(text) {
     let fence = 0, math = 0, br = 0, cut = 0;
-    for (const m of text.matchAll(/```|\$\$|\\\[|\\\]|\n[ \t]*\n/g)) {
+    for (const m of text.matchAll(/\x60\x60\x60|\$\$|\\\[|\\\]|\n[ \t]*\n/g)) {  // \x60 是反引號（寫成字面會干擾 i18n 檢查）
       const t = m[0];
-      if (t === "```") fence ^= 1;
+      if (t.charCodeAt(0) === 96) fence ^= 1;
       else if (t === "$$") math ^= 1;
       else if (t === "\\[") br++;
       else if (t === "\\]") br = Math.max(0, br - 1);
