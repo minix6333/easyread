@@ -256,10 +256,40 @@
     const input = PR.$("#chatInput");
     if (input) PR.autosize(input);
   }
+  /* 串流時只重畫還沒寫完的那一段：前面已經成段（空行之後、不在程式碼圍欄或公式裡）的 HTML 封存起來不再碰，
+     每個字進來只重新解析結尾那一段，KaTeX 和表格不用每次重算，長回答也不卡（「sealed prefix / live tail」的做法） */
+  const live = { msg: null, at: 0, html: "" };
+  function safeCut(text) {
+    let fence = 0, math = 0, br = 0, cut = 0;
+    for (const m of text.matchAll(/```|\$\$|\\\[|\\\]|\n[ \t]*\n/g)) {
+      const t = m[0];
+      if (t === "```") fence ^= 1;
+      else if (t === "$$") math ^= 1;
+      else if (t === "\\[") br++;
+      else if (t === "\\]") br = Math.max(0, br - 1);
+      else if (!fence && !math && !br) cut = m.index + t.length;
+    }
+    return cut;
+  }
   function renderLive() {
     const node = st.streaming && PR.$("#chatList .cm.ai:last-child .body");
     if (!node) return;
-    node.innerHTML = st.streaming.msg.content ? PR.mdBlocks(st.streaming.msg.content) : '<p class="thinking"><i></i><i></i><i></i></p>';
+    const text = st.streaming.msg.content;
+    if (!text) { node.innerHTML = '<p class="thinking"><i></i><i></i><i></i></p>'; return; }
+    if (live.msg !== st.streaming.msg || live.at > text.length) Object.assign(live, { msg: st.streaming.msg, at: 0, html: "" });
+    let sealed = node.firstElementChild, tail = node.lastElementChild;
+    if (!sealed || !sealed.classList.contains("md-sealed")) {
+      node.innerHTML = '<div class="md-sealed"></div><div class="md-tail"></div>';
+      sealed = node.firstElementChild; tail = node.lastElementChild;
+      sealed.innerHTML = live.html;
+    }
+    const cut = safeCut(text);
+    if (cut > live.at) {
+      const more = PR.mdBlocks(text.slice(live.at, cut));
+      live.html += more; live.at = cut;
+      sealed.insertAdjacentHTML("beforeend", more);
+    }
+    tail.innerHTML = PR.mdBlocks(text.slice(live.at));
     const box = PR.$("#chatList");
     if (box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
   }

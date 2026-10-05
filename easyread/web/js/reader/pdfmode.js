@@ -149,11 +149,17 @@
   grip.addEventListener("mousedown", (e) => {
     e.preventDefault();
     body.classList.add("resizing");
-    const move = (ev) => keepPlace(() => { w = ev.clientX; clampW(); });
+    // 拖的時候只動分割線本身（--pdf-w-live），放開才重排：每一格都重排幾頁的圖和文字框會一卡一卡
+    let pending = 0, x = e.clientX;
+    const paint = () => { pending = 0; root.style.setProperty("--pdf-w-live", Math.round(x) + "px"); };
+    const move = (ev) => { x = ev.clientX; if (!pending) pending = requestAnimationFrame(paint); };
     const up = () => {
       document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      if (pending) cancelAnimationFrame(pending);
       body.classList.remove("resizing");
-      w = clampW()[0]; PR.ls.set(KEY_W, w);
+      root.style.removeProperty("--pdf-w-live");
+      keepPlace(() => { w = x; w = clampW()[0]; });
+      PR.ls.set(KEY_W, w);
       relayout();
     };
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
