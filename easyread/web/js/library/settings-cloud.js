@@ -74,12 +74,12 @@
           d.temp ? PR.t("当前是临时文献库，不能更改位置。") : "", button("reveal", PR.t("打开文件夹"), "", busy) + button("custom", PR.t("迁移…"), "", disabled(s), true)) +
         '<div class="cloud-head"><h4 class="set-h">' + PR.t("网盘") + '</h4><button class="linkish" data-cloud="refresh"' + (busy || d.restart_required ? " disabled" : "") + ">" + PR.t("重新检测") + "</button></div>" +
         '<div class="cloud-cards">' + others.map((c) => target(s, c)).join("") + (s.cloudCustom && s.cloudCustom.path !== d.path ? target(s, Object.assign({ custom: true }, s.cloudCustom)) : "") +
-        card("plus", "", PR.t("其他网盘"), "", (d.candidates || []).length ? PR.t("坚果云、Google Drive 等：选它们的同步文件夹") : PR.t("没检测到 OneDrive、Dropbox、iCloud。坚果云、Google Drive 等：选它们的同步文件夹"),
+        card("plus", "", PR.t("其他网盘"), "", (d.candidates || []).length ? PR.t("坚果云、Google Drive 等：选它们的同步文件夹") : PR.t("没检测到 Google Drive、OneDrive、Dropbox、iCloud。坚果云等：选它们的同步文件夹"),
           button("custom", PR.t("选择文件夹…"), "", disabled(s)), "ghost") + "</div>" +
         (busy ? '<p class="cloud-progress" role="status"><span class="spin"></span> ' + PR.t("正在处理文献库，请不要关闭 EasyRead…") + "</p>" : "") +
         '<h4 class="set-h">' + PR.t("注意") + '</h4><ul class="cloud-notes"><li>' +
         PR.t("迁移是复制，原来的文件夹保留不删。") + "</li><li>" +
-        PR.t("不要在两台电脑上同时开着 EasyRead，否则同一篇论文的改动会互相覆盖。") + "</li><li>" +
+        PR.t("两台电脑可以同时开着：笔记各自记录、自动合并；翻译时另一台会看到“另一台电脑正在翻译”。") + "</li><li>" +
         PR.t("iCloud 和 Google Drive 的省空间模式可能让文件只留在云端。请把 EasyRead 文件夹设为始终保留在此设备上。") + "</li><li>" +
         PR.t("百度网盘、迅雷没有实时同步文件夹，不适合放文献库。") + "</li></ul></div>";
     },
@@ -170,7 +170,7 @@
       PR.$(".main").insertBefore(node, PR.$(".list-head"));
     }
     node.innerHTML = '<span>' + PR.esc(restart ? PR.t("文献库位置已更改，请先重启再继续阅读。") :
-      PR.t("文献库可能正在另一台电脑（{host}）上打开。同时修改同一篇论文，改动会互相覆盖。", { host })) + "</span>" +
+      PR.t("文献库正在另一台电脑（{host}）上打开。笔记会自动合并；别在两台同时翻译同一篇。", { host })) + "</span>" +
       (!restart ? '<button class="btn sm" data-cloud-dismiss>' + PR.t("关闭") + "</button>" : "");
     node.onclick = (e) => { if (!restart && e.target.closest("[data-cloud-dismiss]")) { dismissedHost = host; node.remove(); } };
   };
