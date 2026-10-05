@@ -82,9 +82,15 @@
     artOpen = open;
     PR.applyLayout();
     if (!open) return;
-    PR.fitWide(); PR.renderMargin(); PR.layoutMargin && PR.layoutMargin();
     const to = (opts && opts.to) || (PR.pdfBlock && PR.pdfBlock());
     if (!(opts && opts.quiet) && to && PR.blockById[to]) PR.jumpTo("b-" + to, { noBack: true, instant: true });
+    // 寬公式重量（實測 140 ms）和邊注排版等譯文滑出來之後再做，先讓面板順順地滑；量完把剛才跳到的段落停回原位
+    const node = to && document.getElementById("b-" + to);
+    PR.afterSlide(() => {
+      const top = node ? node.getBoundingClientRect().top : 0;
+      PR.fitWide(); PR.renderMargin(); PR.layoutMargin && PR.layoutMargin();
+      if (node) window.scrollBy(0, node.getBoundingClientRect().top - top);
+    });
   };
   PR.setLayout = function (mode) {
     const pdf = mode !== "article";

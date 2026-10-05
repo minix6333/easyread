@@ -29,9 +29,17 @@
     const before = node ? node.getBoundingClientRect().top : 0;
     body.classList.toggle("side-open", !!name);
     if (PR.applyLayout) PR.applyLayout();  // PDF 優先：三欄擠不下時重新分配寬度
-    PR.fitWide(); PR.renderMargin();
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
+    // 寬公式重量、邊注重排（開著譯文時要一兩百毫秒）等面板滑完再做，滑動的那 0.2 秒才不會掉幀
+    PR.afterSlide(() => {
+      const top = node ? node.getBoundingClientRect().top : 0;
+      PR.fitWide(); PR.renderMargin();
+      if (node) window.scrollBy(0, node.getBoundingClientRect().top - top);
+    });
   };
+  /* 面板滑進滑出要 .22 秒（CSS --dur）：重的工作排到那之後；連著叫幾次只做最後一次 */
+  let slideT = null;
+  PR.afterSlide = function (fn) { clearTimeout(slideT); slideT = setTimeout(fn, 240); };
 
   PR.togglePages = function (force) {
     if (PR.pdfMain && PR.pdfMain()) { PR.toggleArticle && PR.toggleArticle(force); return; }  // PDF 優先：這顆按鈕開關的是譯文

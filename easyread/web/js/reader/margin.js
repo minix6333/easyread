@@ -135,6 +135,11 @@
     const groups = collect();
     PR.noteGroups = groups;
     const margin = PR.$("#margin");
+    // PDF 優先、譯文收著：正文整個藏著，卡片畫了也看不到——只更新 PDF 旁的邊註欄就好（開關面板時省下幾毫秒）
+    if (document.body.classList.contains("pdf-main") && !document.body.classList.contains("art-open")) {
+      PR.renderPvMargin && PR.renderPvMargin();
+      return;
+    }
     PR.$$(".note-pin, .inline-notes").forEach((n) => n.remove());
     const wide = PR.marginWide();
     margin.innerHTML = "";

@@ -99,10 +99,19 @@
   }
 
   /* ---------- 畫 ---------- */
+  /* 同一頁內容沒變（筆記、回答、編輯狀態、頁寬都一樣）就不重畫：開關面板、改設定時會從好幾條路各叫一次 */
+  function signature(page, list, editingId) {
+    const edit = editingId === undefined ? PR.editingNote : editingId;
+    return list.map((n) => n.id + ":" + (n.updated || "") + ":" + JSON.stringify(n.ui || 0) + ":" + PR.repliesTo(n.id).length + ":" + (PR.asking.has(n.id) ? 1 : 0) + ":" + (PR.liveAnswers[n.id] ? (PR.liveAnswers[n.id].text || "").length : 0)).join("|") +
+      "#" + (edit || "") + "#" + Math.round(nodes()[page - 1].node.clientWidth);
+  }
   function renderPage(entry, page, editingId) {
     const col = colOf(entry);
     const list = notesOn(page);
-    if (!list.length) { col.innerHTML = ""; return; }
+    if (!list.length) { col.innerHTML = ""; col.dataset.sig = ""; return; }
+    const sig = signature(page, list, editingId);
+    if (col.dataset.sig === sig) { layoutPage(entry); return; }
+    col.dataset.sig = sig;
     col.innerHTML = list.map((n) => PR.cardHtml({ src: "mine", data: n, anchor: PR.blockById[n.anchor] ? n.anchor : "page:" + page }, editingId === undefined ? PR.editingNote : editingId)).join("") +
       '<svg class="pv-wire" aria-hidden="true"></svg>';
     PR.$$(":scope > .card", col).forEach((c) => { c.classList.add("pv-mcard"); PR.prepCard && PR.prepCard(c); });
@@ -212,8 +221,7 @@
   if (PR.on) {
     PR.on("pages-built", () => setTimeout(() => PR.renderPvMargin(), 0));
     PR.on("remote", (changed) => { if (!changed || changed.includes("reader") || changed.includes("discussion")) soon(); });
-    PR.on("ui-changed", soon);
-    PR.on("rendered", soon);
+    PR.on("rendered", soon);  // ui-changed 由 pdfmode 的 applyLayout 帶到這裡，不另外接
   }
   window.addEventListener && window.addEventListener("resize", PR.debounce ? PR.debounce(() => PR.renderPvMargin(), 150) : () => PR.renderPvMargin());
   /* 卡片裡的圖片載入後高度才定下來 */

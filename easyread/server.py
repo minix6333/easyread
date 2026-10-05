@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import re
 import sys
 import threading
 import time
@@ -30,6 +31,41 @@ MAX_UPLOAD = 200 * 1024 * 1024
 def _safe(base: Path, rel: str) -> Path | None:
     target = (base / rel).resolve()
     return target if target.is_relative_to(base.resolve()) and target.is_file() else None
+
+
+_PREFETCH_AHEAD = 4
+_prefetching: set = set()
+_prefetch_lock = threading.Lock()
+
+
+def _prefetch_pages(root, rel: str, w: int) -> None:
+    """讀者要了第 n 頁某個寬度的圖：n+1…n+4 頁同寬度的圖在背景先生成（已有的略過；pdfium 一次只做一張，排隊做完）。"""
+    m = re.fullmatch(r"pages/page-(\d{3})(\.\w+)", rel)
+    if not m:
+        return
+    n, ext = int(m.group(1)), m.group(2)
+    todo = []
+    with _prefetch_lock:
+        for k in range(n + 1, n + 1 + _PREFETCH_AHEAD):
+            key = (str(root), k, w)
+            nxt = f"pages/page-{k:03d}{ext}"
+            if key in _prefetching or not (root / nxt).exists() or (root / "pages" / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
+                continue
+            _prefetching.add(key)
+            todo.append((key, nxt))
+    if not todo:
+        return
+
+    def go():
+        for key, nxt in todo:
+            try:
+                pdfwork.page_variant(root, nxt, w)
+            except Exception:  # noqa: BLE001 —— 預先做失敗沒關係，真的要時再做
+                pass
+            finally:
+                with _prefetch_lock:
+                    _prefetching.discard(key)
+    threading.Thread(target=go, daemon=True).start()
 
 
 class App:
@@ -302,6 +338,7 @@ class Handler(BaseHTTPRequestHandler):
                 except (KeyError, IndexError, ValueError):
                     w = 1000
                 variant = pdfwork.page_variant(ws.root, rel, w)
+                _prefetch_pages(ws.root, rel, w)  # 後面幾頁同一個寬度的圖先在背景做好，捲過去時不用等（一頁 100–240 ms）
                 return self._file(variant or _safe(ws.root, rel), cache=True)
             if ws and (rel.split("/", 1)[0] in ("pages", "figures", clips.DIR) or rel == "source.pdf"):
                 return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")

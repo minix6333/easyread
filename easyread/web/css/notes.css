@@ -11,7 +11,7 @@ body.font-round { --read-zh: var(--round-zh); }
 table.tbl th, #popover .cap, .np-ai-body, .np-preview, .ch-empty b { font-family: var(--read-zh); }
 
 /* ---------- 筆記卡片 ---------- */
-.card { padding: 10px 12px 11px; border: 1px solid var(--rule); border-left: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13.5px/1.7 var(--read-zh); font-size: calc(13.5px * var(--fs-ratio, 1)); color: var(--ink); transition: top .25s ease, border-color .15s, box-shadow .15s; }
+.card { padding: 10px 12px 11px; border: 1px solid var(--rule); border-left: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13.5px/1.7 var(--read-zh); font-size: calc(13.5px * var(--fs-ratio, 1)); color: var(--ink); transition: top var(--dur) var(--ease), border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .card.mine { border-left-color: var(--rule); }
 .card.check { border-style: dashed; }
 .card:hover, .card.linked { border-color: var(--rule-2); color: var(--ink); }
@@ -48,7 +48,7 @@ html[lang="en"] .card .quote.lost::after { content: " (text changed, quote not f
 html[lang="zh-CN"] .card .q::before { content: "问　"; }
 html[lang="en"] .card .q::before { content: "Q  "; }
 .card .clip { margin: 0 0 7px; max-width: 100%; border-radius: 8px; background-color: #fff; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--rule); }
-:root[data-theme="dark"] .card .clip { filter: invert(.888) hue-rotate(180deg); }
+:root[data-theme="dark"] .card .clip { filter: var(--night-filter, none); }
 .card .body { overflow-wrap: anywhere; }
 .card.mine:not(.editing) > .body { cursor: text; }
 .card.clamp .body { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
@@ -108,14 +108,15 @@ html[lang="en"] .card .q::before { content: "Q  "; }
 .pv-badge.q.busy { animation: badge-pulse 1s ease-in-out infinite; }
 @keyframes badge-pulse { 50% { opacity: .35; } }
 .pv-badge:hover, .pv-badge.active { transform: translate(-30%, -60%) scale(1.35); }
-:root[data-theme="dark"] .pv-badge { box-shadow: 0 0 0 1.5px #1c1b1b, 0 1px 2px rgba(0, 0, 0, .5); }
-:root[data-theme="dark"] .pv-badge.q { background: #1c1b1b; box-shadow: 0 0 0 1.2px var(--accent); }
+:root[data-theme="dark"] .pv-badge { box-shadow: 0 0 0 1.5px var(--night-page-bg, #1c1b1b), 0 1px 2px rgba(0, 0, 0, .5); }
+:root[data-theme="dark"] .pv-badge.q { background: var(--night-page-bg, #1c1b1b); box-shadow: 0 0 0 1.2px var(--accent); }
 :root[data-theme="dark"] .pv-badge.q.done { background: var(--accent); }
-/* 深色模式的螢光筆：頁面是深底淺字，用濾色（screen）疊一層深一點的實色——底色明顯、字還是亮的 */
-:root[data-theme="dark"] .pv-mark:not(.s-ul):not(.q) { mix-blend-mode: screen; background: #7d6500; }
-:root[data-theme="dark"] .pv-mark.c-green:not(.s-ul):not(.q) { background: #1c6e3c; }
-:root[data-theme="dark"] .pv-mark.c-blue:not(.s-ul):not(.q) { background: #23539a; }
-:root[data-theme="dark"] .pv-mark.c-pink:not(.s-ul):not(.q) { background: #8d2f4c; }
+/* 深色模式的螢光筆（頁面反相時）：頁面是深底淺字，用濾色（screen）疊一層深一點的實色——底色明顯、字還是亮的。
+   「調暗」「原色」模式頁面還是淺的，照白天的正片疊底畫 */
+:root[data-theme="dark"] body:not(.night-dim):not(.night-none) .pv-mark:not(.s-ul):not(.q) { mix-blend-mode: screen; background: #7d6500; }
+:root[data-theme="dark"] body:not(.night-dim):not(.night-none) .pv-mark.c-green:not(.s-ul):not(.q) { background: #1c6e3c; }
+:root[data-theme="dark"] body:not(.night-dim):not(.night-none) .pv-mark.c-blue:not(.s-ul):not(.q) { background: #23539a; }
+:root[data-theme="dark"] body:not(.night-dim):not(.night-none) .pv-mark.c-pink:not(.s-ul):not(.q) { background: #8d2f4c; }
 :root[data-theme="dark"] { --hl: rgba(255, 214, 0, .34); --hl-yellow: rgba(255, 214, 0, .34); --hl-green: rgba(94, 210, 120, .34); --hl-blue: rgba(96, 165, 255, .36); --hl-pink: rgba(255, 112, 140, .34); }
 
 /* 框選模式：十字游標，拖出來的框 */
@@ -137,8 +138,9 @@ body.region-mode .pv-scroll { user-select: none; -webkit-user-select: none; }
 .np-list .card.drop-before { box-shadow: 0 -2px 0 0 var(--accent); }
 .np-list .card.drop-after { box-shadow: 0 2px 0 0 var(--accent); }
 
-/* 便利貼：貼在標記旁邊的小卡片；抓標題列可以拖，右下角可以拉大小（記在筆記裡，下次打開還在） */
-.pv-sticky { position: absolute; z-index: 9; }
+/* 便利貼：貼在標記旁邊的小卡片；抓標題列可以拖，右下角可以拉大小（記在筆記裡，下次打開還在）。出現時淡入、微微上浮 */
+.pv-sticky { position: absolute; z-index: 9; animation: sticky-in var(--dur-fast) var(--ease); }
+@keyframes sticky-in { from { opacity: 0; transform: translateY(4px); } }
 .pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: calc(14px * var(--fs-ratio, 1));
   display: flex; flex-direction: column; resize: both; overflow: auto; min-width: 220px; min-height: 72px; box-sizing: border-box; }
 .pv-sticky .card > .hd { cursor: grab; flex: none; }
@@ -229,7 +231,7 @@ html[lang="en"] .blk-heading.appendix-start::after { content: "Appendix"; letter
 .ch-img button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0, 0, 0, .62); color: #fff; font-size: 12px; line-height: 18px; }
 .cm-imgs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .cm-imgs img { display: block; max-width: 220px; max-height: 160px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--rule-2); }
-:root[data-theme="dark"] .cm-imgs img.pdf, :root[data-theme="dark"] .ch-img img.pdf { filter: invert(.888) hue-rotate(180deg); }
+:root[data-theme="dark"] .cm-imgs img.pdf, :root[data-theme="dark"] .ch-img img.pdf { filter: var(--night-filter, none); }
 .ch-attach { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink-3); }
 .ch-attach:hover { background: var(--surface-2); color: var(--ink); }
 .ch-attach:disabled { opacity: .5; }

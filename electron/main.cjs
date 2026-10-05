@@ -31,7 +31,9 @@ function projectRoot() {
 
 function packagedBackend() {
   const name = process.platform === "win32" ? "easyread-backend.exe" : "easyread-backend";
-  return path.join(process.resourcesPath, "backend", name);
+  // PyInstaller 目錄版：resources/backend/easyread-backend/easyread-backend（啟動不用解壓）；舊的單檔版放在 resources/backend/ 下
+  const dir = path.join(process.resourcesPath, "backend", "easyread-backend", name);
+  return fs.existsSync(dir) ? dir : path.join(process.resourcesPath, "backend", name);
 }
 
 function backendCommand() {

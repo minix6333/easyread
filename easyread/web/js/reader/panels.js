@@ -5,7 +5,7 @@
   const body = document.body;
 
   /* ---------- 偏好 ---------- */
-  const DEF = Object.assign({ theme: "auto", mode: "zh", lead: "translation", biOrder: "translation", layout: "pdf", pdfZoom: 1 }, PR.TYPE_DEFAULTS);
+  const DEF = Object.assign({ theme: "auto", mode: "zh", lead: "translation", biOrder: "translation", layout: "pdf", pdfZoom: 1, night: "invert" }, PR.TYPE_DEFAULTS);
   /* 1.3.1 测试版存过 readingLanguage（zh / en），换成 lead；传进来的是存下的原样，还没合默认值 */
   PR.migratePrefs = function (p) {
     if (p.lead == null && p.readingLanguage != null) p.lead = p.readingLanguage === "en" ? "original" : "translation";
@@ -31,6 +31,9 @@
     body.classList.toggle("font-round", p.font === "round");
     body.classList.toggle("mode-bi", p.mode === "bi");
     body.classList.toggle("no-margin", !p.margin);
+    // 夜間的原頁圖：反相（預設）/ 調暗 / 原色（base.css 的 --night-filter）
+    body.classList.toggle("night-dim", p.night === "dim");
+    body.classList.toggle("night-none", p.night === "none");
     if (PR.applyReadingLanguage) PR.applyReadingLanguage();
     if (PR.applyLayout) PR.applyLayout();  // PDF 優先 / 文章優先（pdfmode.js）
     PR.ls.set("easyread-prefs", Object.assign(PR.migratePrefs(PR.ls.get("easyread-prefs", {})), p));
@@ -64,6 +67,7 @@
       slider("fs", PR.t("字号"), 13, 28, 1, " px") + slider("measure", PR.t("版心"), 26, 50, 1, PR.t(" 字")) + slider("lh", PR.t("行距"), 1.5, 2.4, 0.05, "") +
       '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["sans", PR.t("黑体")], ["round", PR.t("圓體")], ["serif", PR.t("宋体")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("边注") + "</span>" + segHtml("margin", [[true, PR.t("显示")], [false, PR.t("收起")]]) + "</div>" +
+      '<div class="row"><span>' + PR.t("夜間頁面") + "</span>" + segHtml("night", [["invert", PR.t("反相")], ["dim", PR.t("調暗")], ["none", PR.t("原色")]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>' + PR.t("恢复默认") + '</button><span class="grow"></span>' +
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">' + PR.t("更多设置…") + "</button>" : "") + "</div>";
   };

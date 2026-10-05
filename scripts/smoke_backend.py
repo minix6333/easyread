@@ -37,7 +37,9 @@ def probe_pdf() -> bytes:
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    exe = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "build" / "backend" / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
+    name = "easyread-backend.exe" if os.name == "nt" else "easyread-backend"
+    built = root / "build" / "backend"
+    exe = Path(sys.argv[1]) if len(sys.argv) > 1 else (built / "easyread-backend" / name if (built / "easyread-backend").is_dir() else built / name)  # 目錄版優先
     with tempfile.TemporaryDirectory(prefix="easyread-frozen-smoke-") as tmp:
         home = Path(tmp)
         pdf = home / "probe.pdf"

@@ -49,13 +49,15 @@ def main() -> None:
             old.unlink()
         elif old.is_dir():
             shutil.rmtree(old)
-    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
+    # onedir 而不是 onefile：單檔版每次啟動都要先把 30 MB 解壓到暫存目錄（實測 1.1 秒），目錄版直接跑（0.2 秒）
+    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--contents-directory", "_internal",
                     "--name", "easyread-backend", "--distpath", str(OUT),
                     "--workpath", str(WORK), "--specpath", str(WORK),
                     *[arg for module in REQUIRED for arg in ("--collect-all", module)],
                     str(ROOT / "scripts" / "backend_entry.py")]
     subprocess.run(cmd, cwd=ROOT, check=True)
-    print(f"后端已生成：{OUT / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
+    exe = OUT / "easyread-backend" / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
+    print(f"后端已生成：{exe}")
 
 
 if __name__ == "__main__":

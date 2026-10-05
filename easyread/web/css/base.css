@@ -43,7 +43,12 @@
   --round-zh: "Yuanti TC", "GenSenRounded TW", "jf-openhuninn-2.0", "Yuanti SC", "PingFang TC", "Microsoft JhengHei UI", sans-serif;
   --read-zh: var(--sans-zh);             /* 內文、筆記用的字型：預設黑體；閱讀頁的 Aa 可以換圓體、宋體 */
   --bar-h: 50px;
+  /* 動畫統一一套節奏：面板、抽屜、對話框都用 --dur/--ease，小東西（按鈕、提示）用 --dur-fast；接起來才不會一個快一個慢 */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur: .22s;
+  --dur-fast: .12s;
 }
+@media (prefers-reduced-motion: reduce) { :root { --dur: .01s; --dur-fast: .01s; } }
 /* 英文介面：西文字型排前面，否則中文字型會把彎引號、撇號畫成全形 */
 html[lang="en"] {
   --ui: "Noto Sans", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
@@ -61,20 +66,21 @@ html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hi
 html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", AppleMyungjo, Batang, serif; --sans-zh: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
 html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
-  /* 暖黑底、米白字、珊瑚紅強調 */
-  --bg: #0e0c0c;
-  --surface: #0e0c0c;
-  --surface-2: #1d1b1a;
-  --card: #1d1b1a;
-  --ink: #e6e1e0;
-  --ink-2: #b5aeab;
-  --ink-3: #857e7b;
-  --rule: #2c2928;
-  --rule-2: #46413f;
-  --accent: #ffb3ad;
+  /* 暖黑底、米白字、珊瑚紅強調。面板和卡片比底色亮一階（Material 的「海拔」做法），邊界不用只靠一條看不見的線；
+     強調色降一點飽和、線條亮一點，夜裡才不刺眼也不會看不見 */
+  --bg: #0f0d0d;
+  --surface: #171514;
+  --surface-2: #242120;
+  --card: #1c1a19;
+  --ink: #e9e4e2;
+  --ink-2: #bab3af;
+  --ink-3: #908986;
+  --rule: #332f2e;
+  --rule-2: #4d4845;
+  --accent: #f3a79f;
   --accent-ink: #3b0d12;
-  --accent-soft: rgba(255, 179, 173, .09);
-  --accent-soft-2: rgba(255, 179, 173, .16);
+  --accent-soft: rgba(243, 167, 159, .1);
+  --accent-soft-2: rgba(243, 167, 159, .18);
   --mine: #9db8ff;
   --mine-soft: rgba(157, 184, 255, .12);
   --danger: #ff8a80;
@@ -85,15 +91,21 @@ html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif
   --hl-green: rgba(94, 210, 120, .28);
   --hl-blue: rgba(96, 165, 255, .28);
   --hl-pink: rgba(255, 112, 140, .26);
-  --ul-yellow: #e8b100; --ul-green: #4fc274; --ul-blue: #6ea3ff; --ul-pink: #ff6b8a;
-  --hl-q: rgba(255, 179, 173, .16);
-  --focus: rgba(255, 179, 173, .06);
-  --pair: rgba(255, 179, 173, .12);
-  --pair-ring: rgba(255, 179, 173, .55);
-  --canvas: #0e0c0c;
+  --ul-yellow: #d9a600; --ul-green: #4bbd70; --ul-blue: #6f9ff5; --ul-pink: #ef6a88;
+  --hl-q: rgba(243, 167, 159, .16);
+  --focus: rgba(243, 167, 159, .06);
+  --pair: rgba(243, 167, 159, .12);
+  --pair-ring: rgba(243, 167, 159, .55);
+  --canvas: #0b0a0a;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 20px -4px rgba(0, 0, 0, .55);
   --shadow-lg: 0 20px 30px -6px rgba(0, 0, 0, .65), 0 8px 12px -6px rgba(0, 0, 0, .5);
+  /* 夜間的原頁圖：預設「反相」（保留色相、只翻明暗，白底黑字變暗底亮字，彩圖的顏色不跑掉；飽和度壓一點免得螢光）。
+     閱讀設定可以換「調暗」（照片、投影片不反相，只把亮度壓下來）或「原色」。 */
+  --night-filter: invert(.888) hue-rotate(180deg) saturate(.9);
+  --night-page-bg: #1c1b1b;
 }
+:root[data-theme="dark"] body.night-dim { --night-filter: brightness(.78) contrast(1.02); --night-page-bg: #c7c5c2; }
+:root[data-theme="dark"] body.night-none { --night-filter: none; --night-page-bg: #ffffff; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -191,9 +203,9 @@ textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height:
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .menu-list hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 4px; }
 
-.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(14, 12, 12, .36); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .18s; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(14, 12, 12, .36); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); }
 .dialog-backdrop.open { opacity: 1; pointer-events: auto; }
-.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 0 0 1px var(--rule), var(--shadow-lg); padding: 22px 24px; transform: translateY(8px); transition: transform .18s; }
+.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 0 0 1px var(--rule), var(--shadow-lg); padding: 22px 24px; transform: translateY(8px); transition: transform var(--dur) var(--ease); }
 .dialog-backdrop.open .dialog { transform: none; }
 .dialog h2 { font: 600 18px/1.4 var(--ui); margin: 0 0 16px; }
 .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
