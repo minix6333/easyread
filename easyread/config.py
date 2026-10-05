@@ -19,6 +19,7 @@ _SOURCE = PACKAGE.parent
 HOME = Path(os.environ.get("EASYREAD_HOME") or (_SOURCE if (_SOURCE / "pyproject.toml").exists() else Path.home() / "EasyRead"))
 PROJECT = HOME  # 旧名，cli 里还在用
 CONFIG_PATH = HOME / "config.json"
+CACHE_DIR = HOME / "cache"          # 同步模式下可重算的東西（頁面圖、抽取文字）放這裡，不進雲端硬碟（見 paths.py）
 LOG_PATH = HOME / "easyread.log"
 SERVER_INFO = HOME / ".server.json"
 

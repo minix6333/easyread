@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from . import paths
 from . import figure_pixels, page_margins
 from .log import log
 
@@ -225,7 +226,7 @@ def locate_figures(root: Path, blocks: list[dict], layout: dict) -> dict[str, li
     result = {}
     try:
         with pdfplumber.open(root / "source.pdf") as pdf:
-            running = page_margins.running_lines(root / "extract", len(pdf.pages))
+            running = page_margins.running_lines(paths.derived(root, "extract"), len(pdf.pages))
             for pn, captions in by_page.items():
                 if not any(c["type"] == "figure" for c in captions.values()) or not 1 <= pn <= len(pdf.pages):
                     continue

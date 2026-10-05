@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from statistics import median
 
+from . import paths
 from .store import write_json_atomic
 
 # PDFium is not thread-safe, even when threads open separate documents.
@@ -186,7 +187,7 @@ def locate(root: Path) -> dict:
 
 def _locate(root: Path) -> dict:
     paper = json.loads((root / "paper.json").read_text(encoding="utf-8"))
-    extract_dir = root / "extract"
+    extract_dir = paths.derived(root, "extract")
     # Blocks may arrive out of page order during parallel translation. Keep only
     # the current/next page streams instead of retaining a whole book's chars.
     @lru_cache(maxsize=2)
@@ -241,10 +242,10 @@ def _locate(root: Path) -> dict:
 def refresh_layout(root: Path) -> None:
     """沿用上游的版本标记；并发打开同一篇论文时只重算一次。"""
     with _LAYOUT_LOCK:
-        marker = root / "extract" / "locate.version"
+        marker = paths.derived(root, "extract") / "locate.version"
         if not (root / "layout.json").exists() or not (root / "paper.json").exists():
             return
-        if not any((root / "extract").glob("page-*.chars.json")):
+        if not any((paths.derived(root, "extract")).glob("page-*.chars.json")):
             return
         if marker.exists() and marker.read_text(encoding="utf-8").strip() == LOCATE_VERSION:
             return
@@ -352,7 +353,7 @@ def _fill_gaps(blocks: list[dict], layout: dict):
 
 def engine_image(root: Path, n: int) -> Path:
     """给翻译模型看的原页图（JPEG，模型工具普遍支持），按需生成。"""
-    out = root / "extract" / f"page-{n:03d}.jpg"
+    out = paths.derived(root, "extract") / f"page-{n:03d}.jpg"
     with _PDFIUM_LOCK:
         if not out.exists():
             out.parent.mkdir(parents=True, exist_ok=True)
@@ -367,10 +368,11 @@ def page_variant(root: Path, rel: str, width: int) -> Path | None:
     """原页图按宽度给：比原图（2.4 倍渲染、约 1500 像素宽）小的缩小，比原图大的（PDF 优先模式放大看）从 PDF 重新渲染。
     生成一次缓存在 pages/w{宽}/。"""
     width = max(400, min(4000, width // 100 * 100))
-    src = (root / rel).resolve()
-    if not src.is_relative_to((root / "pages").resolve()) or not src.is_file():
+    pages = paths.derived(root, "pages")  # 同步模式下在本機快取
+    src = (pages / rel.split("/", 1)[1]).resolve() if rel.startswith("pages/") else (root / rel).resolve()
+    if not src.is_relative_to(pages.resolve()) or not src.is_file():
         return None
-    out = root / "pages" / f"w{width}" / src.name
+    out = pages / f"w{width}" / src.name
     if out.exists():
         return out
     from PIL import Image
@@ -400,16 +402,16 @@ PANEL_WIDTH = 1000  # 原页面板默认要的宽度（阅读页按面板宽度�
 
 def warm_variants(root: Path, width: int = PANEL_WIDTH) -> None:
     """后台把整篇的面板图都先生成好，打开原页面板时不用等。"""
-    pages_dir = root / "pages"
+    pages_dir = paths.derived(root, "pages")
     if not pages_dir.exists():
         return
     for src in sorted(pages_dir.glob("page-*.webp")):
-        if not (root / "pages" / f"w{width}" / src.name).exists():
+        if not (paths.derived(root, "pages") / f"w{width}" / src.name).exists():
             page_variant(root, f"pages/{src.name}", width)
 
 
 def prepare(root: Path) -> list[dict]:
     """渲染原页 + 抽文字，返回 meta.pages。"""
-    pages = render_pages(root / "source.pdf", root / "pages")
-    extract_text(root / "source.pdf", root / "extract")
+    pages = render_pages(root / "source.pdf", paths.derived(root, "pages"))
+    extract_text(root / "source.pdf", paths.derived(root, "extract"))
     return pages

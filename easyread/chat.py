@@ -15,6 +15,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
+from . import paths
 from . import answer_styles, claude_live, codex_live, engines, netcheck, openai_api, usage
 from . import kinds, langs, tw
 from .i18n import tr
@@ -32,7 +33,7 @@ PAPER_BUDGET = 30000  # STE 问答带上正文，长论文各段取节选，保�
 def _page_text(ws: Workspace, n) -> str:
     """原 PDF 某一頁抽取的文字（還沒整理成段落的 PDF，問 AI 時拿這個當上下文）。"""
     try:
-        p = ws.root / "extract" / f"page-{int(n):03d}.txt"
+        p = paths.derived(ws.root, "extract") / f"page-{int(n):03d}.txt"
         return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
     except (TypeError, ValueError):
         return ""

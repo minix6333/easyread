@@ -13,7 +13,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock
+from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -33,6 +34,12 @@ def _safe(base: Path, rel: str) -> Path | None:
     return target if target.is_relative_to(base.resolve()) and target.is_file() else None
 
 
+def _derived_file(root: Path, rel: str) -> Path | None:
+    """pages/… extract/… 這類可重算的檔：同步模式下在本機快取（paths.derived），路徑一樣不能跳出去。"""
+    top, _, rest = rel.partition("/")
+    return _safe(paths.derived(root, top), rest) if rest else None
+
+
 _PREFETCH_AHEAD = 4
 _prefetching: set = set()
 _prefetch_lock = threading.Lock()
@@ -49,7 +56,7 @@ def _prefetch_pages(root, rel: str, w: int) -> None:
         for k in range(n + 1, n + 1 + _PREFETCH_AHEAD):
             key = (str(root), k, w)
             nxt = f"pages/page-{k:03d}{ext}"
-            if key in _prefetching or not (root / nxt).exists() or (root / "pages" / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
+            if key in _prefetching or not (root / nxt).exists() or (paths.derived(root, "pages") / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
                 continue
             _prefetching.add(key)
             todo.append((key, nxt))
@@ -270,6 +277,8 @@ class Handler(BaseHTTPRequestHandler):
         location = library_api.get(app, path)
         if location is not None:
             return self._json(200, location)
+        if path == "/api/sync":  # 文獻庫在同步資料夾時：合併了幾批、看過哪些電腦、有沒有雲端硬碟的衝突副本
+            return self._json(200, {**sync.status(), "device": paths.device()})
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
@@ -308,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
                     ws.patch_item(opened)
                     _warm(ws.root, app.location)
                     _refresh_layout(ws)
-                state = {**{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
+                state = {**{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item")}, "job": jobs.view(ws.load("job")),
                          "versions": ws.versions(), "token": app.token, "id": ws.id, "library_status": app.location.status,
                          "engine": config.load().get("engine")}
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
@@ -328,7 +337,8 @@ class Handler(BaseHTTPRequestHandler):
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
             if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
-                return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
+                data = ws.load(parts[5])
+                return self._json(200, {"data": jobs.view(data) if parts[5] == "job" else data, "version": ws.versions()[parts[5]]})
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
             ws = lib.ws(pid)
@@ -339,11 +349,13 @@ class Handler(BaseHTTPRequestHandler):
                     w = 1000
                 variant = pdfwork.page_variant(ws.root, rel, w)
                 _prefetch_pages(ws.root, rel, w)  # 後面幾頁同一個寬度的圖先在背景做好，捲過去時不用等（一頁 100–240 ms）
-                return self._file(variant or _safe(ws.root, rel), cache=True)
-            if ws and (rel.split("/", 1)[0] in ("pages", "figures", clips.DIR) or rel == "source.pdf"):
+                return self._file(variant or _derived_file(ws.root, rel), cache=True)
+            if ws and rel.startswith("pages/"):  # 原頁圖（同步模式下在本機快取，見 paths.py）
+                return self._file(_derived_file(ws.root, rel), cache=True)
+            if ws and (rel.split("/", 1)[0] in ("figures", clips.DIR) or rel == "source.pdf"):
                 return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")
             if ws and rel.startswith("extract/") and rel.endswith((".chars.json", ".txt")):  # PDF 文字層用的字元座標
-                return self._file(_safe(ws.root, rel), cache=True)
+                return self._file(_derived_file(ws.root, rel), cache=True)
         return self._json(404, {"error": "not found"})
 
     # ---------- POST ----------

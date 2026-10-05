@@ -7,7 +7,7 @@ import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import __version__, config, detect
+from . import __version__, config, detect, sync
 from .log import log, setup as setup_log
 from .presence import Presence
 from .server import App, Handler
@@ -38,6 +38,8 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     log.info("startup http-bound +%.0fms", (time.monotonic() - started) * 1000)
     app.shutdown = httpd.shutdown
     app.location.marker.start()
+    app.sync = sync.Puller(app.lib.root)  # 文獻庫在同步資料夾：背景合併別台電腦的筆記（不是就什麼都不做）
+    app.sync.start()
     app.presence = Presence(app.jobs.busy, httpd.shutdown, exit_on_close)
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})

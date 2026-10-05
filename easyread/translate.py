@@ -9,6 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+from . import paths
 from . import consistency, engines, front_context, kinds, langs, netcheck, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, tw
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
@@ -26,11 +27,11 @@ _REF_LINE = re.compile(r"^\s*(\d+\.?\s*)?(references|bibliography|参考文献)\
 def prepare(ws: Workspace) -> None:
     pages = pdfwork.prepare(ws.root)
     meta0 = ws.load("paper").get("meta", {})
-    kind = kinds.valid(meta0.get("kind")) or kinds.detect(pages, ws.root / "extract")  # 匯入時沒指定就自動判斷
+    kind = kinds.valid(meta0.get("kind")) or kinds.detect(pages, paths.derived(ws.root, "extract"))  # 匯入時沒指定就自動判斷
     extra = {}
     if kind == "paper":
         try:  # 本地拖进来的 PDF：从第一页的 arXiv 编号或 DOI 补上作者、年份、出处（投影片、講義不查）
-            first = ws.root / "extract" / "page-001.txt"
+            first = paths.derived(ws.root, "extract") / "page-001.txt"
             if first.exists():
                 extra = sources.enrich(first.read_text(encoding="utf-8", errors="replace"), meta0)
         except Exception:  # noqa: BLE001
@@ -49,7 +50,7 @@ def references_page(ws: Workspace) -> int | None:
     """参考文献从哪一页开始（找单独成行的 References 标题）。找不到返回 None。"""
     n = ws.load("paper").get("meta", {}).get("page_count") or 0
     for p in range(2, n + 1):
-        f = ws.root / "extract" / f"page-{p:03d}.txt"
+        f = paths.derived(ws.root, "extract") / f"page-{p:03d}.txt"
         if f.exists() and _REF_LINE.search(f.read_text(encoding="utf-8", errors="replace")):
             return p
     return None
@@ -76,7 +77,7 @@ def scope_pages(ws: Workspace, scope: str | None) -> list[int] | None:
 
 def _next_head(ws: Workspace, n: int, whole: bool = False) -> str:
     """下一页开头的抽取文字。whole：整页都给（不能看图的引擎在分段交界处，续文可能排在表格、图注后面）。"""
-    p = ws.root / "extract" / f"page-{n:03d}.txt"
+    p = paths.derived(ws.root, "extract") / f"page-{n:03d}.txt"
     if not p.exists():
         return ""
     text = p.read_text(encoding="utf-8")
@@ -191,7 +192,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     try:
         data = engines.parse_json(text)
     except engines.EngineError:
-        (ws.root / "extract" / f"failed-{batch[0]:03d}.txt").write_text(text, encoding="utf-8")
+        (paths.derived(ws.root, "extract") / f"failed-{batch[0]:03d}.txt").write_text(text, encoding="utf-8")
         raise
     guard = (lambda d: d) if read else _guard(ws)  # 只读原文没有译文，不用转
     data = _normalize(guard(data), batch, _taken(ws, batch))

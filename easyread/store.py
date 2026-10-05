@@ -15,6 +15,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import paths
+
 SCHEMA = 2
 
 
@@ -101,6 +103,27 @@ def empty_discussion() -> dict:
     return {"schema": SCHEMA, "entries": []}
 
 
+def snapshot_ops(reader: dict) -> list[dict]:
+    """整份 reader.json → 等價的一串操作（給 snapshot 合併用）。"""
+    ops: list[dict] = []
+    for nid, n in (reader.get("notes") or {}).items():
+        if isinstance(n, dict):
+            ops.append({"op": "note", "note": {**n, "id": nid}, "at": n.get("updated")})
+    for block, e in (reader.get("edits") or {}).items():
+        if isinstance(e, dict) and e.get("at"):
+            ops.append({"op": "edit", "block": block, "zh": None if e.get("reverted") else e.get("zh"), "base": e.get("base", ""), "at": e["at"]})
+    pn = reader.get("paper_note") or {}
+    if pn.get("at"):
+        ops.append({"op": "paper_note", "body": pn.get("body", ""), "at": pn["at"]})
+    for page, p in (reader.get("page_notes") or {}).items():
+        if isinstance(p, dict) and p.get("at"):
+            ops.append({"op": "page_note", "page": page, "body": p.get("body", ""), "star": bool(p.get("star")), "at": p["at"]})
+    pr = reader.get("progress") or {}
+    if pr.get("at"):
+        ops.append({"op": "progress", "block": pr.get("block"), "ratio": pr.get("ratio"), "page": pr.get("page"), "at": pr["at"]})
+    return ops
+
+
 # ---------- reader.json 的操作合并 ----------
 # 每个操作幂等、带时间戳；同一对象以较新的为准。页面断网时操作留在浏览器，恢复后重发不会重复或倒退。
 
@@ -168,6 +191,9 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
                 if op.get("page") is not None:  # PDF 優先版面記的頁碼
                     progress["page"] = op["page"]
             applied.append("progress")
+        elif kind == "snapshot":  # 另一台電腦開始同步時把整份 reader.json 寫進日誌：拆成一條條操作合併，一樣是新的贏
+            applied.extend(apply_ops(reader, snapshot_ops(op.get("reader") or {})))
+            reader["rev"] = int(reader.get("rev", 0)) - 1  # 下面會再加回來
     if applied:
         reader["rev"] = int(reader.get("rev", 0)) + 1
     return applied
@@ -187,20 +213,24 @@ class Workspace:
 
     paper_path = property(lambda s: s.root / "paper.json")
     discussion_path = property(lambda s: s.root / "discussion.json")
-    reader_path = property(lambda s: s.root / "reader.json")
+    reader_path = property(lambda s: paths.reader_path(s.root))  # 同步模式下在本機快取（見 paths.py）
     item_path = property(lambda s: s.root / "item.json")
-    journal_path = property(lambda s: s.root / "history" / "reader.log.jsonl")
+    journal_path = property(lambda s: paths.derived(s.root, "history") / "reader.log.jsonl")
+
+    def part_path(self, name: str) -> Path:
+        return self.reader_path if name == "reader" else self.root / f"{name}.json"
 
     def load(self, name: str):
         defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}}
-        return read_json(self.root / f"{name}.json", defaults.get(name))
+        return read_json(self.part_path(name), defaults.get(name))
 
     def versions(self) -> dict:
-        v = {n: file_version(self.root / f"{n}.json") for n in self.PARTS}
+        v = {n: file_version(self.part_path(n)) for n in self.PARTS}
         v["job"] = file_version(self.root / "job.json")
         return v
 
-    def apply_reader_ops(self, ops: list[dict], client: str = "") -> dict:
+    def apply_reader_ops(self, ops: list[dict], client: str = "", journal: bool = True) -> dict:
+        """journal=False：這批是從別台電腦的日誌讀進來的（sync.py），不要再寫回自己的日誌。"""
         with dir_lock(self.root):
             reader = self.load("reader")
             applied = apply_ops(reader, ops)
@@ -208,18 +238,20 @@ class Workspace:
                 self._journal(ops, client)
                 self._snapshot()
                 write_json_atomic(self.reader_path, reader)
+                if journal and paths.is_synced(self.root.parent):
+                    paths.sync_append(self.root, ops)
             return {"rev": reader.get("rev", 0), "applied": applied}
 
     def _journal(self, ops, client):
-        self.journal_path.parent.mkdir(exist_ok=True)
+        self.journal_path.parent.mkdir(parents=True, exist_ok=True)  # 同步模式下在本機快取，上層目錄可能還沒建
         with open(self.journal_path, "a", encoding="utf-8") as f:
             for op in ops:
                 f.write(json.dumps({"t": now_iso(), "client": client, **op}, ensure_ascii=False) + "\n")
 
     def _snapshot(self, every_seconds: int = 600):
         """reader.json 每 10 分钟最多留一份快照，出事可以回滚。"""
-        hist = self.root / "history"
-        hist.mkdir(exist_ok=True)
+        hist = paths.derived(self.root, "history")
+        hist.mkdir(parents=True, exist_ok=True)
         snaps = sorted(hist.glob("reader-*.json"))
         if snaps and time.time() - snaps[-1].stat().st_mtime < every_seconds:
             return
@@ -232,7 +264,7 @@ class Workspace:
         with dir_lock(self.root):
             data = self.load(name)
             result = fn(data)
-            write_json_atomic(self.root / f"{name}.json", data)
+            write_json_atomic(self.part_path(name), data)
             return result
 
     def patch_item(self, fields: dict) -> dict:

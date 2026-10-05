@@ -10,6 +10,7 @@ import json
 import re
 from pathlib import Path
 
+from . import paths
 from . import i18n
 from .config import WEB
 from .store import Workspace
@@ -73,7 +74,7 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
     # PDF 文字層用的字元座標：單檔版內嵌；放到網站上時另存成檔案按需載入
     chars = {}
     for p in paper.get("meta", {}).get("pages", []):
-        f = ws.root / "extract" / f"page-{p['n']:03d}.chars.json"
+        f = paths.derived(ws.root, "extract") / f"page-{p['n']:03d}.chars.json"
         if not f.exists():
             continue
         if assets:

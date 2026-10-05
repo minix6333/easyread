@@ -38,6 +38,17 @@ def detect() -> list[dict]:
         for name in ("iCloudDrive", "iCloud Drive"):
             add("icloud", "iCloud Drive", home / name)
 
+    # Google Drive 桌面版：macOS 掛在 ~/Library/CloudStorage/GoogleDrive-<帳號>/<我的雲端硬碟 | My Drive>；
+    # Windows 預設是一個磁碟機（G:\My Drive）或家目錄下的 My Drive。support.google.com/drive/answer/10838124
+    if sys.platform == "darwin":
+        for acct in sorted((home / "Library" / "CloudStorage").glob("GoogleDrive-*")):
+            for sub in ("My Drive", "我的雲端硬碟", "我的云端硬盘"):  # i18n-ok Google 自己取的資料夾名
+                add("gdrive", "Google Drive", acct / sub)
+    if sys.platform == "win32":
+        add("gdrive", "Google Drive", home / "My Drive")
+        for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
+            add("gdrive", "Google Drive", Path(f"{letter}:/My Drive"))
+
     # Dropbox 官方支持 info.json，包含 personal/business 两种账户。
     # help.dropbox.com/installs/locate-dropbox-folder
     infos = [home / ".dropbox" / "info.json"]

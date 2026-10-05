@@ -10,6 +10,8 @@ import math
 import re
 from pathlib import Path
 
+from . import paths
+
 AUTO_MAX = 4      # “自动”最多同时几段（手动最多 8 段）
 LANE_BATCHES = 2  # “自动”时每段大约几批：段数 = 总批数 / 2 向上取整（每批 2 页时每段 4 页），最多 AUTO_MAX
 
@@ -38,7 +40,7 @@ def _body(line: str) -> bool:
 
 
 def _lines(root: Path, n: int) -> list[str]:
-    p = root / "extract" / f"page-{n:03d}.txt"
+    p = paths.derived(root, "extract") / f"page-{n:03d}.txt"
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
     except OSError:

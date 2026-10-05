@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 
+from . import paths
 from . import kinds, langs, sentences, tw
 from .store import Workspace
 
@@ -161,7 +162,7 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
 def _page_texts(ws: Workspace, pages: list[int]) -> str:
     texts = []
     for n in pages:
-        p = ws.root / "extract" / f"page-{n:03d}.txt"
+        p = paths.derived(ws.root, "extract") / f"page-{n:03d}.txt"
         texts.append(f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的）=====\n" + (p.read_text(encoding="utf-8") if p.exists() else ""))
     return "\n\n".join(texts)
 

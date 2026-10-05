@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from . import paths
 from . import sources
 from .i18n import tr
 from .log import log
@@ -42,7 +43,8 @@ class Library:
         meta.update({k: v for k, v in (item.get("meta_override") or {}).items() if v or k == "doi"})
         reader = ws.load("reader") or {}
         disc = ws.load("discussion") or {}
-        job = ws.load("job") or {}
+        from . import jobs as _jobs  # 延後 import：jobs 也 import 這個模組
+        job = _jobs.view(ws.load("job")) or {}
         tr = paper.get("translation", {})
         notes = [n for n in reader.get("notes", {}).values() if not n.get("deleted")]
         replied = {e.get("reply_to") for e in disc.get("entries", []) if e.get("reply_to")}
@@ -66,7 +68,7 @@ class Library:
             "discussions": len(disc.get("entries", [])),
             "has_paper_note": bool((reader.get("paper_note") or {}).get("body")),
             "job": {k: job.get(k) for k in ("type", "state", "message", "done", "total", "updated", "error", "failed", "scope", "read", "model", "target", "pages", "cap_check", "page_cap", "usage", "usage_total")} if job else None,
-            "thumb": f"/p/{ws.id}/pages/page-001.webp" if (ws.root / "pages" / "page-001.webp").exists() else "",
+            "thumb": f"/p/{ws.id}/pages/page-001.webp" if (paths.derived(ws.root, "pages") / "page-001.webp").exists() else "",
         }
 
     def list(self) -> list[dict]:

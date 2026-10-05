@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, langs, translate, usage
+from . import chat_models, config, langs, paths, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -24,6 +24,36 @@ def engine_for(cfg: dict, model: str | None) -> dict:
     o = cfg.get("openai") or {}
     if m["engine"] == "openai" and m.get("preset") == o.get("preset") and (m.get("model") or o.get("model")) == o.get("model"):
         out["openai"]["vision"] = o.get("vision", False)  # 和翻译引擎是同一个模型：沿用“模型能看图”
+    return out
+
+
+def foreign(job: dict) -> bool:
+    """這個任務是別台電腦（同步資料夾）記的；沒記裝置的舊任務當成自己的。"""
+    return bool(job.get("device")) and job.get("device") != paths.device()["id"]
+
+
+def stale(job: dict, minutes: int = 10) -> bool:
+    """別台電腦的任務太久沒更新（那邊關了 App）：不再當成正在跑。"""
+    try:
+        from datetime import datetime
+        at = datetime.fromisoformat(str(job.get("updated") or "")).timestamp()
+    except (TypeError, ValueError):
+        return True
+    import time
+    return time.time() - at > minutes * 60
+
+
+def view(job: dict | None) -> dict | None:
+    """給頁面看的任務狀態：別台電腦正在跑的，訊息前面標出來；它太久沒動就當成已停。"""
+    if not job or not foreign(job) or job.get("state") not in ("queued", "running"):
+        return job
+    out = dict(job)
+    name = job.get("device_name") or tr("另一台電腦")
+    if stale(job):
+        out.update(state="error", message=tr("另一台電腦（{name}）的翻譯沒有做完（它那邊可能關掉了）；可以在這裡重新開始。", name=name))
+    else:
+        out["message"] = tr("另一台電腦（{name}）正在翻譯：{msg}", name=name, msg=job.get("message") or "")
+        out["remote"] = True
     return out
 
 
@@ -58,10 +88,14 @@ class Jobs:
         target = langs.valid(target) if target else langs.of_paper((ws.load("paper") or {}).get("meta"))
         def apply(job):
             if job.get("state") in ("queued", "running"):
-                raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
+                if foreign(job) and not stale(job):
+                    raise ValueError(tr("另一台電腦（{name}）正在翻譯這篇，等它做完再試。", name=job.get("device_name") or "?"))
+                if not foreign(job):
+                    raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
             job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
                        state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
                        confirmed=confirmed is True, target=target, cap_check=cap_check is True, focus=focus,
+                       device=paths.device()["id"], device_name=paths.device()["name"],  # 同步時別台電腦看得出是誰在跑
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
             job.pop("page_cap", None)
         with self.lock:
@@ -83,7 +117,7 @@ class Jobs:
     def _resume(self):
         for ws in self.lib.all():
             job = ws.load("job") or {}
-            if job.get("state") in ("queued", "running"):
+            if job.get("state") in ("queued", "running") and not foreign(job):  # 別台電腦的任務不是我們的，不接手
                 self._write(ws, state="queued", message=tr("排队中（服务重启后继续）"))
                 self.bulk.put(ws.id)
 
