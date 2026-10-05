@@ -22,6 +22,8 @@
     const p = PR.prefs, root = document.documentElement;
     root.style.setProperty("--fs", p.fs + "px");
     root.style.setProperty("--lh", p.lh);
+    // 問 AI、筆記卡片、邊註的字級跟著內文字級走（預設 21px 時是 1；只放大縮小到 0.85–1.35 倍，面板不會爆掉）
+    root.style.setProperty("--fs-ratio", String(Math.round(Math.max(0.85, Math.min(1.35, (Number(p.fs) || 21) / 21)) * 100) / 100));
     root.style.setProperty("--measure", p.measure + "em");
     PR.applyTheme(p.theme);
     body.classList.toggle("font-sans", p.font === "sans");

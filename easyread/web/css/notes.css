@@ -11,7 +11,7 @@ body.font-round { --read-zh: var(--round-zh); }
 table.tbl th, #popover .cap, .np-ai-body, .np-preview, .ch-empty b { font-family: var(--read-zh); }
 
 /* ---------- 筆記卡片 ---------- */
-.card { padding: 10px 12px 11px; border: 1px solid var(--rule); border-left: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13.5px/1.7 var(--read-zh); color: var(--ink); transition: top .25s ease, border-color .15s, box-shadow .15s; }
+.card { padding: 10px 12px 11px; border: 1px solid var(--rule); border-left: 1px solid var(--rule); border-radius: 12px; background: var(--card); font: 13.5px/1.7 var(--read-zh); font-size: calc(13.5px * var(--fs-ratio, 1)); color: var(--ink); transition: top .25s ease, border-color .15s, box-shadow .15s; }
 .card.mine { border-left-color: var(--rule); }
 .card.check { border-style: dashed; }
 .card:hover, .card.linked { border-color: var(--rule-2); color: var(--ink); }
@@ -126,7 +126,7 @@ body.region-mode .pv-scroll { user-select: none; -webkit-user-select: none; }
 
 /* 便利貼：貼在標記旁邊的小卡片 */
 .pv-sticky { position: absolute; z-index: 9; }
-.pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: 14px; }
+.pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: calc(14px * var(--fs-ratio, 1)); }
 .pv-sticky .card.editing { border-color: var(--rule-2); box-shadow: var(--shadow-lg); }
 .pv-sticky .card .acts, .pv-sticky .card .meta { opacity: 1; }
 .pv-sticky .card > .body, .pv-sticky .card .reply .body { max-height: min(42vh, 440px); overflow-y: auto; scrollbar-width: thin; }
@@ -166,7 +166,7 @@ body.region-mode .pv-scroll { user-select: none; -webkit-user-select: none; }
 .np-empty { padding: 26px 6px; line-height: 1.8; }
 .card.pnote .ic { color: var(--ink-2); background: var(--surface-2); }
 .np-paper { padding: 12px 16px 16px; }
-#paperNote { background: var(--card); border-radius: 12px; padding: 14px 16px; font: 15px/1.85 var(--read-zh); }
+#paperNote { background: var(--card); border-radius: 12px; padding: 14px 16px; font: 15px/1.85 var(--read-zh); font-size: calc(15px * var(--fs-ratio, 1)); }
 #paperNote:focus { background: var(--surface); }
 
 /* ---------- 翻譯狀態 ---------- */
@@ -243,14 +243,14 @@ li.todo.done > i::after { content: ""; position: absolute; left: 26%; top: 10%; 
 /* 本頁筆記、整篇筆記：平常是排好的樣子，點一下才變成輸入框 */
 .np-page > .md-ed { flex: none; margin: 0 16px; }
 .np-page > .md-ed .np-pnote { margin: 0; width: 100%; }
-.np-pview { flex: none; margin: 0 16px; padding: 12px 14px; min-height: 96px; max-height: 44vh; overflow-y: auto; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); font: 14.5px/1.8 var(--read-zh); color: var(--ink); cursor: text; overflow-wrap: anywhere; }
+.np-pview { flex: none; margin: 0 16px; padding: 12px 14px; min-height: 96px; max-height: 44vh; overflow-y: auto; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); font: 14.5px/1.8 var(--read-zh); font-size: calc(14.5px * var(--fs-ratio, 1)); color: var(--ink); cursor: text; overflow-wrap: anywhere; }
 .np-pview:hover, .np-preview:hover { box-shadow: inset 0 0 0 1px var(--rule-2); }
 .np-pview p, .np-preview p { margin: 0 0 .6em; }
 .np-pview p:last-child { margin-bottom: 0; }
 .np-pview ul, .np-pview ol, .np-preview ul, .np-preview ol { margin: .2em 0 .6em; padding-left: 1.4em; }
 .np-paper > .md-ed { flex: 1; min-height: 0; }
 .np-paper > .md-ed #paperNote { flex: 1; min-height: 0; overflow-y: auto; }
-.np-preview { flex: 1; padding: 14px 16px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); cursor: text; font: 15px/1.85 var(--read-zh); }
+.np-preview { flex: 1; padding: 14px 16px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); cursor: text; font: 15px/1.85 var(--read-zh); font-size: calc(15px * var(--fs-ratio, 1)); }
 
 /* ---------- 在 PDF 裡找字 ---------- */
 body:not(.pdf-main) [data-act="find"] { display: none; }

@@ -42,7 +42,7 @@ body { font-size: 15px; }
 
 }
 #paper { grid-column: 2; min-width: 0; font-family: var(--serif-zh); line-height: var(--lh); letter-spacing: .012em; font-variant-numeric: lining-nums; }
-#margin { grid-column: 4; position: relative; font-size: 15px; }
+#margin { grid-column: 4; position: relative; font-size: calc(15px * var(--fs-ratio, 1)); }
 :root[data-theme="dark"] #paper { font-weight: 330; }
 :root[data-theme="dark"] #paper :is(h1, h2, h3, strong, th, .label) { font-weight: 600; }
 body.font-sans #paper { font-family: var(--sans-zh); letter-spacing: .01em; }

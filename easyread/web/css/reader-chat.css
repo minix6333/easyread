@@ -24,11 +24,11 @@ body.ch-open #chatpanel { transform: none; }
 
 .ch-scroll { flex: 1; overflow-y: auto; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 18px; }
 .cm.user { align-self: flex-end; max-width: 88%; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-.cm.user .bubble { background: var(--surface); color: var(--ink); padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-size: 14px; line-height: 1.7; box-shadow: 0 0 0 1px var(--rule); }
+.cm.user .bubble { background: var(--surface); color: var(--ink); padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-size: calc(14px * var(--fs-ratio, 1)); line-height: 1.7; box-shadow: 0 0 0 1px var(--rule); }
 .cm-ctx { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--ink-3); max-width: 100%; }
 .cm-ctx svg { width: 12px; height: 12px; flex: none; }
 .cm-ctx:hover { color: var(--accent); }
-.cm.ai { font: 15px/1.9 var(--serif-zh); color: var(--ink); }
+.cm.ai { font: 15px/1.9 var(--serif-zh); font-size: calc(15px * var(--fs-ratio, 1)); color: var(--ink); }  /* 字級跟著閱讀設定的字級（--fs-ratio） */
 .cm.ai .who { display: flex; align-items: center; gap: 7px; font: 12.5px var(--ui); color: var(--ink-2); margin-bottom: 4px; }
 .cm-style { margin-left: auto; color: var(--accent); font-size: 11px; white-space: nowrap; }
 .cm.ai .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; }
@@ -76,7 +76,7 @@ body.ch-open #chatpanel { transform: none; }
 .chip-ctx svg { width: 12px; height: 12px; flex: none; color: var(--accent); }
 .chip-ctx button { width: 18px; height: 18px; border-radius: 50%; color: var(--ink-3); flex: none; line-height: 1; }
 .chip-ctx button:hover { background: var(--surface-2); color: var(--ink); }
-#chatInput { width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 6px 0; font: 14.5px/1.6 var(--ui); color: var(--ink); min-height: 30px; max-height: 200px; display: block; }
+#chatInput { width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 6px 0; font: 14.5px/1.6 var(--ui); font-size: calc(14.5px * var(--fs-ratio, 1)); color: var(--ink); min-height: 30px; max-height: 200px; display: block; }
 .ch-bar { display: flex; align-items: center; gap: 6px; }
 .ch-bar .grow { flex: 1; }
 .ch-model { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink-2); }
