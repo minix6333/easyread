@@ -25,14 +25,25 @@
     if (!rs.length) return [0.1, 0.08, 0.5, 0.1];
     return [Math.min(...rs.map((r) => r[0])), rs[0][1], Math.max(...rs.map((r) => r[2])), rs[rs.length - 1][3]];
   }
+  const TR_SIZE = "easyread-tr-size";  // 選字翻譯小框上次拉成多大
   function place() {
     const n = noteOf(), entry = cur && entryOf(cur.page);
     if (!n || !entry || !box) return;
     const node = entry.node, W = node.clientWidth, H = node.clientHeight;
     const [x0, y0, , y1] = anchorBox(n);
     const sc = PR.$(".pv-scroll").getBoundingClientRect(), pr = node.getBoundingClientRect();
-    const w = Math.min(n.kind === "question" || cur.tr ? 380 : 340, Math.max(220, Math.min(W, sc.width) - 16));
+    const ui = cur.tr ? (PR.ls.get(TR_SIZE, null) || {}) : (n.ui || {});
+    const card = box.firstElementChild;
+    if (card && ui.h) card.style.height = ui.h + "px";
+    const w = ui.w ? Math.max(220, Math.min(ui.w, Math.min(W, sc.width) - 16)) : Math.min(n.kind === "question" || cur.tr ? 380 : 340, Math.max(220, Math.min(W, sc.width) - 16));
     box.style.width = w + "px";
+    if (card) card.style.width = w + "px";
+    if (!cur.tr && ui.x != null && ui.y != null) {  // 拖過：放回上次的位置
+      box.style.bottom = "auto";
+      box.style.left = Math.round(Math.max(-w + 60, Math.min(W + 280 - 60, ui.x * W))) + "px";
+      box.style.top = Math.round(Math.max(0, ui.y * H)) + "px";
+      return;
+    }
     // 橫向：對齊標記左緣，但整張要落在看得到的範圍裡
     const left = Math.max(sc.left - pr.left + 8, Math.min(sc.right - pr.left - w - 8, Math.max(8, x0 * W)));
     box.style.left = Math.round(left) + "px";
@@ -71,6 +82,52 @@
   }
   /* 筆記裡的圖片載入後高度才定下來 */
   document.addEventListener("load", (e) => { if (box && e.target && e.target.tagName === "IMG" && box.contains(e.target)) { place(); reveal(); } }, true);
+
+  /* ---------- 拖位置、拉大小：抓標題列拖；右下角拉大小（CSS resize）。放開時記在筆記裡（ui），下次打開還在那裡 ---------- */
+  function rememberUi(patch) {
+    if (!cur) return;
+    if (cur.tr) { const old = PR.ls.get(TR_SIZE, null) || {}; if (patch.w || patch.h) PR.ls.set(TR_SIZE, { w: patch.w || old.w, h: patch.h || old.h }); return; }
+    const n = saved(cur.id);
+    if (n) PR.saveNote(Object.assign({}, n, { ui: Object.assign({}, n.ui, patch) }), { ui: true });
+    else if (cur.draft) cur.draft.ui = Object.assign({}, cur.draft.ui, patch);
+  }
+  document.addEventListener("mousedown", (e) => {
+    const hd = box && e.target.closest && e.target.closest(".pv-sticky .card > .hd");
+    if (!hd || e.button !== 0 || e.target.closest("button, input, textarea, a")) return;
+    e.preventDefault();
+    const entry = entryOf(cur.page), node = entry && entry.node;
+    if (!node) return;
+    const x0 = e.clientX, y0 = e.clientY, left0 = box.offsetLeft, top0 = box.offsetTop;
+    let moved = false;
+    box.classList.add("dragging");
+    const move = (ev) => {
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      const W = node.clientWidth || 1, H = node.clientHeight || 1, w = box.offsetWidth || 300;
+      box.style.bottom = "auto";
+      box.style.left = Math.round(Math.max(-w + 60, Math.min(W + 280 - 60, left0 + dx))) + "px";  // 可以拖到頁邊的邊註欄上，但不能整張拖出去
+      box.style.top = Math.round(Math.max(0, Math.min(H - 40, top0 + dy))) + "px";
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      box.classList.remove("dragging");
+      if (!moved) return;
+      const W = node.clientWidth || 1, H = node.clientHeight || 1;
+      rememberUi({ x: Math.round((box.offsetLeft / W) * 10000) / 10000, y: Math.round((box.offsetTop / H) * 10000) / 10000 });
+    };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+  /* 拉了大小（瀏覽器的 resize 把手改的是卡片的 inline 寬高）：放開滑鼠時記下來 */
+  document.addEventListener("mouseup", () => {
+    const card = box && box.firstElementChild;
+    if (!card || !card.style.width && !card.style.height) return;
+    const w = Math.round(parseFloat(card.style.width) || 0), h = Math.round(parseFloat(card.style.height) || 0);
+    const old = cur && (cur.tr ? (PR.ls.get(TR_SIZE, null) || {}) : ((saved(cur.id) || cur.draft || {}).ui || {}));
+    if ((w && w !== (old.w || 0) && w !== Math.round(parseFloat(box.style.width) || 0)) || (h && h !== (old.h || 0))) {
+      box.style.width = w + "px";
+      rememberUi({ w: w || old.w, h: h || old.h });
+    }
+  });
 
   PR.openSticky = function (id, opts) {
     opts = opts || {};

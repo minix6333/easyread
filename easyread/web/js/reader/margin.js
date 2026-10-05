@@ -90,7 +90,11 @@
       : isQ ? (answered ? act("followup", "message", PR.t("追问 AI")) : act("ask", "sparkle", PR.t("让 AI 回答"))) : act("ask", "sparkle", PR.t("让 AI 点评"));
     const head = '<div class="hd"><span class="ic">' + PR.icon(isQ ? "help" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
       (page ? '<span class="where">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
-      (editing ? "" : '<span class="acts">' + askBtn + act("edit", "edit", PR.t("编辑")) + act("del", "trash", PR.t("删除")) + "</span>") + "</div>";
+      (editing ? "" : '<span class="acts">' + askBtn + act("link", "link", PR.t("建立關聯")) + act("edit", "edit", PR.t("编辑")) + act("del", "trash", PR.t("删除")) + "</span>") + "</div>";
+    // 關聯的筆記：一排小標籤，點了跳過去，× 取消關聯
+    const links = (d.links || []).map((id) => noteById(id)).filter((x) => x && !x.deleted);
+    const linksHtml = links.length ? '<div class="links">' + links.map((x) => '<span class="lk"><button data-a="goto" data-to="' + PR.esc(x.id) + '" title="' + PR.t("看這條關聯的筆記") + '">' + PR.icon("link", "sm") +
+      "<span>" + PR.esc(linkLabel(x)) + '</span></button><button class="lk-x" data-a="unlink" data-to="' + PR.esc(x.id) + '" title="' + PR.t("取消關聯") + '">×</button></span>').join("") + "</div>" : "";
     const quote = (d.region ? clipHtml(d) : "") + (d.quote ? '<div class="quote' + lost + '"' + (d.side === "en" || d.side === "pdf" ? ' lang="en"' : "") + ">" +
       (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") + PR.md(d.quote, { cite: false, xref: false }) + "</div>" : "");
     // 快速問題：還沒打字時給兩顆小按鈕，按了直接送
@@ -107,17 +111,24 @@
           : '<span class="hint">' + PR.t("Esc 收起") + "</span>") + "</div>"
       : (d.body ? '<div class="body">' + PR.mdBlocks(d.body) + "</div>" : "");
     return '<div class="card mine k-' + (d.kind || "note") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
-      head + quote + body + replies.map(replyHtml).join("") + liveHtml(d.id) + "</div>";
+      head + quote + body + replies.map(replyHtml).join("") + liveHtml(d.id) + linksHtml + "</div>";
   }
   PR.cardHtml = cardHtml;
   PR.collectNotes = collect;
+  /* 關聯標籤上的字：筆記的前幾個字（沒寫字就用原話、框選），加頁碼 */
+  function linkLabel(n) {
+    const text = PR.plain((n.body || "").trim()) || (n.quote || "").trim() || (n.region ? PR.t("框選的區域") : PR.t("筆記"));
+    const page = pageOf(n);
+    return text.replace(/\s+/g, " ").slice(0, 16) + (text.length > 16 ? "…" : "") + (page ? " · p." + page : "");
+  }
   function colorDots(d) {
     if (!d.quote) return "";
     return '<span class="dots">' + ["yellow", "green", "blue", "pink"].map((c) =>
       '<button data-color="' + c + '" class="dot-' + c + ((d.color || "yellow") === c ? " on" : "") + '" title="' + PR.t("换颜色") + '"></button>').join("") + "</span>";
   }
 
-  PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches &&
+  // PDF 優先時譯文排在 PDF 旁邊，沒有空間放邊注欄（#margin 是藏著的）：卡片收成段尾角標，不然會畫進看不見的地方
+  PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches && !document.body.classList.contains("pdf-main") &&
     !document.body.classList.contains("side-open") && !document.body.classList.contains("no-margin");
 
   PR.renderMargin = function () {
@@ -140,6 +151,7 @@
     }
     PR.$$("#margin .card, .inline-notes .card").forEach(prepCard);
     if (wide) PR.layoutMargin();
+    PR.renderPvMargin && PR.renderPvMargin();  // PDF 頁旁邊的邊註欄（pvmargin.js）跟著重畫
     PR.emit("margin-rendered");
   };
 
@@ -186,7 +198,8 @@
 
   /* ---------- 笔记的增删改 ---------- */
   const noteById = (id) => (S.reader.notes || {})[id];
-  PR.saveNote = function (note) { note.updated = PR.nowIso(); PR.commit({ op: "note", note }); };
+  /* opts.ui：只是拖了位置、拉了大小（note.ui），不進復原記錄 */
+  PR.saveNote = function (note, opts) { note.updated = PR.nowIso(); PR.commit(Object.assign({ op: "note", note }, opts && opts.ui ? { ui: true } : {})); };
 
   /* 畫在 PDF 上的筆記（PDF 優先版面）：在標記旁邊的便利貼裡寫（sticky.js），不佔版面 */
   const onPdf = (n) => !!(n && n.side === "pdf" && PR.openSticky && PR.pdfMain && PR.pdfMain());
@@ -222,7 +235,7 @@
     const id = PR.editingNote;
     if (!id) return;
     if (PR.stickyNote && PR.stickyNote() === id) { PR.closeSticky(); return; }
-    const ta = PR.$('#margin .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea');
+    const ta = PR.$('#margin .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea, .pv-margin .card[data-note="' + id + '"] textarea');
     const n = noteById(id);
     PR.editingNote = null;
     if (n && ta) PR.finishNote(n, ta.value);
@@ -241,7 +254,7 @@
 
   PR.autosaveNote = PR.debounce(() => {
     const id = PR.editingNote;
-    const ta = id && PR.$('#margin .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea');
+    const ta = id && PR.$('#margin .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea, .pv-margin .card[data-note="' + id + '"] textarea');
     const n = id && noteById(id);
     if (ta && n && ta.value.trim() !== (n.body || "")) {
       const copy = Object.assign({}, n, { body: ta.value.trim() });
@@ -271,9 +284,9 @@
   });
 
   /* ---------- 卡片上的交互（边注和笔记面板共用） ---------- */
-  const CARD_TA = "#margin .card textarea, .inline-notes .card textarea";
+  const CARD_TA = "#margin .card textarea, .inline-notes .card textarea, .pv-margin .card textarea";
   document.addEventListener("input", (e) => {
-    if (e.target.matches(CARD_TA)) { PR.autosize(e.target); PR.autosaveNote(); PR.layoutMargin(); }
+    if (e.target.matches(CARD_TA)) { PR.autosize(e.target); PR.autosaveNote(); PR.layoutMargin(); PR.layoutPvMargin && PR.layoutPvMargin(); }
   });
   document.addEventListener("keydown", (e) => {
     if (!e.target.matches(CARD_TA)) return;
@@ -311,9 +324,13 @@
     if (!card) return false;
     const a = e.target.closest("[data-a]"), k = e.target.closest("[data-k]"), col = e.target.closest("[data-color]");
     const nid = card.dataset.note;
-    const inSticky = !!card.closest(".pv-sticky");
+    const inSticky = !!card.closest(".pv-sticky"), inMargin = !!card.closest(".pv-margin");
     const repaint = () => (inSticky ? PR.renderSticky() : inPanel ? PR.renderNotesPanel() : PR.renderMargin());
-    const rerender = () => (inSticky ? PR.openSticky(nid, { edit: true }) : inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
+    const rerender = () => (inSticky ? PR.openSticky(nid, { edit: true }) : inMargin ? PR.editInMargin(nid) : inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
+    // 關聯：建立（進入選取模式）、跳過去、取消
+    if (nid && a && a.dataset.a === "link") { PR.linkFrom && PR.linkFrom(nid); return true; }
+    if (a && a.dataset.a === "goto") { PR.goToNote && PR.goToNote(a.dataset.to); return true; }
+    if (nid && a && a.dataset.a === "unlink") { PR.unlinkNotes && PR.unlinkNotes(nid, a.dataset.to); return true; }
     if (a && a.dataset.a === "more") {
       const body = a.previousElementSibling, host = a.closest(".reply") || card;
       const id = host.dataset.card || host.dataset.note, open = !expanded.has(id);
@@ -378,7 +395,7 @@
     PR.openPage(n, blockId);
     if (Math.abs(from - n) >= 2) PR.toast(PR.t("第 {page} 页", { page: n }), { label: PR.t("回第 {n} 頁", { n: from }), fn: () => PR.openPage(from) }, 5000);
   };
-  document.addEventListener("click", (e) => { if (e.target.closest("#margin, .inline-notes, .pv-sticky")) PR.cardClick(e, false); });
+  document.addEventListener("click", (e) => { if (e.target.closest("#margin, .inline-notes, .pv-sticky, .pv-margin")) PR.cardClick(e, false); });
 
   /* AI 写的卡片：删除；回答类的还能重新回答（删掉旧的，再问一次） */
   async function delAgent(id, regen, btn) {
@@ -404,9 +421,9 @@
     PR.$$(sel).forEach((m) => m.classList.toggle("active", on));
   }
   document.addEventListener("mouseover", (e) => {
-    const card = e.target.closest && e.target.closest("#margin .card, #notespanel .card");
+    const card = e.target.closest && e.target.closest("#margin .card, #notespanel .card, .pv-margin .card");
     if (card && !card.classList.contains("linked")) { PR.$$(".card.linked").forEach((c) => link(c, false)); link(card, true); }
-    if (!card && e.target.closest && !e.target.closest("#margin, #notespanel")) PR.$$(".card.linked").forEach((c) => link(c, false));
+    if (!card && e.target.closest && !e.target.closest("#margin, #notespanel, .pv-margin")) PR.$$(".card.linked").forEach((c) => link(c, false));
   });
 
   PR.flashCard = function (id) {

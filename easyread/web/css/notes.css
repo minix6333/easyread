@@ -124,9 +124,29 @@ body.region-mode .pv-text, body.region-mode .pv-badge { pointer-events: none; }
 body.region-mode .pv-scroll { user-select: none; -webkit-user-select: none; }
 .pv-rubber { position: absolute; z-index: 7; border: 1.5px solid var(--accent); background: var(--accent-soft-2); border-radius: 4px; pointer-events: none; }
 
-/* 便利貼：貼在標記旁邊的小卡片 */
+/* 關聯：卡片底下一排小標籤（點了跳過去，× 取消） */
+.card .links { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.card .lk { display: inline-flex; align-items: center; height: 22px; max-width: 100%; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 11.5px var(--ui); overflow: hidden; }
+.card .lk button { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; color: inherit; min-width: 0; }
+.card .lk button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .lk button svg { width: 11px; height: 11px; flex: none; }
+.card .lk .lk-x { padding: 0 7px; border-left: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); opacity: .65; }
+.card .lk .lk-x:hover { opacity: 1; background: var(--accent-soft-2); }
+/* 筆記面板：拖卡片排順序（上下緣一道線）、放到另一張上建立關聯（外框） */
+.np-list .card.dragging { opacity: .45; }
+.np-list .card.drop-before { box-shadow: 0 -2px 0 0 var(--accent); }
+.np-list .card.drop-after { box-shadow: 0 2px 0 0 var(--accent); }
+
+/* 便利貼：貼在標記旁邊的小卡片；抓標題列可以拖，右下角可以拉大小（記在筆記裡，下次打開還在） */
 .pv-sticky { position: absolute; z-index: 9; }
-.pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: calc(14px * var(--fs-ratio, 1)); }
+.pv-sticky .card { position: relative; top: auto; padding: 12px 14px; background: var(--surface); border-color: var(--rule-2); box-shadow: var(--shadow-lg); font-size: calc(14px * var(--fs-ratio, 1));
+  display: flex; flex-direction: column; resize: both; overflow: auto; min-width: 220px; min-height: 72px; box-sizing: border-box; }
+.pv-sticky .card > .hd { cursor: grab; flex: none; }
+.pv-sticky.dragging { z-index: 10; }
+.pv-sticky.dragging .card { box-shadow: var(--shadow-lg), 0 0 0 1px var(--rule-2); }
+.pv-sticky.dragging .card > .hd { cursor: grabbing; }
+.pv-sticky .card > .body { flex: 1 1 auto; min-height: 0; }
+.pv-sticky .card > .md-ed { flex: 1 1 auto; min-height: 0; }
 .pv-sticky .card.editing { border-color: var(--rule-2); box-shadow: var(--shadow-lg); }
 .pv-sticky .card .acts, .pv-sticky .card .meta { opacity: 1; }
 .pv-sticky .card > .body, .pv-sticky .card .reply .body { max-height: min(42vh, 440px); overflow-y: auto; scrollbar-width: thin; }

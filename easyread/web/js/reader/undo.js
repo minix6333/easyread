@@ -30,7 +30,8 @@
   }
   let replaying = false;
   PR.commit = function (op) {
-    if (!replaying && op && (op.op === "note" || op.op === "note_del" || op.op === "page_note" || op.op === "paper_note")) {
+    // op.ui：只是把卡片拖到別處、拉了大小（筆記的 ui 欄位），不算一步
+    if (!replaying && op && !op.ui && (op.op === "note" || op.op === "note_del" || op.op === "page_note" || op.op === "paper_note")) {
       const inv = inverse(op);
       if (inv) {
         const top = undo[undo.length - 1], now = Date.now(), text = textOnly(op);

@@ -59,15 +59,31 @@
   function allItems() {
     const notes = S.reader.notes || {};
     const out = [];
-    for (const n of PR.myNotes()) out.push({ src: "mine", anchor: anchorOfNote(n), page: pageOfNote(n), y: yOfNote(n), t: n.created || "", data: n });
+    // 排序鍵：頁上的位置；拖過順序的用記下來的 ui.order（和位置同一個尺度，0–1），插在鄰居中間
+    for (const n of PR.myNotes()) out.push({ src: "mine", anchor: anchorOfNote(n), page: pageOfNote(n), y: yOfNote(n), key: n.ui && n.ui.order != null ? n.ui.order : yOfNote(n), t: n.created || "", data: n });
     for (const e of S.discussion.entries || []) {
       if (e.reply_to && notes[e.reply_to] && !notes[e.reply_to].deleted) continue;
       const a = PR.anchorOfEntry(e);
-      out.push({ src: "agent", anchor: a, page: pageOfAnchor(a), y: S.layout[a] ? boxY(S.layout[a]) : 0, t: e.at || "", data: e });
+      const y = S.layout[a] ? boxY(S.layout[a]) : 0;
+      out.push({ src: "agent", anchor: a, page: pageOfAnchor(a), y, key: y, t: e.at || "", data: e });
     }
     const ord = (it) => (it.anchor === "head" ? -1 : PR.order[it.anchor] ?? 1e9);
-    return out.sort((a, b) => a.page - b.page || (a.y - b.y) || ord(a) - ord(b) || (a.t < b.t ? -1 : 1));
+    return out.sort((a, b) => a.page - b.page || (a.key - b.key) || ord(a) - ord(b) || (a.t < b.t ? -1 : 1));
   }
+  PR.notesPanelItems = allItems;
+  /* 拖排順序：把 id 放到 target 的前面／後面，新的排序鍵取兩個鄰居的中間（純函式，給測試） */
+  PR.reorderKey = function (items, id, targetId, after) {
+    const list = items.filter((it) => it.src === "mine" && it.data.id !== id);
+    const i = list.findIndex((it) => it.data.id === targetId);
+    if (i < 0) return null;
+    const prev = after ? list[i] : list[i - 1], next = after ? list[i + 1] : list[i];
+    const samePage = (it) => it && it.page === list[i].page;
+    const lo = samePage(prev) ? prev.key : null, hi = samePage(next) ? next.key : null;
+    if (lo != null && hi != null) return (lo + hi) / 2;
+    if (lo != null) return lo + 0.01;
+    if (hi != null) return hi - 0.01;
+    return list[i].key;
+  };
   function matches(it) {
     const d = it.data, mine = it.src === "mine";
     const keep = {
@@ -159,6 +175,7 @@
       '</button><button class="btn icon" data-np-act="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
       (tab === "paper" ? paperHtml() : tab === "notes" ? notesHtml() : pageHtml());
     PR.$$(".card", el).forEach((c) => PR.prepCard && PR.prepCard(c));
+    PR.$$(".np-list .card.mine[data-note]:not(.editing)", el).forEach((c) => { c.draggable = true; });  // 拖排順序、拖到另一張上建立關聯
     PR.$$("textarea", el).forEach(PR.autosize);
     const list = el.querySelector(".np-list");
     if (list) list.scrollTop = keep;
@@ -215,6 +232,42 @@
     PR.applyMarks();
   }
 
+  /* 拖卡片：放在另一張的上下緣＝排到它前面／後面（同一頁內），放在中間＝建立關聯 */
+  let dragId = null, dropOn = null;
+  const clearDrop = () => { if (dropOn) { dropOn.classList.remove("drop-before", "drop-after", "drop-link"); dropOn = null; } };
+  panel().addEventListener("dragstart", (e) => {
+    const card = e.target.closest && e.target.closest(".np-list .card.mine[data-note]");
+    if (!card) return;
+    dragId = card.dataset.note;
+    card.classList.add("dragging");
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId); }
+  });
+  panel().addEventListener("dragover", (e) => {
+    const card = dragId && e.target.closest && e.target.closest(".np-list .card[data-note]");
+    if (!card || card.dataset.note === dragId) { clearDrop(); return; }
+    e.preventDefault();
+    const r = card.getBoundingClientRect(), f = (e.clientY - r.top) / Math.max(1, r.height);
+    const notes = S.reader.notes || {}, na = notes[dragId], nb = notes[card.dataset.note];
+    const samePage = na && nb && pageOfNote(na) === pageOfNote(nb);  // 不同頁的只能建立關聯，排順序沒有意義
+    const zone = !samePage ? "drop-link" : f < 0.28 ? "drop-before" : f > 0.72 ? "drop-after" : "drop-link";
+    if (dropOn !== card || !card.classList.contains(zone)) { clearDrop(); dropOn = card; card.classList.add(zone); }
+  });
+  panel().addEventListener("dragleave", (e) => { if (dropOn && !panel().contains(e.relatedTarget)) clearDrop(); });
+  panel().addEventListener("drop", (e) => {
+    const card = dropOn, id = dragId;
+    if (!card || !id) return;
+    e.preventDefault();
+    const zone = card.classList.contains("drop-link") ? "link" : card.classList.contains("drop-before") ? "before" : "after";
+    clearDrop();
+    const n = (S.reader.notes || {})[id];
+    if (!n) return;
+    if (zone === "link") { PR.linkNotes && PR.linkNotes(id, card.dataset.note); return; }
+    const key = PR.reorderKey(allItems(), id, card.dataset.note, zone === "after");
+    if (key == null) return;
+    PR.saveNote(Object.assign({}, n, { ui: Object.assign({}, n.ui, { order: Math.round(key * 10000) / 10000 }) }), { ui: true });
+    PR.renderNotesPanel();
+  });
+  panel().addEventListener("dragend", () => { PR.$$(".np-list .card.dragging", panel()).forEach((c) => c.classList.remove("dragging")); clearDrop(); dragId = null; });
   panel().addEventListener("input", (e) => {
     const t = e.target;
     if (t.id === "npSearch") { query = t.value.trim().toLowerCase(); const l = panel().querySelector(".np-list"); if (l) { l.innerHTML = listHtml(); PR.$$(".card", l).forEach((c) => PR.prepCard(c)); } return; }

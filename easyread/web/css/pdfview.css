@@ -70,10 +70,25 @@ body.pdf-main .pv-page { max-width: calc(min(100%, 920px) * var(--pv-zoom)); }
 .pv-mark.active { outline: 2px solid color-mix(in srgb, var(--mine) 55%, transparent); outline-offset: 1px; }
 :root[data-theme="dark"] .pv-mark { mix-blend-mode: normal; }
 
-/* 每頁右邊的筆記欄：本頁筆記在最上面，卡片貼著標記的位置 */
+/* 每頁右邊的邊註欄（pvmargin.js）：這一頁的筆記、提問排成卡片貼著標記，細線連到小圓點；卡片可以抓標題列上下拖 */
 body.pdf-main .pv-scroll.has-margin { padding-right: calc(24px + var(--pv-margin-w)); }
 .pv-margin { display: none; position: absolute; left: calc(100% + 16px); top: 0; width: calc(var(--pv-margin-w) - 16px); height: 100%; font-size: 13.5px; }
 .pv-scroll.has-margin .pv-margin { display: block; }
+.pv-margin .card { position: absolute; left: 0; right: 0; padding: 8px 10px 9px; font-size: calc(12.5px * var(--fs-ratio, 1)); line-height: 1.6; background: color-mix(in srgb, var(--card) 92%, transparent); transition: top .18s ease, box-shadow .15s; }
+.pv-margin .card .quote, .pv-margin .card .clip { display: none; }  /* 標記就在旁邊，不用再抄一遍 */
+.pv-margin .card .hd { cursor: grab; }
+.pv-margin .card .acts, .pv-margin .card .meta { opacity: 1; }
+.pv-margin .card .body.clamp { max-height: 9em; }
+.pv-margin .card.dragging { transition: none; cursor: grabbing; box-shadow: var(--shadow-lg); z-index: 3; opacity: .94; }
+.pv-margin .card.drop-link, .np-list .card.drop-link { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.dragging-card { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+.pv-wire { position: absolute; top: 0; pointer-events: none; overflow: visible; z-index: 1; }
+.pv-wire path { fill: none; stroke: var(--ul-yellow); stroke-opacity: .55; stroke-width: 1; }
+.pv-wire path.c-green { stroke: var(--ul-green); } .pv-wire path.c-blue { stroke: var(--ul-blue); } .pv-wire path.c-pink { stroke: var(--ul-pink); }
+.pv-wire path.q { stroke: var(--accent); stroke-opacity: .5; stroke-dasharray: 3 3; }
+/* 關聯的選取模式：游標變準心，提示可以點的東西 */
+body.link-mode .card[data-note], body.link-mode .pv-badge, body.link-mode .pv-mark, body.link-mode .pv-area, body.link-mode mark[data-note] { cursor: crosshair; }
+body.link-mode .card[data-note]:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pv-pnote { display: block; width: 100%; min-height: 4.6em; resize: none; overflow: hidden; border: 0; outline: 0; border-radius: 9px; padding: 9px 11px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule); font: 13.5px/1.65 var(--ui); color: var(--ink); }
 .pv-pnote::placeholder { color: var(--ink-3); }
 .pv-pnote:focus { box-shadow: inset 0 0 0 1.5px var(--mine); }

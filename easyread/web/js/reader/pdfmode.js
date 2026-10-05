@@ -70,6 +70,7 @@
     if (fl) fl.hidden = pdf && !(artOpen && hasArticle());  // 跟隨：譯文開著才有意義
     PR.syncFabs && PR.syncFabs();
     markPageNote();
+    PR.renderPvMargin && PR.renderPvMargin();  // 縮放、開關面板後邊註欄擺不擺得下會變
   }
 
   /* 開關譯文面板。PDF 是主畫面：打開時譯文跳到 PDF 正在看的那一段（opts.to 指定段落；quiet 不跳）。
