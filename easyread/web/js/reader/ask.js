@@ -48,7 +48,7 @@
       const refs = anchor || page ? [Object.assign({ anchor, quote: n.quote || "" }, page ? { page } : {})] : [];
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: null, text, anchor: anchor || null, page, quote: n.quote || "", refs, note: nid, model: PR.chatModel ? PR.chatModel.id() : "", images }),
+        body: JSON.stringify({ thread: null, text, anchor: anchor || null, page, quote: n.quote || "", refs, note: nid, model: PR.chatModel ? PR.chatModel.id() : "", images, ...(n.mode && n.kind === "question" ? { mode: n.mode } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();

@@ -198,7 +198,7 @@
      標記不吃滑鼠事件（畫過的地方才能再選字、再畫），點擊用座標判斷。 */
   const pct = (v) => (v * 100).toFixed(3) + "%";
   function markHtml(x, openId) {
-    const id = PR.esc(x.id), isQ = x.kind === "question", on = x.id === openId ? " active" : "";
+    const id = PR.esc(x.id), isQ = x.kind === "question", on = x.id === openId || (PR.pvActiveId && PR.pvActiveId() === x.id) ? " active" : "";
     let h = "", bx, by;
     if (Array.isArray(x.region)) {
       const [x0, y0, x1, y1] = x.region;
@@ -243,6 +243,14 @@
     return best;
   }
   const pointIn = (page, e) => { const r = page.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, r]; };
+  /* 這次滑鼠事件落在哪條標記上（沒有回 null）；邊註欄用它決定畫哪一條連線 */
+  PR.pdfNoteAt = function (e) {
+    const page = e.target.closest && e.target.closest("#pageview .pv-page");
+    if (!page) return null;
+    const [x, y] = pointIn(page, e);
+    const hit = noteAt(+page.dataset.n, x, y);
+    return hit ? hit.note.id : null;
+  };
   /* 點標記：畫線彈改色選單，筆記和提問打開便利貼 */
   document.addEventListener("click", (e) => {
     const page = e.target.closest && e.target.closest("#pageview .pv-page");

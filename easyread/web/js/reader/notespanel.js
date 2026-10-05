@@ -119,16 +119,22 @@
     const p = panelPage, pn = (S.reader.page_notes || {})[p] || {};
     const items = allItems().filter((i) => i.page === p);
     const n = pageCount();
+    const writing = pw && pw.page === p;  // AI 正在寫這一頁的筆記：先顯示寫到哪了，寫完才存
+    const canWrite = canAsk() && PR.store && PR.store.mode === "server" && n > 0;
     return '<div class="np-page"><div class="np-phead">' +
       '<button class="btn icon sm" data-np-act="pprev" title="' + PR.t("上一頁") + '"' + (p <= 1 ? " disabled" : "") + ">" + PR.icon("back", "sm") + "</button>" +
       '<span class="np-pnum">' + PR.t("第 {p} / {n} 页", { p, n }) + "</span>" +
       '<button class="btn icon sm" data-np-act="pnext" title="' + PR.t("下一頁") + '"' + (p >= n ? " disabled" : "") + ">" + PR.icon("next", "sm") + "</button>" +
       '<span class="grow"></span><button class="np-chip" data-np-act="pgo"' + (detached ? "" : " hidden") + ">" + PR.t("PDF 在第 {n} 頁", { n: curPage() }) + "</button>" +
       '<button class="btn icon sm np-star' + (pn.star ? " on" : "") + '" data-np-act="star" title="' + PR.t("標成重點頁（之後可以只看重點頁）") + '">' + PR.icon("star", "sm") + "</button></div>" +
-      (pnEdit || !(pn.body || "").trim()
+      (writing ? '<div class="np-pview writing"><div class="pw-body">' + PR.mdBlocks(joined(pw.base, pw.text)) + '</div><p class="thinking"><i></i><i></i><i></i></p></div>'
+        : pnEdit || !(pn.body || "").trim()
         ? PR.mdEd('<textarea class="np-pnote" data-page="' + p + '" placeholder="' + PR.t("這一頁的筆記…") + '">' + PR.esc(pn.body || "") + "</textarea>")
         : '<div class="np-pview" data-np-act="pedit" title="' + PR.t("點一下編輯") + '">' + PR.mdBlocks(pn.body) + "</div>") +
-      '<div class="np-ptools">' + (canAsk() ? '<button class="btn sm line" data-np-act="explain">' + PR.icon("sparkle", "sm") + PR.t("解釋這一頁") + "</button>" : "") +
+      '<div class="np-ptools">' +
+      (writing ? '<button class="btn sm line" data-np-act="pwstop">' + PR.icon("stop", "sm") + PR.t("停止") + "</button>"
+        : canWrite ? '<button class="btn sm line" data-np-act="pwrite"' + (pw ? " disabled" : "") + ' title="' + PR.t("AI 把這一頁講明白，寫進這一頁的筆記（接在你寫的後面）") + '">' + PR.icon("sparkle", "sm") + PR.t("幫這頁寫筆記") + "</button>" : "") +
+      (canAsk() ? '<button class="btn sm line" data-np-act="explain">' + PR.icon("help", "sm") + PR.t("解釋這一頁") + "</button>" : "") +
       (pdf() ? '<button class="btn sm line" data-np-act="region">' + PR.icon("region", "sm") + PR.t("框選") + "</button>" : "") + "</div>" +
       '<div class="np-sub">' + PR.t("這一頁的標記") + (items.length ? " · " + items.length : "") + "</div>" +
       '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選字可以畫線、寫筆記、問 AI；選不到字的地方用框選。") + "</p>") + "</div></div>";
@@ -198,6 +204,72 @@
     const cur = (S.reader.page_notes || {})[page] || {};
     PR.commit(Object.assign({ op: "page_note", page, body: cur.body || "" }, on ? { star: true } : {}));
   }
+  /* ---------- 幫這頁寫筆記：AI 把這一頁講明白（不是摘要，見 notehelp.py PAGE_ASK），直接寫進本頁筆記，接在已經寫的後面。
+     寫的時候先顯示在原地，寫完（或按停止）才存成一次修改；可以撤銷。翻到別頁它照樣寫完。 ---------- */
+  let pw = null, pwQueued = false;
+  const joined = (base, text) => ((base || "").trim() ? base.replace(/\s+$/, "") + "\n\n" : "") + text;
+  function paintPw() {
+    if (pwQueued) return;
+    pwQueued = true;
+    setTimeout(() => {
+      pwQueued = false;
+      const view = pw && panel().querySelector(".np-pview.writing"), body = view && view.querySelector(".pw-body");
+      if (!body) return;
+      const stick = view.scrollHeight - view.scrollTop - view.clientHeight < 48;  // 讀者往上捲回去看時不搶捲動
+      body.innerHTML = PR.mdBlocks(joined(pw.base, pw.text));
+      if (stick) view.scrollTop = view.scrollHeight;
+    }, 90);
+  }
+  async function writePage() {
+    if (pw) return;
+    flushPageNote();
+    const page = panelPage, before = ((S.reader.page_notes || {})[page] || {}).body || "";
+    const mine = (pw = { page, base: before, text: "", error: "", ctrl: new AbortController() });
+    pnEdit = false;
+    PR.renderNotesPanel(null);
+    try {
+      if (PR.chatModel) await PR.chatModel.load();
+      const res = await fetch("/api/p/" + PR.pid + "/notehelp", {
+        method: "POST", signal: mine.ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
+        body: JSON.stringify({ mode: "page", page, note: before, model: PR.chatModel ? PR.chatModel.id() : "" }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line);
+          if (ev.t) { mine.text += ev.t; paintPw(); }
+          if (ev.error) mine.error = ev.error;
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") mine.error = PR.t("没能完成：{msg}", { msg: e.message });
+    }
+    pw = null;
+    const text = mine.text.trim();
+    if (text) {
+      // 寫的期間這頁筆記可能被改過（另一台、另一個分頁）：接在現在的內容後面，不蓋掉
+      const cur = (S.reader.page_notes || {})[page] || {}, was = cur.body || "";
+      PR.commit(Object.assign({ op: "page_note", page, body: joined(was, text) }, cur.star ? { star: true } : {}));
+      PR.toast(PR.t("已寫進第 {page} 頁的筆記", { page }), { label: PR.t("撤销"), fn: () => {
+        const now = (S.reader.page_notes || {})[page] || {};
+        PR.commit(Object.assign({ op: "page_note", page, body: was }, now.star ? { star: true } : {}));
+        PR.renderNotesPanel(null);
+      } }, 6000);
+    }
+    if (mine.error) PR.toast(PR.esc(mine.error), null, 5000);
+    const stale = panel().querySelector(".np-pview.writing");
+    PR.renderNotesPanel();
+    if (stale && stale.isConnected) PR.renderNotesPanel(null);  // 正在別的輸入框打字時上面那次不會重畫：這個狀態一定要收掉
+  }
+
   /* PDF 翻頁了：沒在打字就跟過去；正在打字就留在原來那一頁，只亮一顆提示 */
   const follow = PR.debounce(() => {  // 等捲動停下來再換（翻頁的動畫會經過中間幾頁）
     if (!PR.notesPanelOpen() || tab !== "page") return;
@@ -342,6 +414,8 @@
       if (a === "pgo") { detached = false; PR.renderNotesPanel(null); }
       if (a === "star") { setStar(panelPage, !starred(panelPage)); PR.renderNotesPanel(null); }
       if (a === "region") PR.toggleRegion && PR.toggleRegion(true);
+      if (a === "pwrite") writePage();
+      if (a === "pwstop" && pw) pw.ctrl.abort();
       if (a === "explain") {  // 整頁當成一個框選的提問：頁面的圖和文字一起給模型
         const note = { id: PR.uid("n"), side: "pdf", page: panelPage, region: [0, 0, 1, 1], kind: "question", body: PR.t("解釋這一頁在講什麼、重點是什麼。"), created: PR.nowIso() };
         PR.saveNote(note);

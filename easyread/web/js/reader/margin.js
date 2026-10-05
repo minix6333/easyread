@@ -97,11 +97,13 @@
       "<span>" + PR.esc(linkLabel(x)) + '</span></button><button class="lk-x" data-a="unlink" data-to="' + PR.esc(x.id) + '" title="' + PR.t("取消關聯") + '">×</button></span>').join("") + "</div>" : "";
     const quote = (d.region ? clipHtml(d) : "") + (d.quote ? '<div class="quote' + lost + '"' + (d.side === "en" || d.side === "pdf" ? ' lang="en"' : "") + ">" +
       (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") + PR.md(d.quote, { cite: false, xref: false }) + "</div>" : "");
-    // 快速問題：還沒打字時給兩顆小按鈕，按了直接送
+    // 快速問題：還沒打字時給幾顆小按鈕，按了直接送。推導、圖解是專門的寫法（data-mode，伺服器那邊換一套要求，見 chat.py MODES）
     const quick = !isQ || !canAsk || d.body ? "" : '<div class="qchips">' + (d.region
-      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。")], [PR.t("翻譯"), PR.t("把這個區域裡的文字翻譯出來。")]]
-      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。")], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")]])
-      .map(([l, q]) => '<button data-q="' + PR.esc(q) + '">' + l + "</button>").join("") + "</div>";
+      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。")], [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"],
+        [PR.t("圖解"), PR.t("用圖講解這個區域。"), "diagram"], [PR.t("翻譯"), PR.t("把這個區域裡的文字翻譯出來。")]]
+      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。")], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")],
+        [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"], [PR.t("圖解"), PR.t("用圖講解這段。"), "diagram"]])
+      .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>";
     const body = editing
       ? (PR.mdEd || ((h) => h))('<textarea rows="1" placeholder="' + (isQ ? PR.t("想問什麼？") : PR.t("寫筆記…")) + '">' + PR.esc(d.body || "") + "</textarea>", { bar: !isQ }) + quick +
         '<div class="kinds"><span class="kseg"><button data-k="note" class="' + (!isQ ? "on" : "") + '">' + PR.t("笔记") + '</button><button data-k="question" class="' + (isQ ? "on" : "") + '">' + PR.t("提問") + "</button></span>" +
@@ -142,7 +144,7 @@
     }
     PR.$$(".note-pin, .inline-notes").forEach((n) => n.remove());
     const wide = PR.marginWide();
-    margin.innerHTML = "";
+    margin.innerHTML = wide ? '<div class="margin-grip" title="' + PR.t("拖動調整筆記欄寬度（雙擊回預設）") + '"></div>' : "";
     for (const [anchor, items] of Object.entries(groups)) {
       const host = document.getElementById("b-" + anchor);
       if (!host) continue;
@@ -161,6 +163,14 @@
   };
 
   PR.prepCard = prepCard;
+  /* 卡片裡的圖是插進頁面之後才畫的（flow.js）：畫好高度才定下來，這時再判斷要不要收起、重新疊放 */
+  PR.on("flow-drawn", (els) => {
+    const cards = new Set(els.map((el) => el.closest && el.closest(".card")).filter(Boolean));
+    if (!cards.size) return;
+    cards.forEach(prepCard);
+    PR.layoutMargin();
+    PR.layoutPvMargin && PR.layoutPvMargin();
+  });
   function prepCard(card) {
     // 长的先收起；展开过的也留一个“收起全文”（#31）。筆記本身和每一則回答各自收
     PR.$$(".body", card).forEach((body) => {
@@ -200,6 +210,29 @@
     }
     margin.style.minHeight = Math.max(0, bottom) + "px";
   };
+
+  /* ---------- 拖筆記欄的寬度（文章優先）：抓正文和卡片之間那一道；卡片裡的字跟著重排。版心是置中的，欄寬每變 2px 握把才移 1px ---------- */
+  document.addEventListener("mousedown", (e) => {
+    const grip = e.target.closest && e.target.closest(".margin-grip");
+    if (!grip || e.button !== 0) return;
+    e.preventDefault();
+    const margin = PR.$("#margin"), stage = PR.$("#stage"), root = document.documentElement;
+    const x0 = e.clientX, w0 = margin.offsetWidth, max = Math.min(560, innerWidth - (stage.offsetWidth - w0) - 24);
+    let w = w0, raf = 0;
+    document.body.classList.add("margin-sizing");
+    const move = (ev) => {
+      w = Math.round(Math.max(220, Math.min(max, w0 + 2 * (x0 - ev.clientX))));
+      root.style.setProperty("--margin-w", w + "px");
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; PR.layoutMargin(); });
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      document.body.classList.remove("margin-sizing");
+      if (w !== w0) PR.setPref("marginW", w, true);
+    };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+  document.addEventListener("dblclick", (e) => { if (e.target.closest && e.target.closest(".margin-grip")) PR.setPref("marginW", 0, true); });
 
   /* ---------- 笔记的增删改 ---------- */
   const noteById = (id) => (S.reader.notes || {})[id];
@@ -305,11 +338,12 @@
     }
   });
   /* 把卡片裡正在寫的問題存好、收起編輯，然後交給 AI 回答 */
-  PR.sendQuestion = function (nid, value, inPanel) {
+  PR.sendQuestion = function (nid, value, inPanel, mode) {
     const n = noteById(nid), body = (value || "").trim();
     if (!n || !body) return;
     PR.freshNotes.delete(nid);
-    if (body !== (n.body || "") || n.kind !== "question") PR.saveNote(Object.assign({}, n, { body, kind: "question" }));
+    // mode：按「推導／圖解」送的記在這條提問上（重新回答時還是同一種寫法）；自己打字送的就清掉
+    if (body !== (n.body || "") || n.kind !== "question" || (n.mode || "") !== (mode || "")) PR.saveNote(Object.assign({}, n, { body, kind: "question", mode: mode || undefined }));
     if (PR.editingNote === nid) PR.editingNote = null;
     if (inPanel) PR.renderNotesPanel(null); else { PR.renderMargin(); PR.applyMarks && PR.applyMarks(); }
     PR.askModel(nid);

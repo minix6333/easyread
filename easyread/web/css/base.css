@@ -20,12 +20,13 @@
   --danger: #c62828;
   --ok: #2f8f5b;
   --gold: #e0a800;
-  --hl: rgba(255, 214, 0, .42);
-  --hl-yellow: rgba(255, 214, 0, .42);
-  --hl-green: rgba(94, 210, 120, .40);
-  --hl-blue: rgba(96, 165, 255, .38);
-  --hl-pink: rgba(255, 112, 140, .34);
-  --ul-yellow: #e8b100; --ul-green: #35a85b; --ul-blue: #3b7ff0; --ul-pink: #e8456b;
+  /* 螢光筆：淡的粉彩（正片疊底，字不會變灰）——看得出劃過，但不搶字；--ul-* 是底線、小圓點、卡片色條用的同色系實色 */
+  --hl: rgba(255, 213, 79, .30);
+  --hl-yellow: rgba(255, 213, 79, .30);
+  --hl-green: rgba(112, 200, 138, .26);
+  --hl-blue: rgba(110, 168, 250, .24);
+  --hl-pink: rgba(244, 128, 158, .22);
+  --ul-yellow: #e2b02c; --ul-green: #4bae72; --ul-blue: #5990ea; --ul-pink: #e0668a;
   --hl-q: rgba(154, 32, 54, .12);
   --focus: rgba(154, 32, 54, .045);
   --pair: rgba(154, 32, 54, .10);        /* 原頁框和對應段落的配對色 */
@@ -86,12 +87,12 @@ html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif
   --danger: #ff8a80;
   --ok: #6fcf97;
   --gold: #e8b84a;
-  --hl: rgba(255, 214, 0, .28);
-  --hl-yellow: rgba(255, 214, 0, .28);
-  --hl-green: rgba(94, 210, 120, .28);
-  --hl-blue: rgba(96, 165, 255, .28);
-  --hl-pink: rgba(255, 112, 140, .26);
-  --ul-yellow: #d9a600; --ul-green: #4bbd70; --ul-blue: #6f9ff5; --ul-pink: #ef6a88;
+  --hl: rgba(255, 214, 80, .22);
+  --hl-yellow: rgba(255, 214, 80, .22);
+  --hl-green: rgba(112, 205, 140, .22);
+  --hl-blue: rgba(120, 172, 255, .24);
+  --hl-pink: rgba(255, 130, 160, .22);
+  --ul-yellow: #d2a83a; --ul-green: #58b47a; --ul-blue: #7aa3ee; --ul-pink: #e27c98;
   --hl-q: rgba(243, 167, 159, .16);
   --focus: rgba(243, 167, 159, .06);
   --pair: rgba(243, 167, 159, .12);

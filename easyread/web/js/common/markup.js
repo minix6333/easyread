@@ -15,13 +15,19 @@
     const masked = text.replace(TOKENS, (raw, ticks, code, dollarBlock, dollarInline, bracketBlock, parenInline) => {
       const display = ticks ? ticks.length >= 3 && code.includes("\n") : dollarBlock != null || bracketBlock != null;
       const body = ticks ? (display ? code.replace(/^[\w+-]*\r?\n/, "") : code) : dollarBlock ?? dollarInline ?? bracketBlock ?? parenInline;
-      values.push({ raw, text: body, code: !!ticks, display });
+      const lang = ticks && display ? ((/^([\w+-]*)\r?\n/.exec(code) || [])[1] || "").toLowerCase() : "";
+      values.push({ raw, text: body, code: !!ticks, display, lang });
       return prefix + (values.length - 1) + (blocks && display ? "B" : "I") + "\uE001";
     });
     return { text: masked, values, inline: new RegExp(prefix + "(\\d+)I\uE001", "g"), blocks: new RegExp(prefix + "(\\d+)B\uE001", "g") };
   }
 
+  // 語言標成 flow（或 mermaid 的 flowchart）的程式碼區塊畫成圖，見 flow.js；別的圖種照程式碼顯示
+  const FLOW_LANG = /^(flow|flowchart|mermaid|graph)$/, NOT_FLOW = /^\s*(sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|mindmap|timeline|journey|gitGraph)/;
   function tokenHtml(t, block) {
+    if (t.code && t.display && FLOW_LANG.test(t.lang || "") && !NOT_FLOW.test(t.text)) {
+      return '<div class="md-flow" data-flow="' + PR.esc(t.text) + '">' + (PR.flowCached ? PR.flowCached(t.text) : "") + "</div>";  // 畫過的直接放進來（串流時整段會重排很多次）
+    }
     if (t.code) return (t.display ? "<pre><code>" : "<code>") + PR.esc(t.text) + (t.display ? "</code></pre>" : "</code>");
     const html = PR.tex(t.display ? t.text.trim() : t.text, t.display);
     return block ? '<div class="eq">' + html + "</div>" : html;

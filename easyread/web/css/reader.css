@@ -171,10 +171,10 @@ mark.hl.c-green { background: var(--hl-green); }
 mark.hl.c-blue { background: var(--hl-blue); }
 mark.hl.c-pink { background: var(--hl-pink); }
 /* 下划线笔：不涂底色，只画一条有颜色的实线（和 AI 讨论的细线区分：更粗、有颜色） */
-mark.hl.s-ul { background: transparent; box-shadow: inset 0 -2.5px 0 var(--ul-yellow); padding-bottom: .02em; }
-mark.hl.s-ul.c-green { box-shadow: inset 0 -2.5px 0 var(--ul-green); }
-mark.hl.s-ul.c-blue { box-shadow: inset 0 -2.5px 0 var(--ul-blue); }
-mark.hl.s-ul.c-pink { box-shadow: inset 0 -2.5px 0 var(--ul-pink); }
+mark.hl.s-ul { --u: var(--ul-yellow); background: transparent; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--u) 72%, transparent); padding-bottom: .02em; }
+mark.hl.s-ul.c-green { --u: var(--ul-green); }
+mark.hl.s-ul.c-blue { --u: var(--ul-blue); }
+mark.hl.s-ul.c-pink { --u: var(--ul-pink); }
 .pens { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--rule) 55%, transparent); margin-right: 6px; }
 .pens button { width: 26px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
 .pens button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
@@ -182,9 +182,9 @@ mark.hl.s-ul.c-pink { box-shadow: inset 0 -2.5px 0 var(--ul-pink); }
 .dots.pen-underline .dot-yellow { background: var(--ul-yellow); } .dots.pen-underline .dot-green { background: var(--ul-green); }
 .dots.pen-underline .dot-blue { background: var(--ul-blue); } .dots.pen-underline .dot-pink { background: var(--ul-pink); }
 .hl-edit { display: flex; align-items: center; margin: 4px 0 8px; }
-mark.hl.q { box-shadow: inset 0 -.14em 0 color-mix(in srgb, var(--mine) 65%, transparent); }
-mark.hl.agent { background: transparent; box-shadow: inset 0 -.12em 0 color-mix(in srgb, var(--accent) 45%, transparent); cursor: default; }
-mark.hl.active { outline: 2px solid color-mix(in srgb, var(--mine) 40%, transparent); outline-offset: 1px; }
+mark.hl.q { box-shadow: inset 0 -.1em 0 color-mix(in srgb, var(--mine) 42%, transparent); }
+mark.hl.agent { background: transparent; box-shadow: inset 0 -.1em 0 color-mix(in srgb, var(--accent) 32%, transparent); cursor: default; }
+mark.hl.active { outline: 1.5px solid color-mix(in srgb, var(--mine) 38%, transparent); outline-offset: 1px; }
 mark.hl.agent.active { background: var(--hl-q); outline: 0; }
 code { font: .86em var(--mono); background: var(--accent-soft); padding: .1em .3em; border-radius: 3px; }
 
@@ -289,3 +289,9 @@ textarea.editor { display: block; width: 100%; resize: none; overflow: hidden; b
 @media (max-width: 760px) { .demo-pill span { display: none; } }
 .demo-credit { font-size: 12.5px; color: var(--ink-3); margin: 8px 0 0; line-height: 1.7; }
 .demo-credit a { color: var(--ink-2); }
+
+/* 筆記欄的寬度可以拉（文章優先；PDF 旁的那一欄見 pdfview.css） */
+.margin-grip { position: absolute; left: -18px; top: 0; bottom: 0; width: 16px; cursor: col-resize; z-index: 2; }
+.margin-grip::after { content: ""; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: var(--mine); opacity: 0; transition: opacity var(--dur-fast); }
+.margin-grip:hover::after, body.margin-sizing .margin-grip::after { opacity: .45; }
+body.margin-sizing #margin .card { transition: none; }

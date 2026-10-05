@@ -194,14 +194,14 @@
   };
 
   /* 送出問題：存成提問、收起編輯，回答流進這張卡片 */
-  PR.stickySend = function (text) {
+  PR.stickySend = function (text, mode) {
     if (!cur || cur.tr) return;
     const ta = box && box.querySelector("textarea");
     const body = (text || (ta ? ta.value : "")).trim();
     const n = noteOf();
     if (!body || !n) return;
     autosave.cancel();
-    PR.saveNote(Object.assign({}, n, { body, kind: "question" }));
+    PR.saveNote(Object.assign({}, n, { body, kind: "question", mode: mode || undefined }));
     cur.draft = null; cur.edit = false;
     if (PR.editingNote === cur.id) PR.editingNote = null;
     render();
@@ -335,8 +335,8 @@
     const q = e.target.closest && e.target.closest(".card [data-q]");
     if (!q) return;
     const card = q.closest(".card");
-    if (card.closest(".pv-sticky")) PR.stickySend(q.dataset.q);
-    else PR.sendQuestion(card.dataset.note, q.dataset.q, !!card.closest("#notespanel"));
+    if (card.closest(".pv-sticky")) PR.stickySend(q.dataset.q, q.dataset.mode);
+    else PR.sendQuestion(card.dataset.note, q.dataset.q, !!card.closest("#notespanel"), q.dataset.mode);
   });
   PR.on("remote", () => { if (cur && !cur.tr) { if (!noteOf()) PR.closeSticky({ discard: true }); else if (!cur.edit) render(); } });
   PR.on("md-preview", (ta) => { if (cur && box && box.contains(ta)) place(); });

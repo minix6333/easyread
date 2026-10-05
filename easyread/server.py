@@ -164,10 +164,13 @@ class Handler(BaseHTTPRequestHandler):
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options}
         if images:
             user["images"] = [clips.rel(p) for p in images]
+        mode = body.get("mode") if body.get("mode") in chat.MODES else None  # 推導、圖解這類專門寫法
+        if mode:
+            user["mode"] = mode
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                  images=user.get("images"))
+                                  images=user.get("images"), mode=mode)
         # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
         prev_turns = sum(1 for x in past if x.get("role") == "assistant")
         live = {"thread": tid, "turns": prev_turns}
@@ -175,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
             prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
             same = chat.same_spot(prev_user, user, refs, page) and not images
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                                images=user.get("images"), followup=True, with_context=not same)
+                                                images=user.get("images"), followup=True, with_context=not same, mode=mode)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

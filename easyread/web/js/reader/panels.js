@@ -25,6 +25,9 @@
     // 問 AI、筆記卡片、邊註的字級跟著內文字級走（預設 21px 時是 1；只放大縮小到 0.85–1.35 倍，面板不會爆掉）
     root.style.setProperty("--fs-ratio", String(Math.round(Math.max(0.85, Math.min(1.35, (Number(p.fs) || 21) / 21)) * 100) / 100));
     root.style.setProperty("--measure", p.measure + "em");
+    // 文章優先時右邊筆記欄的寬度（拖欄邊調的，見 margin.js；PDF 旁的那一欄由 pvmargin.js 管）：視窗放不下就自己縮
+    if (Number(p.marginW) > 0) root.style.setProperty("--margin-w", "min(" + Math.round(p.marginW) + "px, calc(100vw - var(--gutter) - var(--measure) - var(--gap) - 24px))");
+    else root.style.removeProperty("--margin-w");
     PR.applyTheme(p.theme);
     body.classList.toggle("font-sans", p.font === "sans");
     body.classList.toggle("font-serif", p.font === "serif");

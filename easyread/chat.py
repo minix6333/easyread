@@ -199,6 +199,37 @@ def _images_hint(images, engine: str) -> str:
             "图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
 
 
+# 提問的幾種專門寫法（卡片上的小按鈕：推導、圖解）。key 由頁面隨問題送來（body.mode），沒有就照一般寫法。
+MODES = {
+    "derive": (
+        "这次读者要看的是推导（以下要求优先于上面的一般写法）。像一位认真的教授在黑板上边写边讲：\n"  # i18n-ok 提示词
+        "1. 先交代：从什么出发（已知条件、定义、假设），要推到什么（目标式子），会用到哪些记号。\n"  # i18n-ok
+        "2. 一步一步推，不跳步。每一步先写式子（行间公式；连续几步用 aligned 环境把等号对齐），紧接着用一两句话讲清这一步为什么可以这样写："  # i18n-ok
+        "用了哪个定义、定理、恒等式或假设，做的是哪一种数学操作（例如“对 c 求导并令导数为 0”“$a^Tb$ 是标量，所以等于 $b^Ta$”）。"  # i18n-ok
+        "不许写“显然”“易得”“同理可得”。\n"  # i18n-ok
+        "3. 整个推导里最关键的那一步（想法所在）要特别点出来：它在做什么，直觉是什么。\n"  # i18n-ok
+        "4. 最后写出结果，再用两三句话说明：结果的含义、成立的条件、容易弄错的地方。\n"  # i18n-ok
+        "严谨优先：记号前后一致；维度、定义域、取等条件、哪些量被当作常数都写清楚。页面上的推导跳了步就补上；页面有错就指出来；"  # i18n-ok
+        "页面没有给推导，就根据页面的定义自己推，并说明哪些步骤是你补的。讲解的话要直白，让学生跟得上，但不能为了好懂而牺牲正确性。\n"  # i18n-ok
+    ),
+    "diagram": (
+        "这次读者想用图看懂这里（以下要求优先于上面的一般写法）：主要靠图，文字只当图注。\n"  # i18n-ok 提示词
+        "- 画 1 到 3 张图。自己判断哪种图最能说明问题：流程图（步骤、数据怎么流动）、架构图（由哪些部分组成，怎么分层分组，谁连着谁）、"  # i18n-ok
+        "关系图（概念之间的因果、依赖、包含）；并列比较用 Markdown 表格。\n"  # i18n-ok
+        "- 图写在 ```flow 代码块里，语法只能用 Mermaid flowchart 的这个子集（别的图种这里画不出来）：\n"  # i18n-ok
+        "  第一行 `flowchart LR`（从左到右）或 `flowchart TD`（从上到下）。\n"  # i18n-ok
+        "  节点：`A[方框]`、`B(圆角)`、`C([起点或终点])`、`D{判断}`、`E[(数据或存储)]`。文字里有括号或引号时，整段用双引号包起来，如 `A[\"f(x)\"]`；"  # i18n-ok
+        "换行用 <br>；可以写 $TeX$。\n"  # i18n-ok
+        "  连线：`A --> B`，带说明 `A -->|说明| B`，虚线 `A -.-> B`，粗线 `A ==> B`，双向 `A <--> B`，无箭头 `A --- B`；可以连写 `A --> B --> C`。\n"  # i18n-ok
+        "  分组（架构图的层、模块）：`subgraph enc[编码器]` 换行写组里的节点和连线，最后一行 `end`；组里可以写 `direction LR` 或 `direction TD`；"  # i18n-ok
+        "组可以嵌套，也可以用组的 id 直接连线（`输入 --> enc`）。\n"  # i18n-ok
+        "- 图要清楚好看：节点文字短（一般不超过 12 个字），一张图不超过 12 个节点，内容多就拆成两张；先想好布局再写，尽量不让线交叉。\n"  # i18n-ok
+        "- 每张图下面用一两句话说怎么看这张图、关键在哪里。不要大段文字，不要把图里已有的内容再用文字重复一遍。\n"  # i18n-ok
+        "- 图里的内容必须忠于原文，不能为了画图而简化到失真；原文的术语、符号照用。\n"  # i18n-ok
+    ),
+}
+
+
 def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
     """追問時讀者還指著上一問那一處（同一段、同一頁、同一句、同幾處引用）：位置上下文不用再送一遍。"""
     if not prev:
@@ -209,9 +240,11 @@ def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
 
 
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
-           answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True) -> str:
+           answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True,
+           mode: str | None = None) -> str:
     """followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
-    with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。"""
+    with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。mode：這一問的專門寫法（MODES 的 key：推導、圖解）。"""
+    special = MODES.get(mode or "", "")
     answer_style = answer_styles.parse(answer_style)
     history = messages[-HISTORY:]
     convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])  # i18n-ok
@@ -230,6 +263,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
         text += (marks + "\n\n") if marks else ""
         hint = _images_hint(images, engine).strip()
         text += (hint + "\n\n") if hint else ""
+        text += (special + "\n") if special else ""
         text += f"读者接着问：{ask}"  # i18n-ok
         return localize(text, langs.reply_code(meta))
     style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
@@ -249,6 +283,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
             + ("\n\n" + marks if marks else "")
             + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
             + _images_hint(images, engine)
+            + ("\n\n" + special.rstrip() if special else "")
             + f"\n\n读者现在问：{ask}")  # i18n-ok
     # 回答語言是繁體時整段提示詞轉成繁體，模型才不會跟著提示詞寫簡體（讀者的問題、原文和 TeX 不受影響）
     return localize(text, langs.reply_code(ws.load("paper").get("meta")))

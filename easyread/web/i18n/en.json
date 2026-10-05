@@ -1265,5 +1265,15 @@
  "；<span class=\"legend-agent\"></span>AI 的解釋和回答、<span class=\"legend-mine\"></span>我的筆記都不屬於原文。": "; <span class=\"legend-agent\"></span>AI explanations and answers and <span class=\"legend-mine\"></span>my notes are not part of the original text.",
  "最新": "Newest",
  "跟翻譯用的模型一樣": "Same as the translation model",
- "{model} 寫完才會一次顯示，通常 10–30 秒": "{model} shows the answer only once it is finished, usually 10–30 s"
+ "{model} 寫完才會一次顯示，通常 10–30 秒": "{model} shows the answer only once it is finished, usually 10–30 s",
+ "AI 把這一頁講明白，寫進這一頁的筆記（接在你寫的後面）": "AI explains this page and writes it into this page's note (after what you wrote)",
+ "圖解": "Diagram",
+ "已寫進第 {page} 頁的筆記": "Added to the note for page {page}",
+ "幫這頁寫筆記": "Write this page's note",
+ "找不到这一页": "Page not found",
+ "把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。": "Write out the derivation here step by step, and explain why each step is valid.",
+ "拖動調整筆記欄寬度（雙擊回預設）": "Drag to resize the notes column (double-click to reset)",
+ "推導": "Derive",
+ "用圖講解這個區域。": "Explain this region with diagrams.",
+ "用圖講解這段。": "Explain this passage with diagrams."
 }

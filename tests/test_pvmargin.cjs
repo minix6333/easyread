@@ -75,3 +75,15 @@ test("moving or resizing a card does not create an undo step", () => {
   PR.undo();  // 只退回「新增筆記」那一步：筆記整條消失，而不是只退回位置
   assert.equal(reader.notes.n1.deleted, true);
 });
+
+test("the column keeps the chosen width when it fits, shrinks in steps when it does not, and gives up below the minimum", () => {
+  const { PR } = load();
+  assert.equal(PR.pvMarginFit(280, 1300, 1), 280);        // 預設寬度，放得下
+  assert.equal(PR.pvMarginFit(432, 1300, 1), 432);        // 拉寬了，還放得下
+  assert.equal(PR.pvMarginFit(900, 1400, 1), 560);        // 最寬 560
+  assert.equal(PR.pvMarginFit(100, 1300, 1), 220);        // 最窄 220
+  assert.equal(PR.pvMarginFit(432, 872, 1), 232);         // 開了側邊面板：縮到頁面還有 640 寬
+  assert.equal(PR.pvMarginFit(432, 800, 1), 0);           // 連最窄都放不下：不擺邊註欄
+  assert.equal(PR.pvMarginFit(280, 1300, 1.4), 0);        // 頁面放大到佔滿：不擺
+  assert.equal(PR.pvMarginFit(0, 1300, 1), 280);          // 沒設定過＝預設
+});
