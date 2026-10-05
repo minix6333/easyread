@@ -127,7 +127,7 @@
       const act = (e.target.closest("[data-job]") || { dataset: {} }).dataset.job;
       if (act === "cancel") PR.api("/api/p/" + PR.pid + "/cancel", { method: "POST", body: {} }).then(() => { PR.hidePopover(); PR.poll(); });
       if (act === "retry") post({ failed: true }, PR.t("正在重试，译好后自动替换"));
-      if (act === "go") post({}, PR.t("已開始翻譯，譯好了按「譯文」看"));
+      if (act === "go") post({ focus: PR.pdfPage ? PR.pdfPage() : undefined }, PR.t("已開始翻譯，譯好了按「譯文」看"));  // focus：正在看的這頁最先譯出來
       if (act === "open") { PR.hidePopover(); PR.toggleArticle(true); }
       if (act === "models") { PR.hidePopover(); PR.openSettings("chat"); }
     };

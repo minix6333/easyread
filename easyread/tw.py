@@ -41,11 +41,44 @@ def is_tw(target) -> bool:
     return target == CODE
 
 
+@lru_cache(maxsize=1)
+def _dedup_rules() -> tuple[tuple[str, str], ...]:
+    """s2twp 的台灣詞組規則裡，目標詞包含來源詞的（算法→演算法、虛擬機→虛擬機器）：模型本來就寫「演算法」時，
+    裡面的「算法」會再被換一次，變成「演演算法」（實測一篇論文裡出現了 41 次）。從詞典找出這類規則，轉完後把疊出來的字去掉；
+    轉兩次也不會再長。"""
+    rules: list[tuple[str, str]] = []
+    try:
+        import os
+        import opencc
+        path = os.path.join(os.path.dirname(opencc.__file__), "dictionary", "TWPhrases.txt")
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 2:
+                    continue
+                src = parts[0]
+                for dst in parts[1].split(" "):
+                    if src != dst and src in dst:
+                        a, b = dst.split(src, 1)  # dst = a + src + b；轉兩次就成了 a + dst + b
+                        rules.append((a + dst + b, dst))
+    except Exception:  # noqa: BLE001 —— 詞典讀不到就只用下面寫死的幾條
+        pass
+    rules += [("演演算法", "演算法"), ("運運算", "運算")]  # i18n-ok 疊字修正
+    return tuple(dict.fromkeys(rules))
+
+
+def _dedup(text: str) -> str:
+    for bad, good in _dedup_rules():
+        if bad in text:
+            text = text.replace(bad, good)
+    return text
+
+
 def to_tw(text):
-    """簡體（或混雜）→ 繁體台灣用語；沒有漢字的原樣返回。"""
+    """簡體（或混雜）→ 繁體台灣用語；沒有漢字的原樣返回。已經是台灣用語的詞不會被疊字（見 _dedup_rules）。"""
     if not isinstance(text, str) or not _HAN.search(text):
         return text
-    return _cc().convert(text).replace("臺", "台")  # i18n-ok 台灣、平台：介面和譯文都用「台」
+    return _dedup(_cc().convert(text)).replace("臺", "台")  # i18n-ok 台灣、平台：介面和譯文都用「台」
 
 
 def convert(obj, skip: tuple[str, ...] = ("en", "caption_en", "image_en", "title_en", "tex", "id", "type", "src", "anchor", "key", "reply_to")):

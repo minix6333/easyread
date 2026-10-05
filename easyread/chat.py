@@ -15,7 +15,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import answer_styles, engines, netcheck, openai_api, usage
+from . import answer_styles, claude_live, codex_live, engines, netcheck, openai_api, usage
 from . import kinds, langs, tw
 from .i18n import tr
 from .log import log
@@ -185,11 +185,12 @@ def images_note(images) -> str:
 
 
 def _images_hint(images, engine: str) -> str:
-    """這次提問附了圖（在原 PDF 上框選的區域、貼進來的圖片）：告訴模型圖在哪。"""
+    """這次提問附了圖（在原 PDF 上框選的區域、貼進來的圖片）：告訴模型圖在哪。
+    Claude Code 走 claude_live 時圖直接放在訊息裡（和 Codex、API 一樣，少一個 Read 來回）；舊版才要它自己 Read。"""
     names = [str(x) for x in (images or []) if x]
     if not names:
         return ""
-    if engine == "claude":
+    if engine == "claude" and not claude_live.enabled():
         return ("\n\n读者这次附了 " + str(len(names)) + " 张图片，先用 Read 工具把每一张都看过再回答（路径相对当前目录）：\n"  # i18n-ok
                 + "\n".join("- " + n for n in names)
                 + "\n以图片里看到的内容为准；图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
@@ -197,16 +198,39 @@ def _images_hint(images, engine: str) -> str:
             "图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
 
 
+def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
+    """追問時讀者還指著上一問那一處（同一段、同一頁、同一句、同幾處引用）：位置上下文不用再送一遍。"""
+    if not prev:
+        return False
+    keys = lambda rs: [((r.get("anchor") or ""), (r.get("quote") or ""), (r.get("page") or 0)) for r in (rs or [])]  # noqa: E731
+    return ((prev.get("anchor") or "") == (user.get("anchor") or "") and (prev.get("page") or None) == (page or None)
+            and (prev.get("quote") or "") == (user.get("quote") or "") and keys(prev.get("refs")) == keys(refs))
+
+
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
-           answer_style: str = answer_styles.DEFAULT, page=None, images=None) -> str:
+           answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True) -> str:
+    """followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
+    with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。"""
     answer_style = answer_styles.parse(answer_style)
     history = messages[-HISTORY:]
     convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])  # i18n-ok
     ask = history[-1]["content"] if history else ""
-    tool = ("需要看全文时，用 Read 工具读当前目录的 paper.json（blocks 里是译文和原文）；读者的全部标记在 reader.json 的 notes 里。\n"  # i18n-ok
+    meta = ws.load("paper").get("meta") or {}
+    total = int(meta.get("page_count") or 0)
+    files = f"（一页一个文件，page-001.txt 到 page-{total:03d}.txt）" if total else "（一页一个文件）"  # i18n-ok
+    # 上下文够用就别让模型去读文件：Opus / Fable 一读 paper.json 就是十几秒、上万 token（实测首字 2 秒变 13 秒）
+    tool = ("上面给的上下文一般就够了，直接回答。确实需要别的页时，用 Read 工具读当前目录 extract/ 里那一页抽取的文字"  # i18n-ok
+            + files + "；不要整本读 paper.json。读者的全部标记在 reader.json 的 notes 里，问到标记时才去看。\n"  # i18n-ok
             if engine == "claude" else "")
     want, colors = wants_marks(ask)
-    marks = _marks(ws, colors) if want else _marks_summary(ws)
+    marks = _marks(ws, colors) if want else ("" if followup else _marks_summary(ws))
+    if followup:
+        text = ((_context(ws, anchor, quote, refs, page) + "\n\n") if with_context else "读者还指着刚才那一处。\n\n")  # i18n-ok
+        text += (marks + "\n\n") if marks else ""
+        hint = _images_hint(images, engine).strip()
+        text += (hint + "\n\n") if hint else ""
+        text += f"读者接着问：{ask}"  # i18n-ok
+        return localize(text, langs.reply_code(meta))
     style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
              else "用" + langs.reply_lang(ws.load("paper").get("meta")) + "，直接、具体，能举例就举例。\n")  # i18n-ok
     whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
@@ -228,21 +252,25 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
 
 
 # ---------- 流式输出 ----------
-def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images=None) -> Iterator[str]:
+def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images=None, live=None,
+           on_live=None) -> Iterator[str]:
     """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。
-    images：這次附的圖片檔。Claude Code 自己用 Read 讀（提示詞裡寫了路徑），Codex 和 API 當附件送。"""
+    images：這次附的圖片檔，直接放進訊息（舊版 Claude Code 退回讓它自己 Read，提示詞裡寫了路徑）。
+    live：{"thread", "turns", "followup_text", "tools", "system"}——接著哪個對話問；模型行程還記著前面幾輪時只送 followup_text
+    （見 claude_live / codex_live）。on_live()：Codex 真的在逐字串流時叫一下（頁面就不用提示「寫完才會一次顯示」）。"""
     e = ecfg.get("engine")
     images = list(images or [])
-    bad = netcheck.problem(ecfg)
+    live = dict(live or {})
+    bad = netcheck.quick_problem(ecfg)  # 不等探测：每问一次都等 0.1–0.6 秒太慢，连不上时引擎自己会报
     if bad:
         raise engines.EngineError(bad)
     try:
         if e == "claude":
-            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
+            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter, images, live)
         elif e == "openai":
             yield from openai_api.stream(ecfg["openai"], text, cancel, meter, images)
-        else:  # codex 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
-            yield engines.run(engines.for_translation(ecfg), text, cwd, images or None, cancel, meter)
+        else:
+            yield from _stream_codex(ecfg, text, cwd, cancel, meter, images, live, on_live)
     except engines.EngineError as err:
         msg = netcheck.explain(ecfg, str(err))
         if images and e == "openai" and tr("（這個模型可能不能看圖") not in msg:
@@ -250,9 +278,61 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
         raise engines.EngineError(msg) from None
 
 
-def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
-    """只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
+def warm(ecfg: dict, cwd: Path, tools: str | None = "Read", system: str | None = None) -> None:
+    """讀者打開面板、開始打字、選了字：先把模型行程拉起來，按送出時少等一秒（不連網、不花額度）。"""
+    e = ecfg.get("engine")
+    if e == "claude":
+        claude_live.warm(ecfg["claude"], cwd, tools, system)
+    elif e == "codex":
+        codex_live.warm(engines.for_translation(ecfg)["codex"])
+
+
+def bound_turns(ecfg: dict, ws: Workspace, thread: str | None) -> int | None:
+    """這個對話的模型行程還活著、記著幾輪；沒有回 None（server 用它決定要不要只送追問）。"""
+    e = ecfg.get("engine")
+    if e == "claude":
+        return claude_live.bound_turns(thread)
+    if e == "codex":
+        return codex_live.bound_turns(ws.id, thread, ecfg["codex"].get("model") or "", ws.root)
+    return None
+
+
+def _stream_codex(ecfg: dict, text: str, cwd: Path, cancel, meter, images, live: dict, on_live) -> Iterator[str]:
+    """先走 app-server（逐字串流、記著對話）；起不來、或還沒出字就斷了，退回 codex exec 整段給。
+    两条路都不拉起用户的 MCP 和用不到的功能（见 codex_lean）。"""
+    lean = engines.for_translation(ecfg)
+    if codex_live.enabled():
+        got = False
+        try:
+            for piece in codex_live.stream(lean["codex"], text, cwd, cancel, meter, images, live.get("thread"), live.get("turns"),
+                                           live.get("followup_text"), on_live):
+                got = True
+                yield piece
+            return
+        except codex_live.Unavailable as e:
+            if got:
+                raise
+            log.warning("Codex app-server 用不了，这次改用 codex exec：%s", str(e)[-300:])
+    yield engines.run(lean, text, cwd, images or None, cancel, meter)
+
+
+def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None, images=None, live=None) -> Iterator[str]:
+    """先走常駐行程（claude_live：預先啟動、記著對話、圖直接附上）；這版 Claude Code 不認那些參數就退回一次性呼叫。
+    一次性呼叫只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
     这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。"""
+    live = dict(live or {})
+    images = list(images or [])
+    lean = True
+    if claude_live.enabled():
+        try:
+            yield from _stream_live(c, text, cwd, cancel, on_model, meter, images, live)
+            return
+        except claude_live.Unsupported as e:
+            log.warning("Claude Code 不认 --input-format stream-json，改用一次性调用：%s", str(e)[-300:])
+            claude_live.disable()
+            if images:  # 提示词是按“图在消息里”写的：补一句让它自己 Read
+                text += _images_hint(images, "claude")
+            lean = not (engines.option_unknown(e) and "--tools" in str(e))
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))
@@ -262,6 +342,9 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
         args += ["--model", c["model"]]
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]
+    if not lean:
+        yield from _stream_once(args, text, cwd, cancel, on_model, meter)
+        return
     said = []
     try:
         for piece in _stream_once(args + engines.CLAUDE_LEAN, text, cwd, cancel, on_model, meter):
@@ -272,6 +355,24 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
             raise
         log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
         yield from _stream_once(args, text, cwd, cancel, on_model, meter)
+
+
+def _stream_live(c: dict, text: str, cwd: Path, cancel, on_model, meter, images: list, live: dict) -> Iterator[str]:
+    """常駐行程：綁著這個對話、輪數對得上的就接著問（只送 followup_text）；否則拿預熱好的或現開一個，送完整提示詞。"""
+    tools = live.get("tools", "Read")
+    system = live.get("system")
+    thread = live.get("thread")
+    s = claude_live.acquire(c, cwd, tools, system, thread, live.get("turns"))
+    follow = live.get("followup_text") if s.turns > 0 else None
+    if s.model and on_model:
+        on_model(s.model)  # 追問時 init 事件不會再來一次
+    ok = False
+    try:
+        for piece in s.turn(claude_live.content(follow or text, images), cancel, on_model, meter):
+            yield piece
+        ok = True
+    finally:
+        claude_live.release(s, keep=ok and bool(thread))
 
 
 def _stream_once(args: list[str], text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:

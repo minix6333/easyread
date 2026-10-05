@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -127,6 +128,48 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
         return None
 
 
+_bad: dict[str, tuple[float, str]] = {}  # 背景探測失敗的結論：origin → (時間, 給人看的話)
+_probing: set[str] = set()
+_BAD_TTL = 60
+
+
+def quick_problem(cfg: dict) -> str | None:
+    """問 AI、選字翻譯用的版本：不等探測（探一次要 0.1–0.6 秒，每次提問都等就慢）。
+    兩分鐘內通過過就直接放行；沒測過或過期就在背景探一次、這次先放行——連不上時引擎自己會報錯，explain() 會補上該怎麼辦；
+    背景探到連不上，一分鐘內的下一次提問就立刻用中文說清楚。"""
+    t = target(cfg)
+    u = urlparse(t["url"]) if t else None
+    if not u or not u.hostname:
+        return None
+    origin = f"{u.scheme}://{u.netloc}/"
+    now = time.time()
+    if now - _ok.get(origin, 0) < _OK_TTL:
+        return None
+    bad = _bad.get(origin)
+    if bad and now - bad[0] < _BAD_TTL:
+        return bad[1]
+    with _probe_lock:
+        if origin in _probing:
+            return None
+        _probing.add(origin)
+
+    def go():
+        try:
+            msg = problem(cfg)
+            if msg:
+                _bad[origin] = (time.time(), msg)
+            else:
+                _bad.pop(origin, None)
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            with _probe_lock:
+                _probing.discard(origin)
+    threading.Thread(target=go, daemon=True).start()
+    return None
+
+
+_probe_lock = threading.Lock()
 _LOGIN = re.compile(r"not logged in|run /login|oauth token (has )?expired|invalid api key · please run", re.I)
 
 

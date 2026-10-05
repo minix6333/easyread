@@ -19,6 +19,13 @@ class TwTest(unittest.TestCase):
         self.assertIsNone(tw.to_tw(None))
         self.assertEqual(tw.to_cn("標紅的筆記"), "标红的笔记")
 
+    def test_already_taiwanese_terms_are_not_doubled(self):
+        # 模型本來就寫「演算法」：s2twp 會把裡面的「算法」再換一次，變成「演演算法」（4cf6b1e1a402 那篇出現了 41 次）
+        self.assertEqual(tw.to_tw("演算法和算法，虛擬機器與虛擬機"), "演算法和演算法，虛擬機器與虛擬機器")
+        self.assertEqual(tw.to_tw(tw.to_tw("MCMC 取樣演算法")), "MCMC 取樣演算法")  # 轉兩次也不會長
+        self.assertEqual(tw.to_tw("模型原生的運運算元"), "模型原生的運算元")
+        self.assertIn(("演演算法", "演算法"), tw._dedup_rules())
+
     def test_convert_keeps_original_and_ids(self):
         data = {"blocks": [{"id": "p1-1", "type": "para", "en": "data 软件", "zh": "软件", "tex": "x_i", "items": [{"en": "a", "zh": "网络"}]}],
                 "glossary": [{"en": "network", "zh": "网络"}], "meta": {"title_zh": "标题", "title_en": "Title 简体"}}

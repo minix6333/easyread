@@ -205,6 +205,13 @@
     t.streaming = false; t.ctrl = null;
     if (cur === mine) renderTr();
   }
+  /* 選字工具列一出現就叫伺服器把翻譯用的模型行程拉起來（claude_live），按「翻譯」時少等一秒；一分鐘內只叫一次 */
+  let warmAt = 0;
+  PR.warmQuick = function () {
+    if (Date.now() - warmAt < 60000 || !PR.canChat || !PR.canChat()) return;
+    warmAt = Date.now();
+    PR.api("/api/p/" + PR.pid + "/quick", { method: "POST", body: { mode: "warm" } }).catch(() => {});
+  };
   /* sel：PR.pdfSelection() 的結果（頁碼、字元範圍、框、原話） */
   PR.translateSelection = function (sel) {
     if (!sel || !sel.page || !(sel.quote || "").trim()) return;

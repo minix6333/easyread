@@ -174,11 +174,20 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     nxt = batch[-1] + 1
     # 分段交界、引擎不能看图：前一段最后一批拿下一页全文补完跨页那段（后一段第一批会跳过页首续文，这里补不全就丢了）
     head = _next_head(ws, nxt, whole=mode == "text" and nxt in peek) if nxt <= total_pages else ""
-    if read:
-        prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
-    else:
-        prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_context.build(ws.root, batch[0]) if front else "")
-    text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
+    def ask(mode, images):
+        if read:
+            prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
+        else:
+            prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_context.build(ws.root, batch[0]) if front else "")
+        return engines.run(cfg, prompt, ws.root, images, cancel, meter)
+    try:
+        text = ask(mode, images)
+    except engines.EngineError as e:
+        from . import claude_live
+        if not isinstance(e, claude_live.Unsupported):
+            raise
+        # 这版 Claude Code 不能随消息附图：换成让它自己 Read 原页图的提示词（image_mode 现在也会这么说）
+        text = ask(engines.image_mode(cfg), [])
     try:
         data = engines.parse_json(text)
     except engines.EngineError:
@@ -264,9 +273,10 @@ def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]
     return out
 
 
-def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, meter=None, read=False) -> dict[int, str]:
+def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, meter=None, read=False, focus=None) -> dict[int, str]:
     """翻译给定的页（已完成的页会重译并替换；只读原文整理过的页就地补译文）。report(done, total, message)；
-    meter 收集 token 用量。read：只读原文，把页整理成块但不翻译。返回没做成的页 {页码: 原因}。"""
+    meter 收集 token 用量。read：只读原文，把页整理成块但不翻译。focus：讀者正在看的頁，讓它最先譯出來（見 segments.plan）。
+    返回没做成的页 {页码: 原因}。"""
     cfg = engines.for_translation(cfg)  # 本机 CLI 不加载用户的 MCP、多余的工具定义（问 AI 不走这里）
     paper = ws.load("paper")
     total_pages = paper.get("meta", {}).get("page_count") or 0
@@ -274,7 +284,12 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     size = max(1, int(cfg.get("batch_pages") or 2))
     # 分段并行：切成几段连续的页同时译，段内一批接一批（见 segments.py）
     k = segments.workers(cfg.get("concurrency"), len(_batches(pages, size, en_pages)))
-    lanes = [_batches(seg, size, en_pages) for seg in segments.plan(pages, size, k, ws.root)]
+    try:
+        focus = int(focus) if focus is not None else None
+    except (TypeError, ValueError):
+        focus = None
+    segs = segments.plan(pages, size, k, ws.root) if focus is None else segments.plan(pages, size, k, ws.root, focus)
+    lanes = [_batches(seg, size, en_pages) for seg in segs]
     batches = [b for lane in lanes for b in lane]
     verb = tr("正在整理原文") if read else tr("正在翻译")
     workers = max(1, len(lanes))

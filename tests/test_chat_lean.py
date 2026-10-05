@@ -77,7 +77,7 @@ class OtherPathsLeanTest(unittest.TestCase):
             return '{"zh": "新译文"}'
 
         cfg = {"engine": "codex", "codex": {"model": "m"}}
-        with mock.patch.object(engines, "run", run), mock.patch.object(chat.netcheck, "problem", lambda c: ""):
+        with mock.patch.object(engines, "run", run), mock.patch.object(chat.netcheck, "quick_problem", lambda c: None):
             list(chat.stream(cfg, "q", Path("."), threading.Event()))
         self.assertTrue(seen[-1]["codex"]["lean"])
         self.assertEqual(seen[-1]["codex"]["model"], "m")

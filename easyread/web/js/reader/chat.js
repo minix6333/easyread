@@ -26,6 +26,16 @@
     if (open) { autoContext(); load().then(() => { render(); focusInput(); }); render(); }
   };
   const focusInput = () => setTimeout(() => { const t = PR.$("#chatInput"); t && t.focus(); }, 300);
+  /* 讀者點進輸入框、換了模型：先叫伺服器把模型行程拉起來（不連網、不花額度），按送出時少等一秒。一分鐘內同一個模型只叫一次 */
+  const warmedAt = {};
+  function warm() {
+    const id = st.model || st.def;
+    if (!id || !PR.canChat()) return;
+    if (warmedAt[id] && Date.now() - warmedAt[id] < 60000) return;
+    warmedAt[id] = Date.now();
+    PR.api("/api/p/" + PR.pid + "/chat/warm", { method: "POST", body: { model: id } }).catch(() => {});
+  }
+  document.addEventListener("focusin", (e) => { if (e.target.id === "chatInput") warm(); });
 
   function autoContext() {
     const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock();
@@ -102,6 +112,7 @@
       if (st.streaming || !st.models.some((m) => m.id === id)) return;
       st.model = id; st.chatOptions = {};
       PR.ls && PR.ls.set("easyread-chat-model", id);
+      warm();
       if (PR.chatOpen()) render();
       PR.emit && PR.emit("chat-model");
     },
@@ -194,7 +205,7 @@
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i>' + PR.waitHint(st.model) + "</p>") + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i>' + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
@@ -299,6 +310,7 @@
           if (ev.thread && (!t.id || t.local)) { t.id = ev.thread; delete t.local; st.cur = ev.thread; }
           if (ev.model) msg.model = ev.model;
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
+          if (ev.stream === "live" && st.streaming) { st.streaming.live = true; renderLiveSoon(); }  // Codex 真的在逐字串流：不用提示「寫完才會一次顯示」
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
           if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;

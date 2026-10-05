@@ -84,6 +84,7 @@ def from_claude(result: dict, rate_event: dict | None) -> dict:
     if windows:  # 有额度信息就是订阅；订阅时 total_cost_usd 只是按官方价折算，不是真花的钱，不记
         rec["limits"] = {k: {"used": w.get("utilization"), "resets_at": w.get("resetsAt")}
                          for k, w in windows.items() if isinstance(w, dict)}
+        rec["limits"]["engine"] = "claude"  # 页面上写“Claude 订阅”还是“ChatGPT 方案”
     elif result.get("total_cost_usd") is not None:
         rec["cost_usd"] = float(result["total_cost_usd"])
     window = next((m.get("contextWindow") for m in (result.get("modelUsage") or {}).values() if m.get("contextWindow")), None)
@@ -97,6 +98,16 @@ def from_codex(event: dict) -> dict:
     u = event.get("usage") or {}
     return {"input": int(u.get("input_tokens") or 0), "cached": int(u.get("cached_input_tokens") or 0),
             "output": int(u.get("output_tokens") or 0)}
+
+
+def from_codex_live(token_usage: dict | None, limits: dict | None) -> dict:
+    """codex app-server：thread/tokenUsage/updated 的 tokenUsage.last，和 codex_live 整理好的额度（ChatGPT 方案的 5 小时 / 7 天）。"""
+    u = token_usage or {}
+    rec = {"input": int(u.get("inputTokens") or 0), "cached": int(u.get("cachedInputTokens") or 0),
+           "output": int(u.get("outputTokens") or 0)}
+    if limits:
+        rec["limits"] = dict(limits)
+    return rec
 
 
 def from_openai(res: dict) -> dict:

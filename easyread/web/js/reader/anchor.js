@@ -148,6 +148,7 @@
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
     bar.classList.add("open");
+    if (pdf && canAsk && PR.warmQuick) PR.warmQuick();  // 選了字就先把選字翻譯的模型行程拉起來（不連網、不花額度）
     const r = pendingSel.rect, w = bar.offsetWidth;
     const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
     const y = r.top - 46 < 58 ? r.bottom + 8 : r.top - 46;

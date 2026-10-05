@@ -150,7 +150,7 @@ class AnswerStyleTest(unittest.TestCase):
         model = {"id": "m", "name": "Model", "engine": "openai", "model": "test"}
         with patch("easyread.server.config.load", return_value={}), \
                 patch("easyread.server.chat_models.engine_cfg", return_value=(engine, model)), \
-                patch("easyread.server.chat.stream", side_effect=lambda *a: iter([ANSWER[:35], ANSWER[35:]])) as stream:
+                patch("easyread.server.chat.stream", side_effect=lambda *a, **k: iter([ANSWER[:35], ANSWER[35:]])) as stream:
             events = self.post({"text": "总结论文", "anchor": "b", "answer_style": "ste100"})
             tid = events[0]["thread"]
             self.assertEqual(events[0]["answer_style"], "ste100")

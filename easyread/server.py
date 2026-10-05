@@ -6,6 +6,7 @@ import mimetypes
 import os
 import sys
 import threading
+import time
 
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -124,6 +125,14 @@ class Handler(BaseHTTPRequestHandler):
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
                                   images=user.get("images"))
+        # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
+        prev_turns = sum(1 for x in past if x.get("role") == "assistant")
+        live = {"thread": tid, "turns": prev_turns}
+        if prev_turns and chat.bound_turns(ecfg, ws, tid) == prev_turns:
+            prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
+            same = chat.same_spot(prev_user, user, refs, page) and not images
+            live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
+                                                images=user.get("images"), followup=True, with_context=not same)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -144,9 +153,13 @@ class Handler(BaseHTTPRequestHandler):
                 if m.get("engine") == "claude":
                     send({"model": chat_models.label(m)})
             guard = tw.Stream(tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))))  # 繁體保險：模型夾帶的簡體字轉掉
-            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {})):
+            t0 = time.time()
+            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {}),
+                                     live=live, on_live=lambda: send({"stream": "live"})):
                 piece = guard.feed(piece)
                 if piece:
+                    if not pieces:  # 首字花了多久（終端機裡看得到；追問、預熱有沒有生效就看這個）
+                        log.info("問 AI 首字 %.1f 秒（%s%s）", time.time() - t0, model, "，追問" if live.get("followup_text") else "")  # i18n-ok 終端機記錄
                     pieces.append(piece)
                     send({"t": piece})
             tail = guard.flush()
@@ -379,6 +392,10 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self._body() or b"{}")
             if action == "chat" and len(parts) > 5:
                 sub, tid = parts[5], body.get("thread", "")
+                if sub == "warm":  # 讀者打開面板、開始打字：先把模型行程拉起來（claude_live / codex_live），不連網、不花額度
+                    ecfg, _ = chat_models.engine_cfg(config.load(), body.get("model"))
+                    chat.warm(ecfg, ws.root)
+                    return self._json(200, {"ok": True})
                 if sub == "pin":
                     chat_store.pin(ws, tid, body.get("id", ""))
                 elif sub == "rename":
@@ -391,6 +408,8 @@ class Handler(BaseHTTPRequestHandler):
             if action == "notehelp":
                 return notehelp.handle(self, ws, body)
             if action == "quick":
+                if body.get("mode") == "warm":
+                    return self._json(200, quick.warm(ws, body))
                 return quick.handle(self, ws, body)
             if action == "discussion_del":
                 return self._json(200, {"deleted": paperdata.delete_discussion(ws, str(body.get("id", "")))})

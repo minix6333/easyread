@@ -31,6 +31,10 @@ def enqueue(jobs, ws, body: dict) -> dict:
         if not explicit and not pending:
             pages = sorted(set((ws.load("paper").get("translation") or {}).get("en_pages", [])))
             cap_check = True  # 系统生成的页计划仍需确认；用户亲自填 pages 才豁免。
+    try:  # 讀者按「翻譯」時正在看的頁：讓它最先譯出來
+        focus = int(body.get("focus")) if body.get("focus") is not None else None
+    except (TypeError, ValueError):
+        focus = None
     jobs.enqueue(ws, pages=pages, translate_after=True, scope=scope, read=read, model=model,
-                 confirmed=body.get("confirmed") is True, target=target, cap_check=cap_check)
+                 confirmed=body.get("confirmed") is True, target=target, cap_check=cap_check, focus=focus)
     return {"ok": True}

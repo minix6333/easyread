@@ -63,13 +63,20 @@ def seam_cost(root: Path, prev: int, nxt: int) -> float:
     return 1.0 if last.endswith((".", "?", "!", ":")) else 2.0
 
 
-def plan(pages: list[int], size: int, k: int, root: Path) -> list[list[int]]:
+def plan(pages: list[int], size: int, k: int, root: Path, focus: int | None = None) -> list[list[int]]:
     """把 pages 切成至多 k 段。先定最慢一段要译几批（总批数 / k 向上取整），每段不超过这么多批；
     在这个限制下挑交界代价最小的切法：每多一个交界加 0.5，再加交界本身的代价，再按批数加一点（奇数页的段多一次调用）。
-    这样 7 批开 4 段（2,2,2,1），5 批开 3 段（2,2,1）就够，交界越少越好；有余量时切口挪到干净的地方。"""
+    这样 7 批开 4 段（2,2,2,1），5 批开 3 段（2,2,1）就够，交界越少越好；有余量时切口挪到干净的地方。
+    focus：讀者按「翻譯」時正在看的那一頁。在它前面硬切一刀，讓它落在某一段的第一批——各段同時開譯，這頁就最先譯出來
+    （不然它可能排在某段的第三批，要等兩三分鐘）。前後兩半各按篇幅分到幾段。"""
     n = len(pages)
     if k <= 1 or n <= 1:
         return [list(pages)] if pages else []
+    if focus in pages and pages.index(focus) > 0:
+        i = pages.index(focus)
+        before, after = pages[:i], pages[i:]
+        kb = max(1, min(k - 1, round(k * len(before) / n)))
+        return plan(before, size, kb, root) + plan(after, size, k - kb, root)
     k = min(k, n)
     cap = math.ceil(math.ceil(n / size) / k) * size
     inf = float("inf")

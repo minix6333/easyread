@@ -47,19 +47,21 @@ class Jobs:
         ws.update("job", apply)
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
-                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False):
+                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False,
+                focus: int | None = None):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。
         read：只读原文，用模型把页整理成段落、公式、表格，不翻译；之后再翻译时就地补中文。
         model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。
         confirmed：只接受真正的 True；target：续跑时保留原任务的译文语言。
-        cap_check：pages 来自系统计划而非用户指定，仍检查页数上限并跳过已完成页。"""
+        cap_check：pages 来自系统计划而非用户指定，仍检查页数上限并跳过已完成页。
+        focus：讀者按翻譯時正在看的頁，讓它最先譯出來（segments.plan）。"""
         target = langs.valid(target) if target else langs.of_paper((ws.load("paper") or {}).get("meta"))
         def apply(job):
             if job.get("state") in ("queued", "running"):
                 raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
             job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
                        state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
-                       confirmed=confirmed is True, target=target, cap_check=cap_check is True,
+                       confirmed=confirmed is True, target=target, cap_check=cap_check is True, focus=focus,
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
             job.pop("page_cap", None)
         with self.lock:
@@ -162,7 +164,7 @@ class Jobs:
 
         started = time.time()
         try:
-            failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter, read)
+            failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter, read, focus=job.get("focus"))
         finally:  # 取消、出错也把已经花掉的记上
             run = meter.snapshot()
             if run["calls"]:

@@ -62,11 +62,13 @@ window.PR = window.PR || {};
   };
 
   /* 论文详情里的用量卡片：上次翻译、这篇累计、译完时的额度 */
+  /* 額度是哪家的：Claude Code 訂閱，或 Codex app-server 回報的 ChatGPT 方案 */
+  const planName = (limits) => (limits && limits.engine === "codex" ? PR.t("ChatGPT 方案用量") : PR.t("Claude 订阅用量"));
   PR.usageCard = function (u, total) {
     if (!u || !u.calls) return "";
     return '<div class="us-card">' + PR.usageTokens(PR.t("上次翻译"), u) +
       (total && total.calls > u.calls ? PR.usageTokens(PR.t("这篇累计"), total) : "") +
-      PR.usageBars(u.limits, PR.t("Claude 订阅用量（译完时，整个账号共用）")) + "</div>";
+      PR.usageBars(u.limits, planName(u.limits) + PR.t("（译完时，整个账号共用）")) + "</div>";
   };
 
   /* 问 AI：整个对话的合计 */
@@ -112,7 +114,7 @@ window.PR = window.PR || {};
 
   /* 点圆环弹出的用量面板 */
   PR.usagePop = function (latest, msgs) {
-    const bars = latest && latest.limits ? PR.usageBars(latest.limits, PR.t("Claude 订阅用量")) : "";
+    const bars = latest && latest.limits ? PR.usageBars(latest.limits, planName(latest.limits)) : "";
     return '<div class="us-pop">' + contextHtml(msgs) + bars +
       (bars ? '<div class="us-foot">' + PR.t("整个账号共用，含其他用途 · 更新于 {ago}", { ago: ago(latest.at) }) + "</div>" : "") + "</div>";
   };

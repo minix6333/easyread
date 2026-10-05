@@ -53,7 +53,7 @@ def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, can
 def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter) -> str:
     engine = cfg.get("engine")
     if engine == "claude":
-        return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
+        return run_claude(cfg["claude"], prompt, cwd, cancel, meter, images or [])
     if engine == "codex":
         return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
     if engine == "openai":
@@ -62,10 +62,12 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
 
 
 def image_mode(cfg: dict) -> str:
-    """提示词里怎么说原页图：claude 自己用 Read 读；codex 和能看图的接口作为附件；其余没有图。"""
+    """提示词里怎么说原页图：claude 隨訊息附上（claude_live；舊版 Claude Code 退回讓它自己用 Read 读）；
+    codex 和能看图的接口作为附件；其余没有图。"""
     engine = cfg.get("engine")
     if engine == "claude":
-        return "claude"
+        from . import claude_live
+        return "attached" if claude_live.enabled() else "claude"
     if engine == "codex" or (engine == "openai" and cfg["openai"].get("vision")):
         return "attached"
     return "text"
@@ -99,10 +101,21 @@ def _popen(args: list[str], cwd: Path):
                             env=netcheck.proxy_env())
 
 
-def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
+def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None, images: list[Path] | None = None) -> str:
+    """images：原页图随消息附上（claude_live）。这版 Claude Code 不支持时抛 claude_live.Unsupported，
+    由调用方（translate._one_batch）换成让模型自己 Read 的提示词再来一次。"""
     exe = claude_path(c)
     if not exe:
         raise EngineError(tr("找不到 Claude Code 命令：{cmd}（先装好并登录 Claude Code）", cmd=c.get("command") or "claude"))
+    if images:
+        from . import claude_live
+        if claude_live.enabled():
+            try:
+                return claude_live.one_shot(c, cwd, claude_live.content(prompt, images), cancel, meter, int(c.get("timeout") or 1200))
+            except claude_live.Unsupported as e:
+                log.warning("Claude Code 不认 --input-format stream-json，改让它自己 Read 原页图：%s", str(e)[-300:])
+                claude_live.disable()
+                raise
     args = [exe, "-p", *_CLAUDE_ARGS]
     if c.get("model"):
         args += ["--model", c["model"]]
@@ -245,12 +258,18 @@ def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None
 def parse_json(text: str):
     """从模型输出里取出 JSON（容忍 ```json 围栏和前后废话）。"""
     t = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()  # 推理模型（deepseek-r1、qwen3）先输出的思考过程
-    # 先取最外层的 { … }：译文里可能本身带代码块（论文附录的 PyTorch 代码），按 ``` 围栏切会切到半截
+    # 先取最外层的 { … }：译文里可能本身带代码块（论文附录的 PyTorch 代码），按 ``` 围栏切会切到半截。
+    # 对象优先于数组：模型有时先写一段话再给 JSON，话里带 Markdown 链接 [page-006.jpg](file://…)，
+    # 从最早的 [ 开始切就切到链接上（实测连着三批解析失败、重试白跑一分钟）
     bodies = []
     for s in (t, *(m.group(1).strip() for m in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", t))):
-        start = min([i for i in (s.find("{"), s.find("[")) if i >= 0], default=-1)
-        if start >= 0:
-            bodies.append(s[start:max(s.rfind("}"), s.rfind("]")) + 1])
+        for open_, close in (("{", "}"), ("[", "]")):
+            # 先从最早的那个开始切；不行再试每个顶头（行首）的 { 或 [——前面那段话里的 [1] 这类不算
+            starts = [s.find(open_)] + [m.start(1) for m in re.finditer(r"(?m)^[ \t]*([\[{])", s) if m.group(1) == open_]
+            j = s.rfind(close)
+            for i in starts[:9]:
+                if 0 <= i < j and s[i:j + 1] not in bodies:
+                    bodies.append(s[i:j + 1])
     if not bodies:
         raise EngineError(tr("模型输出里没有 JSON：{text}", text=text[:200]))
     first = None
@@ -259,13 +278,14 @@ def parse_json(text: str):
             return json.loads(body)
         except json.JSONDecodeError as e:
             first = first or e
-    body = bodies[0]
     # 常见毛病：TeX 反斜杠没写成两个（\alpha、\sum）、字符串里有原样换行
-    fixed = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", body)
-    try:
-        return json.loads(fixed, strict=False)
-    except json.JSONDecodeError:
-        raise EngineError(tr("模型输出的 JSON 格式有错（{err}），会自动重试", err=first))
+    for body in bodies:
+        fixed = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", body)
+        try:
+            return json.loads(fixed, strict=False)
+        except json.JSONDecodeError:
+            continue
+    raise EngineError(tr("模型输出的 JSON 格式有错（{err}），会自动重试", err=first))
 
 
 def _version(exe: str) -> str:
