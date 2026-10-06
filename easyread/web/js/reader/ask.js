@@ -42,7 +42,9 @@
     try {
       if (PR.chatModel) await PR.chatModel.load();
       const images = [];
-      if (n.region && n.page) images.push((await PR.api("/api/p/" + PR.pid + "/clip", { method: "POST", body: { page: n.page, rect: n.region } })).src);
+      if (n.region && n.page) {  // 框選的那一塊（跨頁的每一頁一張）
+        for (const s of [{ page: n.page, rect: n.region }].concat(n.spans || []).slice(0, 6)) images.push((await PR.api("/api/p/" + PR.pid + "/clip", { method: "POST", body: { page: s.page, rect: s.rect } })).src);
+      }
       const anchor = PR.blockById[n.anchor] ? n.anchor : "";
       const page = !anchor && n.side === "pdf" && n.page ? n.page : null;
       const refs = anchor || page ? [Object.assign({ anchor, quote: n.quote || "" }, page ? { page } : {})] : [];

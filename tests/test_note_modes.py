@@ -42,6 +42,10 @@ class NoteModesTest(unittest.TestCase):
             self.assertLess(text.index("当前段落"), text.index("以下要求优先"))
             self.assertLess(text.index("以下要求优先"), text.index("读者现在问"))
         self.assertEqual(chat.prompt(self.ws, msgs, "b", "", "openai", mode="nope"), plain)
+        solve = chat.prompt(self.ws, msgs, "b", "", "openai", mode="solve")
+        self.assertIn("boxed", solve)
+        self.assertIn("**答：**", solve)
+        self.assertIn("不跳步", solve)
 
     def test_followup_carries_the_mode(self):
         msgs = [{"role": "user", "content": "一"}, {"role": "assistant", "content": "答"}, {"role": "user", "content": "畫成圖"}]

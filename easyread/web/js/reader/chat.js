@@ -68,8 +68,10 @@
       const added = addRef(opts.anchor, opts.quote, opts.page);
       if (opts.draft) st.draft = opts.draft;
       render(); focusInput();
-      if (opts.region && opts.page) {  // 框選的區域：渲染成圖附上
-        try { addImage((await PR.api("/api/p/" + PR.pid + "/clip", { method: "POST", body: { page: opts.page, rect: opts.region } })).src); } catch (e) { PR.toast(PR.esc(e.message)); }
+      if (opts.region && opts.page) {  // 框選的區域：渲染成圖附上（跨頁的每一頁一張）
+        for (const s of [{ page: opts.page, rect: opts.region }].concat(opts.spans || []).slice(0, 6)) {
+          try { addImage((await PR.api("/api/p/" + PR.pid + "/clip", { method: "POST", body: { page: s.page, rect: s.rect } })).src); } catch (e) { PR.toast(PR.esc(e.message)); }
+        }
       }
       if (added && st.refs.length > 1) PR.toast(PR.t("已引用 {n} 段", { n: st.refs.length }), null, 1000);
     });

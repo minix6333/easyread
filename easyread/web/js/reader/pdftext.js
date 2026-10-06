@@ -197,9 +197,15 @@
      框選的區域（region）：一圈細框。筆記和提問在標記末端有一顆小圓點，點它打開便利貼（sticky.js）。
      標記不吃滑鼠事件（畫過的地方才能再選字、再畫），點擊用座標判斷。 */
   const pct = (v) => (v * 100).toFixed(3) + "%";
-  function markHtml(x, openId) {
+  function markHtml(x, openId, n) {
     const id = PR.esc(x.id), isQ = x.kind === "question", on = x.id === openId || (PR.pvActiveId && PR.pvActiveId() === x.id) ? " active" : "";
     let h = "", bx, by;
+    if (n && n !== x.page) {  // 跨頁框選：這一頁上的那一塊（小圓點只在第一頁）
+      const s = (x.spans || []).find((sp) => sp.page === n);
+      if (!s) return "";
+      const [x0, y0, x1, y1] = s.rect;
+      return '<div class="pv-area' + (isQ ? " q" : "") + on + '" data-note="' + id + '" style="left:' + pct(x0) + ";top:" + pct(y0) + ";width:" + pct(x1 - x0) + ";height:" + pct(y1 - y0) + '"></div>';
+    }
     if (Array.isArray(x.region)) {
       const [x0, y0, x1, y1] = x.region;
       h = '<div class="pv-area' + (isQ ? " q" : "") + on + '" data-note="' + id + '" style="left:' + pct(x0) + ";top:" + pct(y0) + ";width:" + pct(x1 - x0) + ";height:" + pct(y1 - y0) + '"></div>';
@@ -222,11 +228,14 @@
     const draft = PR.stickyDraft && PR.stickyDraft();
     if (draft && !notes.some((x) => x.id === draft.id)) notes.push(draft);  // 正在寫的草稿、正在翻譯的那一段
     const openId = PR.stickyNote && PR.stickyNote();
+    // 只重畫一頁時，那一頁上跨頁的框連帶畫到它跨過去的頁
+    const also = new Set();
+    if (only) notes.forEach((x) => { if (x.page === only) (x.spans || []).forEach((sp) => also.add(sp.page)); });
     nodes.forEach((entry, i) => {
       const n = i + 1;
-      if (only && only !== n) return;
+      if (only && only !== n && !also.has(n)) return;
       if (!entry.marks) { entry.marks = document.createElement("div"); entry.marks.className = "pv-marks"; entry.node.append(entry.marks); }
-      entry.marks.innerHTML = notes.filter((x) => x.page === n).map((x) => markHtml(x, openId)).join("");
+      entry.marks.innerHTML = notes.filter((x) => x.page === n || (x.spans || []).some((s) => s.page === n)).map((x) => markHtml(x, openId, n)).join("");
     });
   };
 

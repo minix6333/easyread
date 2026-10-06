@@ -80,14 +80,14 @@
 
   function scheduleFlush(ms) { clearTimeout(flushT); flushT = setTimeout(flush, ms); }
 
-  async function flush() {
+  async function flush(leaving) {
     if (mode !== "server" || flushing || !outbox.length) return;
     flushing = true;
     const batch = outbox.slice();
     try {
       const r = await fetch(base() + "/ops", {
         method: "POST", headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ ops: batch, client }),
+        body: JSON.stringify({ ops: batch, client }), ...(leaving ? { keepalive: true } : {}),  // 關頁面時也要送到
       });
       if (r.status === 403) { await reloadToken(); throw new Error("token"); }
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
@@ -181,8 +181,13 @@
   };
 
   window.addEventListener("beforeunload", (e) => {
-    if (mode === "server" && outbox.some((o) => o.op !== "progress")) { flush(); e.preventDefault(); e.returnValue = ""; }
+    if (mode !== "server") return;
+    if (PR.saveProgressSoon) PR.saveProgressSoon.flush();  // 讀到哪頁：關掉前立刻記下來
+    if (outbox.some((o) => o.op !== "progress")) { flush(true); e.preventDefault(); e.returnValue = ""; }
+    else if (outbox.length) flush(true);
   });
+  // App 切到背景、視窗藏起來（Mac 上關視窗常常是這樣）：進度也先送出去
+  if (document.addEventListener) document.addEventListener("visibilitychange", () => { if (document.hidden && mode === "server") { if (PR.saveProgressSoon) PR.saveProgressSoon.flush(); if (outbox.length) flush(true); } });
 
   /* 让模型做事（回答问题、重译一段）：交给服务的小任务队列 */
   PR.ask = async function (kind, body) {

@@ -99,9 +99,10 @@
       (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") + PR.md(d.quote, { cite: false, xref: false }) + "</div>" : "");
     // 快速問題：還沒打字時給幾顆小按鈕，按了直接送。推導、圖解是專門的寫法（data-mode，伺服器那邊換一套要求，見 chat.py MODES）
     const quick = !isQ || !canAsk || d.body ? "" : '<div class="qchips">' + (d.region
-      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。")], [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"],
+      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。")], [PR.t("解題"), PR.t("把框起來的題目完整解出來，算式和答案都寫清楚。"), "solve"],
+        [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"],
         [PR.t("圖解"), PR.t("用圖講解這個區域。"), "diagram"], [PR.t("翻譯"), PR.t("把這個區域裡的文字翻譯出來。")]]
-      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。")], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")],
+      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。")], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")], [PR.t("解題"), PR.t("把這題完整解出來，算式和答案都寫清楚。"), "solve"],
         [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"], [PR.t("圖解"), PR.t("用圖講解這段。"), "diagram"]])
       .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>";
     const body = editing
@@ -312,7 +313,7 @@
     const n = noteById(nid);
     if (!n) return;
     PR.closeSticky && PR.closeSticky();
-    PR.chatAsk({ anchor: n.anchor, quote: n.quote, page: n.page, draft: "", thread: n.thread, region: n.region });
+    PR.chatAsk({ anchor: n.anchor, quote: n.quote, page: n.page, draft: "", thread: n.thread, region: n.region, spans: n.spans });
   };
   PR.on("job-finished", (j) => {
     if (j.kind !== "answer") return;

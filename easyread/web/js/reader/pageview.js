@@ -47,10 +47,20 @@
     PR.openSide(open ? "pages" : null);
     if (open) PR.syncPage(true); else pair(null);
   };
-  PR.openPage = function (page, blockId) {
+  PR.openPage = function (page, blockId, opts) {
     pvBlock = blockId || null;
     if (!visible()) PR.openSide("pages");
-    showPage(page, blockId);
+    showPage(page, blockId, opts);
+  };
+  /* 現在在哪一頁：除了存進閱讀進度（store，幾秒才寫一次），也立刻記在瀏覽器裡——關掉再開時以較新的那個為準，不會因為關得太快而丟 */
+  const LAST = () => "easyread-last-page:" + PR.pid;
+  const remember = (n) => { if (PR.pdfMain && PR.pdfMain() && PR.pid) PR.ls.set(LAST(), { page: n, at: Date.now() }); };
+  PR.lastPage = function () {
+    const local = PR.ls.get(LAST(), null) || {};
+    const p = S.reader.progress || {};
+    const serverAt = p.at ? Date.parse(p.at) || 0 : 0;
+    if (local.page && (local.at || 0) > serverAt + 2000) return local.page;  // 本機較新（存進度要等幾秒；另一台改的進度帶時間戳）
+    return p.page || local.page || 1;
   };
 
   /* 原图是 2.4 倍渲染（约 1500 像素宽、几百 KB），面板用不了那么大：要一张和面板一样宽的，服务端生成一次后缓存；
@@ -164,6 +174,7 @@
     const middle = scroller.getBoundingClientRect().top + scroller.clientHeight / 2;
     const entry = pageNodes.find(p => p.node.getBoundingClientRect().bottom > middle) || pageNodes[pageNodes.length - 1];
     pvPage = Number(entry.node.dataset.n);
+    remember(pvPage);
     updatePageLabel(); loadNearby(pvPage);
     if (panelInput) followPanel(entry, middle);
   }, { passive: true });
@@ -185,10 +196,12 @@
     }
   }
 
-  function showPage(page, blockId) {
+  function showPage(page, blockId, opts) {
     const list = pages();
     if (!list.length) return;
     pvPage = Math.min(list.length, Math.max(1, page));
+    remember(pvPage);
+    const behavior = opts && opts.instant ? "auto" : "smooth";
     ensurePages();
     panelInput = false;
     programmaticUntil = Date.now() + 1500;
@@ -199,9 +212,9 @@
     if (loc && loc.page === pvPage) {
       const boxes = boxesOf(loc);
       const [, y0, , y1] = boxes[0];
-      scroller.scrollTo({ top: Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2), behavior: "smooth" });
+      scroller.scrollTo({ top: Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2), behavior });
     } else {
-      scroller.scrollTo({ top: Math.max(0, pageTop(node) - 18), behavior: "smooth" });
+      scroller.scrollTo({ top: Math.max(0, pageTop(node) - 18), behavior });
     }
   }
 

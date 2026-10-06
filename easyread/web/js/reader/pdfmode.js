@@ -266,7 +266,8 @@
   PR.on("reader", (op) => { if (op && op.op === "page_note") markPageNote(); });
   PR.on("remote", (changed) => { if (changed.includes("reader")) markPageNote(); });
 
-  /* 第一次畫完：PDF 優先就翻到上次讀到的頁 */
+  /* 第一次畫完：PDF 優先就翻到上次讀到的頁（閱讀進度和瀏覽器記的，取較新的）。
+     頁面的圖和邊註欄還在陸續排好，位置會跑掉：之後再對幾次，讀者自己一捲就不管了 */
   let started = false;
   PR.on("rendered", () => {
     if (started) { PR.applyLayout(); return; }
@@ -274,7 +275,15 @@
     wasRunning = ["queued", "running"].includes((S.job || {}).state);
     PR.applyLayout();
     if (!PR.pdfMain()) return;
-    const p = (S.reader.progress || {}).page;
-    setTimeout(() => PR.openPage(p && p > 1 ? p : 1), 50);
+    const target = (PR.lastPage && PR.lastPage()) || 1;
+    let touched = false;
+    const sc = PR.$(".pv-scroll");
+    const mark = () => { touched = true; };
+    ["wheel", "mousedown", "touchstart"].forEach((ev) => sc && sc.addEventListener(ev, mark, { passive: true, once: true }));
+    document.addEventListener("keydown", mark, { once: true });
+    const go = () => { if (!touched && PR.pdfPage() !== target) PR.openPage(target, null, { instant: true }); };
+    setTimeout(() => { if (!touched) PR.openPage(target, null, { instant: true }); }, 50);
+    [350, 900, 1800].forEach((ms) => setTimeout(go, ms));
+    if (target > 1) setTimeout(() => { if (!touched) PR.toast(PR.t("接著上次：第 {page} 頁", { page: target }), null, 1800); }, 400);
   });
 })(window.PR);

@@ -1299,5 +1299,9 @@
  "結果": "Results",
  "舉個例子": "Give an example",
  "這是什麼意思？": "What does this mean?",
- "針對這句另外問，原本的對話不會動。": "Ask about this line separately; the current chat stays as it is."
+ "針對這句另外問，原本的對話不會動。": "Ask about this line separately; the current chat stays as it is.",
+ "接著上次：第 {page} 頁": "Continuing from last time: page {page}",
+ "解題": "Solve",
+ "把框起來的題目完整解出來，算式和答案都寫清楚。": "Solve the boxed problem completely, writing out the equations and the answer.",
+ "把這題完整解出來，算式和答案都寫清楚。": "Solve this problem completely, writing out the equations and the answer."
 }
