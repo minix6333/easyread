@@ -1307,5 +1307,6 @@
  "文獻庫": "Library",
  "分割視窗：並排再開一格（⌘\\）": "Split the window: open another pane side by side (⌘\\)",
  "收起這一格": "Close this pane",
- "拖動調整這張卡片的大小（雙擊回預設）": "Drag to resize this card (double-click to reset)"
+ "拖動調整這張卡片的大小（雙擊回預設）": "Drag to resize this card (double-click to reset)",
+ "拖動移動；雙擊收起或展開": "Drag to move; double-click to collapse or expand"
 }
