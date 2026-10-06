@@ -1306,5 +1306,6 @@
  "把這題完整解出來，算式和答案都寫清楚。": "Solve this problem completely, writing out the equations and the answer.",
  "文獻庫": "Library",
  "分割視窗：並排再開一格（⌘\\）": "Split the window: open another pane side by side (⌘\\)",
- "收起這一格": "Close this pane"
+ "收起這一格": "Close this pane",
+ "拖動調整這張卡片的大小（雙擊回預設）": "Drag to resize this card (double-click to reset)"
 }

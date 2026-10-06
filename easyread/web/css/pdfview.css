@@ -81,6 +81,14 @@ body.pdf-main .pv-scroll.has-margin { padding-right: calc(24px + var(--pv-margin
 .pv-margin .card .body.clamp { max-height: 9em; }
 .card .body.clamp:has(.md-flow), .pv-margin .card .body.clamp:has(.md-flow) { max-height: 24em; }  /* 有圖的：收起時也至少看得到一張圖的大半 */
 .pv-margin .card.dragging { transition: none; cursor: grabbing; box-shadow: var(--shadow-lg); z-index: 3; opacity: .94; }
+/* 拉過大小的卡片：右緣貼齊欄位、往左變寬（蓋在頁面上），有高度就在裡面捲 */
+.pv-margin .card.sized { left: auto; right: 0; overflow: auto; z-index: 2; box-sizing: border-box; background: var(--card); }
+.pv-margin .card > .rz { position: absolute; left: 0; bottom: 0; width: 16px; height: 16px; cursor: nesw-resize; opacity: 0; transition: opacity var(--dur-fast); }
+.pv-margin .card > .rz::after { content: ""; position: absolute; left: 4px; bottom: 4px; width: 7px; height: 7px; border-left: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); border-radius: 0 0 0 2px; }
+.pv-margin .card:hover > .rz, .pv-margin .card.sized > .rz { opacity: .7; }
+.pv-margin .card > .rz:hover { opacity: 1; }
+body.card-sizing { cursor: nesw-resize; user-select: none; }
+body.card-sizing .pv-margin .card { transition: none; }
 .pv-margin .card.drop-link, .np-list .card.drop-link { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.dragging-card { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 .pv-wire { position: absolute; top: 0; pointer-events: none; overflow: visible; z-index: 1; }

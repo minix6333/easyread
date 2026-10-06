@@ -3,6 +3,7 @@
    - 欄寬可以拉：抓頁面和卡片之間那一道拖（雙擊回預設），卡片裡的字跟著重排；記在閱讀設定裡（marginW）。
    - 寬度夠（頁面至少還剩 640px）就自動出現，放不下設定的寬度就自己縮；閱讀設定的「邊註」選「收起」就不顯示。
    - 卡片可以抓標題列上下拖：拖到哪就記在筆記裡（ui.my），下次還在那裡；拖到另一張卡片上放開＝建立關聯。
+   - 卡片左下角可以拉大小（ui.mw / ui.mh）：往左拉變寬（蓋到頁面上），往下拉變高；拉過高度的卡片內容在裡面捲、不再收起。雙擊角落回預設。
    - 關聯（links）：卡片上的「關聯」按鈕進入選取模式，點另一張卡片或標記就連起來；卡片底下有一排小標籤，點了跳過去。
    - 卡片是 margin.js 的 cardHtml（和筆記面板、便利貼同一張），點內容就地編輯。
    測試：tests/test_pvmargin.cjs（疊放、關聯、排序的純函式）。 */
@@ -137,8 +138,22 @@
     col.dataset.sig = sig;
     col.innerHTML = list.map((n) => PR.cardHtml({ src: "mine", data: n, anchor: PR.blockById[n.anchor] ? n.anchor : "page:" + page }, editingId === undefined ? PR.editingNote : editingId)).join("") +
       '<svg class="pv-wire" aria-hidden="true"></svg><div class="pv-margin-grip" title="' + PR.t("拖動調整筆記欄寬度（雙擊回預設）") + '"></div>';
-    PR.$$(":scope > .card", col).forEach((c) => { c.classList.add("pv-mcard"); if (shown(c.dataset.note)) c.classList.add("on"); PR.prepCard && PR.prepCard(c); });
+    PR.$$(":scope > .card", col).forEach((c) => {
+      c.classList.add("pv-mcard");
+      if (shown(c.dataset.note)) c.classList.add("on");
+      PR.prepCard && PR.prepCard(c);
+      c.insertAdjacentHTML("beforeend", '<i class="rz" title="' + PR.t("拖動調整這張卡片的大小（雙擊回預設）") + '"></i>');
+      applySize(c, note(c.dataset.note));
+    });
     layoutPage(entry);
+  }
+  /* 拉過大小的卡片：右緣貼齊欄位、往左變寬；有高度就在裡面捲，不再收起 */
+  function applySize(c, n) {
+    const ui = (n && n.ui) || {};
+    c.classList.toggle("sized", !!(ui.mw || ui.mh));
+    c.style.width = ui.mw ? ui.mw + "px" : "";
+    c.style.height = ui.mh ? ui.mh + "px" : "";
+    if (ui.mh) { PR.$$(".body.clamp", c).forEach((b) => b.classList.remove("clamp")); PR.$$(".more", c).forEach((m) => m.remove()); }
   }
   function layoutPage(entry) {
     const col = entry.node.querySelector(":scope > .pv-margin");
@@ -238,6 +253,46 @@
   }, true);
   PR.pvMarginActive = setActive;
   PR.pvActiveId = () => (PR.pvMarginOn() ? active : null);
+
+  /* ---------- 拉卡片大小：抓左下角，往左變寬、往下變高 ---------- */
+  document.addEventListener("mousedown", (e) => {
+    const rz = e.target.closest && e.target.closest(".pv-margin .card > .rz");
+    if (!rz || e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const card = rz.closest(".card"), page = card.closest(".pv-page"), entry = { node: page };
+    const n = note(card.dataset.note);
+    if (!n) return;
+    const x0 = e.clientX, y0 = e.clientY, w0 = card.offsetWidth, h0 = card.offsetHeight;
+    const maxW = page.clientWidth + card.offsetWidth, maxH = Math.max(120, page.clientHeight - (parseFloat(card.style.top) || 0));
+    let w = w0, h = h0, raf = 0;
+    document.body.classList.add("card-sizing");
+    card.classList.add("sized");
+    PR.$$(".body.clamp", card).forEach((b) => b.classList.remove("clamp")); PR.$$(".more", card).forEach((m) => m.remove());
+    const move = (ev) => {
+      w = Math.round(Math.max(220, Math.min(maxW, w0 + (x0 - ev.clientX))));
+      h = Math.round(Math.max(80, Math.min(maxH, h0 + (ev.clientY - y0))));
+      card.style.width = w + "px"; card.style.height = h + "px";
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; layoutPage(entry); });
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      document.body.classList.remove("card-sizing");
+      const cur = note(n.id);
+      if (cur) PR.saveNote(Object.assign({}, cur, { ui: Object.assign({}, cur.ui, { mw: w, mh: h }) }), { ui: true });
+      layoutPage(entry);
+    };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+  document.addEventListener("dblclick", (e) => {
+    const rz = e.target.closest && e.target.closest(".pv-margin .card > .rz");
+    if (!rz) return;
+    const card = rz.closest(".card"), n = note(card.dataset.note);
+    if (!n || !n.ui) return;
+    const ui = Object.assign({}, n.ui);
+    delete ui.mw; delete ui.mh;
+    PR.saveNote(Object.assign({}, n, { ui }), { ui: true });
+    PR.renderPvMargin(n.page);
+  });
 
   /* ---------- 拖欄寬 ---------- */
   document.addEventListener("mousedown", (e) => {
