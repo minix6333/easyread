@@ -264,7 +264,8 @@
   });
   tabsEl.addEventListener("dragend", () => { PR.$$(".tab.dragging", tabsEl).forEach((t) => t.classList.remove("dragging")); clearDrop(); dragId = null; });
 
-  /* 拖格子之間的分隔線 */
+  /* 拖格子之間的分隔線。拖的時候只移動那條線（和一層淡淡的預覽），放開才真的改兩邊 iframe 的大小：
+     兩份文件（幾千個絕對定位的文字塊）每一幀都重排會卡 */
   panesEl.addEventListener("mousedown", (e) => {
     const gap = e.target.closest(".gap");
     if (!gap || e.button !== 0) return;
@@ -272,13 +273,29 @@
     const i = +gap.dataset.gap, a = st.panes[i - 1], b = st.panes[i];
     const total = panesEl.clientWidth || 1, x0 = e.clientX, wa = a.w, wb = b.w, min = 180 / total;
     document.body.classList.add("sizing");
+    const ghost = document.createElement("div");
+    ghost.className = "gap-ghost";
+    document.body.append(ghost);
+    const slots = PR.$$(".pane", panesEl);
+    const place = () => {
+      slots.forEach((el, k) => (el.style.flexGrow = (st.panes[k].w * 1000).toFixed(0)));
+      const r = slots[i].getBoundingClientRect();  // 新的分隔位置：右邊那格的左緣
+      Object.assign(ghost.style, { left: Math.round(r.left) + "px", top: Math.round(r.top) + "px", height: Math.round(r.height) + "px" });
+    };
+    let raf = 0;
     const move = (ev) => {
       const d = Math.max(-(wa - min), Math.min(wb - min, (ev.clientX - x0) / total));
       a.w = wa + d; b.w = wb - d;
-      PR.$$(".pane", panesEl).forEach((el, k) => (el.style.flexGrow = (st.panes[k].w * 1000).toFixed(0)));
-      layout();
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; place(); });
     };
-    const up = () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); document.body.classList.remove("sizing"); save(); };
+    const up = () => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      cancelAnimationFrame(raf); raf = 0;
+      ghost.remove();
+      document.body.classList.remove("sizing");
+      place(); layout(); save();
+    };
+    place();
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   });
   window.addEventListener("blur", () => setTimeout(() => {  // 點進某一格的 iframe：焦點跟過去

@@ -30,4 +30,6 @@ body.split .pane.on::before { content: ""; position: absolute; inset: 0 0 auto 0
 #frames iframe { position: fixed; border: 0; background: var(--bg); }
 #frames iframe.hidden { visibility: hidden; pointer-events: none; }
 body.sizing { cursor: col-resize; }
-body.sizing #frames iframe { pointer-events: none; }
+body.sizing #frames iframe { pointer-events: none; opacity: .92; }
+/* 拖分隔線時跟著滑鼠走的那條線；放開才真的重排兩邊 */
+.gap-ghost { position: fixed; z-index: 9; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 1px var(--bg); pointer-events: none; }
