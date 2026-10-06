@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasyRead</title>
+<link rel="icon" href="/web/favicon.svg">
+<link rel="stylesheet" href="/web/css/base.css">
+<link rel="stylesheet" href="/web/css/shell.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+</head>
+<body>
+<div id="tabs" role="tablist"></div>
+<div id="panes"></div>
+<div id="frames"></div>
+<script src="/web/js/common/i18n.js"></script>
+<script src="/web/js/common/util.js"></script>
+<script src="/web/js/common/theme.js"></script>
+<script src="/web/js/shell.js"></script>
+</body>
+</html>

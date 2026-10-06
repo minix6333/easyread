@@ -204,7 +204,12 @@ function openLink(target) {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-  mainWindow.loadURL(new URL(target, backendUrl).href);
+  const href = new URL(target, backendUrl).href;
+  // 外殼已經開著：請它開成一個分頁，別整個視窗重載（其他分頁都還在）
+  let onShell = false;
+  try { const cur = new URL(mainWindow.webContents.getURL()); onShell = cur.origin === new URL(backendUrl).origin && cur.pathname === "/"; } catch (_) { onShell = false; }
+  if (onShell) mainWindow.webContents.executeJavaScript(`!!(window.easyreadOpen && (window.easyreadOpen(${JSON.stringify(href)}), true))`).then((ok) => { if (!ok) mainWindow.loadURL(href); }).catch(() => mainWindow.loadURL(href));
+  else mainWindow.loadURL(href);
 }
 
 async function createWindow() {

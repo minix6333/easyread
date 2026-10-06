@@ -186,6 +186,8 @@
     if (outbox.some((o) => o.op !== "progress")) { flush(true); e.preventDefault(); e.returnValue = ""; }
     else if (outbox.length) flush(true);
   });
+  // 外殼關掉這個分頁（iframe 被拿掉）：只會有 pagehide
+  window.addEventListener("pagehide", () => { if (mode === "server") { if (PR.saveProgressSoon) PR.saveProgressSoon.flush(); if (outbox.length) flush(true); } });
   // App 切到背景、視窗藏起來（Mac 上關視窗常常是這樣）：進度也先送出去
   if (document.addEventListener) document.addEventListener("visibilitychange", () => { if (document.hidden && mode === "server") { if (PR.saveProgressSoon) PR.saveProgressSoon.flush(); if (outbox.length) flush(true); } });
 

@@ -41,7 +41,7 @@
     restore() {
       const token = (history.state || {})[HISTORY_KEY] || new URLSearchParams(location.search).get(PARAM);
       const value = read(token);
-      if (value && location.pathname === "/") {
+      if (value && (location.pathname === "/" || location.pathname === "/library")) {
         const url = new URL(location.href);
         url.searchParams.delete(PARAM);
         rememberHistory(token, url.pathname + url.search + url.hash);

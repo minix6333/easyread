@@ -1,0 +1,33 @@
+/* 外殼：上面一排分頁（文獻庫＋打開的每一份），下面是一格或幾格，每格顯示一個分頁（iframe）。
+   iframe 不放在格子裡（搬動會重新載入），都平鋪在 #frames 裡，用座標蓋到格子上；藏起來的只是看不見，狀態都在。 */
+html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
+:root { --tabs-h: 36px; }
+#tabs { position: fixed; inset: 0 0 auto 0; height: var(--tabs-h); z-index: 6; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 6px; background: var(--surface); border-bottom: 1px solid var(--rule); user-select: none; }
+.tab { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 220px; margin-top: 5px; padding: 0 6px 0 10px; border-radius: 9px 9px 0 0; font: 12.5px var(--ui); color: var(--ink-3); cursor: default; }
+.tab:hover { color: var(--ink-2); background: var(--surface-2); }
+.tab.on { color: var(--ink); background: var(--bg); box-shadow: 0 0 0 1px var(--rule), 0 1px 0 var(--bg); }
+.tab.shown:not(.on) { color: var(--ink-2); }
+.tab.shown:not(.on)::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 2px; background: var(--rule-2); }
+.tab > svg { flex: none; color: var(--ink-3); }
+.tab.on > svg { color: var(--accent); }
+.tab .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .x { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-3); opacity: 0; flex: none; }
+.tab:hover .x, .tab.on .x { opacity: 1; }
+.tab .x:hover { background: var(--surface-2); color: var(--ink); }
+.tab .x svg { width: 12px; height: 12px; }
+.tab.lib { padding: 0 10px; }
+.tab.dragging { opacity: .5; }
+.tab.drop-before::before, .tab.drop-after::before { content: ""; position: absolute; top: 4px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--accent); }
+.tab.drop-before::before { left: -2px; }
+.tab.drop-after::before { right: -2px; }
+#tabs .grow { flex: 1; }
+#tabs .btn.icon { align-self: center; width: 28px; height: 28px; }
+#panes { position: fixed; inset: var(--tabs-h) 0 0 0; display: flex; pointer-events: none; }
+.pane { position: relative; flex: 1 1 0; min-width: 160px; }
+body.split .pane.on::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--accent); opacity: .6; z-index: 2; }
+.gap { flex: none; width: 5px; margin: 0 -1px; cursor: col-resize; background: var(--rule); pointer-events: auto; z-index: 3; transition: background var(--dur-fast); }
+.gap:hover, body.sizing .gap { background: var(--accent); }
+#frames iframe { position: fixed; border: 0; background: var(--bg); }
+#frames iframe.hidden { visibility: hidden; pointer-events: none; }
+body.sizing { cursor: col-resize; }
+body.sizing #frames iframe { pointer-events: none; }

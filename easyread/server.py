@@ -270,12 +270,15 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         path = unquote(url.path)
         app, lib = self.app, self.app.lib
-        if path in ("/", "/index.html"):
+        if path in ("/", "/index.html"):  # 外殼：分頁和分割格子，文獻庫和每份文件各是裡面的一個 iframe
+            return self._page(WEB / "shell.html")
+        if path == "/library":
             return self._page(WEB / "library.html")
         if path.startswith("/read/"):
             return self._page(WEB / "reader.html")
-        if path == "/open":  # 外部工具打开指定论文/段落；桌面版的 easyread://open 也转到这里
-            return self._redirect(open_link.target(lib, parse_qs(url.query)))
+        if path == "/open":  # 外部工具打开指定论文/段落；桌面版的 easyread://open 也转到这里 → 交給外殼開成分頁
+            target = open_link.target(lib, parse_qs(url.query))
+            return self._redirect("/?open=" + quote(target, safe="") if target != "/" else "/")
         if path == "/api/version":
             return self._json(200, open_link.version())
         if path.startswith("/web/"):

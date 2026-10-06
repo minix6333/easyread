@@ -22,7 +22,7 @@
       offset: rect && rect.top >= bounds.top && rect.bottom <= bounds.bottom ? rect.top - bounds.top : null,
     });
   }
-  L.openReader = (id) => { location.href = readerUrl(id); };
+  L.openReader = (id) => { PR.navigate ? PR.navigate(readerUrl(id)) : (location.href = readerUrl(id)); };  // 在外殼裡：開成分頁（frame-bridge.js）
   function prepareReaderLink(e) {
     const link = e.target.closest("a[href]");
     if (!link || !link.closest("#detail, #side")) return;

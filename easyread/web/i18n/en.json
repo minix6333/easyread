@@ -1303,5 +1303,8 @@
  "接著上次：第 {page} 頁": "Continuing from last time: page {page}",
  "解題": "Solve",
  "把框起來的題目完整解出來，算式和答案都寫清楚。": "Solve the boxed problem completely, writing out the equations and the answer.",
- "把這題完整解出來，算式和答案都寫清楚。": "Solve this problem completely, writing out the equations and the answer."
+ "把這題完整解出來，算式和答案都寫清楚。": "Solve this problem completely, writing out the equations and the answer.",
+ "文獻庫": "Library",
+ "分割視窗：並排再開一格（⌘\\）": "Split the window: open another pane side by side (⌘\\)",
+ "收起這一格": "Close this pane"
 }
