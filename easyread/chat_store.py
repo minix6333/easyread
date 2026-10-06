@@ -62,6 +62,11 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
         t = next((x for x in chat["threads"] if x["id"] == tid), None)
         if not t:
             t = {"id": tid, "title": _title(user["content"]), "created": stamp, "messages": []}
+            if user.get("mode") == "overview":
+                t["title"] = tr("整份導讀")
+            if isinstance(user.get("aside"), dict):  # 小視窗追問：記著它接在哪段回答、哪一句，標題用那一句
+                t["aside"] = dict(user["aside"])
+                t["title"] = "↳ " + _title(user["aside"].get("quote") or user["content"])
             chat["threads"].append(t)
         t["messages"] += [{**user, "role": "user", "at": stamp, "answer_style": style}, msg]
         t.update(updated=stamp, model=model_id, answer_style=style, chat_options=user.get("chat_options", {}))

@@ -5,7 +5,9 @@
      或者把选中的文字直接拖进输入框，每段一个小标签，可以逐个去掉。
    - 你的划线、笔记、问题不会每次都带；问到“标红的”“划线”“我的笔记”时，后台才把对应颜色的标记找出来。
    - 圖片：直接貼上（Ctrl/⌘+V）、把圖片檔拖進來、或按迴紋針選檔；在 PDF 上框選的區域也是當圖片附上。圖片存在這份文件的 clips/。
-   - 页边笔记里的问题在卡片裡就地回答（ask.js），「追問」才到這裡接著問。 */
+   - 页边笔记里的问题在卡片裡就地回答（ask.js），「追問」才到這裡接著問。
+   - 整份文件：每一問都帶全文地圖和問題相關的幾頁（chat.py / docmap.py）；「整份導讀」把整份文字給模型，按部分講主題、觀念、先備知識和數學。
+   - 回答裡選一段字可以「問這句」（chat-aside.js，小視窗另外問）；每段回答可以「加入筆記」並分類（noteadd.js）。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
@@ -121,6 +123,7 @@
         .concat(["-", { label: PR.t("管理模型…"), icon: "gear", fn: () => PR.openSettings("chat") }])));
     },
   };
+  PR.chatCurrent = () => st.cur;
   /* 就地問答建了新對話：下次打開面板時重新讀清單 */
   PR.chatReload = function () { if (st.streaming) return; st.loaded = false; if (PR.chatOpen()) load().then(render); };
 
@@ -186,11 +189,12 @@
   function headHtml() {
     const t = thread();
     return '<div class="ch-head"><button class="ch-title" data-c="list" title="' + PR.t("全部对话") + '">' + PR.icon("menu", "sm") + "<span>" + PR.md(t ? t.title : PR.t("新对话"), { cite: false, xref: false }) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
-      '<span class="grow"></span><button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + '</button><button class="btn icon" data-c="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
+      '<span class="grow"></span>' + (PR.canChat() ? '<button class="btn icon" data-c="overview" title="' + PR.t("整份導讀：各部分的主題、要懂的觀念、先備知識和數學（上課前先看）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("book", "sm") + "</button>" : "") +
+      '<button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + '</button><button class="btn icon" data-c="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
       (st.listOpen ? listHtml() : "");
   }
   function listHtml() {
-    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
+    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + (t.aside ? " sub" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
       '<div class="tm">' + PR.t("{n} 问", { n: Math.round((t.messages || []).length / 2) }) + " · " + PR.esc(when(t.updated)) + "</div>" +
       '<button class="tx" data-c="rename" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("改名")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("edit", "sm") + '</button><button class="tx" data-c="del" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("删除")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("trash", "sm") + "</button></div>").join("");
     return '<div class="ch-list"><button class="ch-thread newt" data-c="new">' + PR.icon("plus", "sm") + PR.t("新对话") + "</button>" + (rows || '<div class="hint" style="padding:10px 12px">' + PR.t("还没有对话。") + "</div>") + "</div>";
@@ -206,7 +210,7 @@
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i>' + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
-      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
+      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + '</button><button data-c="tonote" title="' + PR.t("加進論文筆記的某個分類，或這一頁的筆記") + '">' + PR.icon("notebook", "sm") + PR.t("加入筆記") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
@@ -215,8 +219,9 @@
     const sug = [PR.t("这段在说什么？用大白话讲一遍"), PR.t("这个公式每一项是什么意思？怎么推出来的？"), PR.t("这里的结论靠得住吗？有什么前提？")];
     if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
     const ICONS = ["bulb", "question", "list", "sparkle", "book"];
-    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3><p>" + PR.t("會帶上你正在看的地方；可以貼圖片。") + "</p>" +
-      '<div class="chips">' + sug.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(ICONS[i % ICONS.length], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
+    const overview = PR.canChat() ? '<button data-c="overview" class="ov"><span class="ic">' + PR.icon("book", "sm") + '</span><span class="tx">' + PR.esc(PR.t("整份在講什麼？各部分的主題、要懂的觀念、先備知識和數學——上課前先看")) + "</span></button>" : "";
+    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3><p>" + PR.t("看得到整份文件，也會帶上你正在看的地方；可以貼圖片。回答裡選字可以「問這句」。") + "</p>" +
+      '<div class="chips">' + overview + sug.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(ICONS[i % ICONS.length], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
   }
   function composerHtml() {
     if (!PR.canChat()) {
@@ -296,11 +301,13 @@
   const renderLiveSoon = PR.throttle(renderLive, 60);
 
   /* ---------- 发送 ---------- */
-  async function send(text, noteId, only) {
+  async function send(text, noteId, only, opts) {
     text = (text || "").trim();
+    opts = opts || {};
     if (!text || st.streaming || st.uploading) return;
-    const refs = only || sendRefs();
-    const images = only ? [] : st.images.slice();
+    if (opts.mode === "overview") st.cur = null;  // 導讀自己開一個新對話
+    const refs = opts.mode === "overview" ? [] : only || sendRefs();
+    const images = only || opts.mode === "overview" ? [] : st.images.slice();
     const c = refs[0] || null;
     const answerStyle = st.answerStyle;
     const modelId = st.model;
@@ -310,7 +317,7 @@
     t.answer_style = answerStyle;
     t.model = modelId;
     t.chat_options = chatOptions;
-    const user = { role: "user", content: text, anchor: c ? c.anchor : null, page: (c && c.page) || null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle, ...(images.length ? { images } : {}) };
+    const user = { role: "user", content: text, anchor: c ? c.anchor : null, page: (c && c.page) || null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle, ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) };
     const msg = { role: "assistant", content: "", model: modelOf(modelId).label, answer_style: answerStyle };
     t.messages.push(user, msg);
     const ctrl = new AbortController();
@@ -323,7 +330,7 @@
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, ...(images.length ? { images } : {}) }),
+        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -391,6 +398,7 @@
     if (c === "send") return send(PR.$("#chatInput").value);
     if (c === "stop" && st.streaming) return st.streaming.ctrl.abort();
     if (c === "suggest") return send(b.textContent);
+    if (c === "overview") { if (st.streaming) return; return send(PR.t("整份在講什麼？每個部分的主題、要懂的觀念、需要的先備知識和數學。"), null, null, { mode: "overview" }); }
     if (c === "unref") { st.refs.splice(+b.dataset.i, 1); return render(); }
     if (c === "noauto") { st.noAuto = true; return render(); }
     if (c === "go") return b.dataset.anchor ? PR.jumpTo("b-" + b.dataset.anchor) : PR.openPage(+b.dataset.page);
@@ -414,6 +422,10 @@
     const card = b.closest(".cm.ai");
     const m = card && thread() && thread().messages.find((x) => x.id === card.dataset.id);
     if (c === "copy" && m) navigator.clipboard.writeText(m.content).then(() => PR.toast(PR.t("已复制")));
+    if (c === "tonote" && m) {
+      const msgs = thread().messages, i = msgs.indexOf(m), q = i > 0 && msgs[i - 1].role === "user" ? msgs[i - 1] : null;
+      PR.noteAddMenu(b, { title: q ? q.content : "", body: m.content, page: (q && q.page) || 0 });
+    }
     if (c === "pin" && m) {
       try {
         await PR.api("/api/p/" + PR.pid + "/chat/pin", { method: "POST", body: { thread: st.cur, id: m.id } });

@@ -169,3 +169,28 @@ body.ch-open #chatpanel { transform: none; }
 .ch-pill { height: 28px; }
 .ch-send { color: var(--accent-ink); }
 .ch-send:hover { opacity: 1; filter: brightness(1.1); }
+
+/* ---------- 回答裡選字冒出來的「問這句」，和另外問的小視窗（chat-aside.js） ---------- */
+.askline { position: fixed; z-index: 60; display: none; align-items: center; gap: 5px; height: 28px; padding: 0 11px 0 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font: 12.5px var(--ui); box-shadow: var(--shadow); white-space: nowrap; }
+.askline.open { display: inline-flex; animation: sticky-in var(--dur-fast) var(--ease); }
+.askline svg { width: 14px; height: 14px; }
+.ch-aside { position: fixed; z-index: 40; display: flex; flex-direction: column; min-width: 300px; min-height: 220px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); border-radius: 14px; background: var(--bg);
+  box-shadow: 0 0 0 1px var(--rule-2), var(--shadow-lg); resize: both; overflow: hidden; animation: sticky-in var(--dur-fast) var(--ease); }
+.ch-aside .ca-head { display: flex; align-items: center; gap: 8px; flex: none; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--rule); cursor: grab; background: var(--surface); border-radius: 14px 14px 0 0; }
+.ch-aside.dragging { user-select: none; }
+.ch-aside.dragging .ca-head { cursor: grabbing; }
+.ch-aside .ca-quote { flex: 1; min-width: 0; font: 12.5px/1.4 var(--ui); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-aside .ca-quote b { color: var(--accent); font-weight: 600; margin-right: 6px; }
+.ch-aside .ca-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+.ch-aside .ca-body > .hint { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+.ch-aside .cm.ai { font-size: calc(13.5px * var(--fs-ratio, 1)); }
+.ch-aside .cm.user .bubble { font-size: calc(13px * var(--fs-ratio, 1)); }
+.ch-aside .qchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ch-aside .qchips button { height: 26px; padding: 0 11px; border-radius: 999px; font: 12.5px var(--ui); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule-2); }
+.ch-aside .qchips button:hover { color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ch-aside .ca-compose { flex: none; display: flex; align-items: flex-end; gap: 6px; padding: 8px 10px 10px 14px; border-top: 1px solid var(--rule); background: var(--surface); }
+.ch-aside textarea { flex: 1; min-height: 24px; max-height: 120px; resize: none; border: 0; outline: 0; background: transparent; font: 13.5px/1.5 var(--ui); color: var(--ink); padding: 4px 0; }
+.ch-aside .ch-send { width: 28px; height: 28px; flex: none; }
+.ch-thread.sub { padding-left: 24px; }
+.ch-thread.sub .tt { color: var(--ink-2); }
+.ch-empty .chips button.ov .ic { background: var(--accent); color: var(--accent-ink); }

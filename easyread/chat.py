@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from . import paths
-from . import answer_styles, claude_live, codex_live, engines, netcheck, openai_api, usage
+from . import answer_styles, claude_live, codex_live, docmap, engines, netcheck, openai_api, usage
 from . import kinds, langs, tw
 from .i18n import tr
 from .log import log
@@ -199,6 +199,20 @@ def _images_hint(images, engine: str) -> str:
             "图里的公式、表格、坐标轴、图例都要读仔细。")  # i18n-ok
 
 
+# 整份導讀：上課（或讀）之前先知道每個部分在講什麼、要懂什麼。整份文字都附上（docmap.full_text）。
+OVERVIEW = (
+    "读者准备上课（或读这份之前）想先知道它会讲什么、要先会什么。请按文件自己的结构分部分"  # i18n-ok 提示词
+    "（论文按章节；投影片按连续的几页一组，一组讲一个主题），每个部分写：\n"  # i18n-ok
+    "- 页码范围和主题（一句话）\n"  # i18n-ok
+    "- 要懂的观念：每个观念一句话说它是什么、在这里扮演什么角色\n"  # i18n-ok
+    "- 先备知识：读这部分前要会什么（具体到定理、方法或概念的名字）\n"  # i18n-ok
+    "- 用到的数学：哪些工具；核心的一两条式子写出来，说明符号\n"  # i18n-ok
+    "- 容易卡住的地方\n"  # i18n-ok
+    "开头先用一小段讲整份的主线（它在解决什么问题、各部分怎么接起来）；最后给一张「上课前先复习」的清单"  # i18n-ok
+    "（按重要性排，每项说为什么要先会）。用小标题和清单，简短、具体，标出页码；不要空泛的话。"  # i18n-ok
+    "内容照文件写；文件没讲到的先备知识可以补，但要标明是补充。\n"  # i18n-ok
+)
+
 # 提問的幾種專門寫法（卡片上的小按鈕：推導、圖解）。key 由頁面隨問題送來（body.mode），沒有就照一般寫法。
 MODES = {
     "derive": (
@@ -230,6 +244,32 @@ MODES = {
 }
 
 
+def noun_of(ws: Workspace) -> str:
+    return kinds.noun(kinds.of(ws.load("paper").get("meta")))
+
+
+def aside_context(ws: Workspace, aside: dict | None) -> dict | None:
+    """小視窗追問：讀者指著之前某段回答裡的一句話另外問。找出那段回答和它回答的問題，給提示詞用。"""
+    if not isinstance(aside, dict) or not aside.get("thread"):
+        return None
+    from . import chat_store
+    t = chat_store.get(ws, str(aside.get("thread")))
+    msgs = (t or {}).get("messages", [])
+    i = next((k for k, m in enumerate(msgs) if m.get("id") == aside.get("msg") and m.get("role") == "assistant"), None)
+    if i is None:
+        return None
+    q = msgs[i - 1].get("content", "") if i and msgs[i - 1].get("role") == "user" else ""
+    return {"answer": msgs[i].get("content", ""), "question": q, "quote": str(aside.get("quote") or "")[:600]}
+
+
+def _aside_text(aside: dict | None) -> str:
+    if not aside:
+        return ""
+    return ("读者正在看你之前的一段回答" + (f"（他当时问的是「{aside['question'][:300]}」）" if aside.get("question") else "") + "：\n"  # i18n-ok
+            + aside.get("answer", "")[:3500] + "\n\n"
+            + (f"他指着回答里这一句，想把它弄懂：「{aside['quote']}」。围绕这一句回答，需要时才引用文件。" if aside.get("quote") else "")).rstrip()  # i18n-ok
+
+
 def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
     """追問時讀者還指著上一問那一處（同一段、同一頁、同一句、同幾處引用）：位置上下文不用再送一遍。"""
     if not prev:
@@ -241,9 +281,11 @@ def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
 
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
            answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True,
-           mode: str | None = None) -> str:
+           mode: str | None = None, aside: dict | None = None) -> str:
     """followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
-    with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。mode：這一問的專門寫法（MODES 的 key：推導、圖解）。"""
+    with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。mode：這一問的專門寫法（MODES 的 key：推導、圖解；
+    overview 是整份導讀）。aside：小視窗追問（aside_context 的結果）。
+    整份文件：每次都帶全文地圖（每頁在講什麼），再按問題的關鍵詞把最相關的兩頁全文帶上；Claude／Codex 還能自己去讀別頁。"""
     special = MODES.get(mode or "", "")
     answer_style = answer_styles.parse(answer_style)
     history = messages[-HISTORY:]
@@ -253,23 +295,41 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     total = int(meta.get("page_count") or 0)
     files = f"（一页一个文件，page-001.txt 到 page-{total:03d}.txt）" if total else "（一页一个文件）"  # i18n-ok
     # 上下文够用就别让模型去读文件：Opus / Fable 一读 paper.json 就是十几秒、上万 token（实测首字 2 秒变 13 秒）
-    tool = ("上面给的上下文一般就够了，直接回答。确实需要别的页时，用 Read 工具读当前目录 extract/ 里那一页抽取的文字"  # i18n-ok
-            + files + "；不要整本读 paper.json。读者的全部标记在 reader.json 的 notes 里，问到标记时才去看。\n"  # i18n-ok
-            if engine == "claude" else "")
+    extract_dir = str(paths.derived(ws.root, "extract"))
+    tool = (("上面给的上下文一般就够了，直接回答。确实需要别的页时，用 Read 工具读 " if engine == "claude" else "上面给的上下文一般就够了，直接回答。确实需要别的页时，可以读 ")  # i18n-ok
+            + extract_dir + " 里那一页抽取的文字" + files + "；不要整本读 paper.json。读者的全部标记在 reader.json 的 notes 里，问到标记时才去看。\n"  # i18n-ok
+            if engine in ("claude", "codex") else "")
     want, colors = wants_marks(ask)
     marks = _marks(ws, colors) if want else ("" if followup else _marks_summary(ws))
+    # 整份文件：地圖（每頁一行）＋問題可能在問的那幾頁（關鍵詞找的），正在看的那頁已經在 _context 裡
+    seen = {page} | {r.get("page") for r in (refs or []) if r.get("page")}
+    near = docmap.relevant(ws, ask, skip=seen, k=2) if mode != "overview" else []
+    near_text = docmap.pages_block(ws, near, per=2400 if followup else docmap.PAGE_BUDGET)
+    nav = "" if followup or mode == "overview" else docmap.outline(ws)
+    whole_doc = (("\n\n全文地图（每页在讲什么；问到别处时按页码去找）：\n" + nav) if nav else "")  # i18n-ok
+    whole_doc += ("\n\n问题可能涉及的其他页（按问题里的关键词找到的）：\n" + near_text) if near_text else ""  # i18n-ok
+    aside_text = _aside_text(aside)
+    if mode == "overview" and not followup:  # 導讀的追問走一般的追問（行程記得整份文字）
+        text = (f"你在陪读者读一篇{noun_of(ws)}《{meta.get('title_zh') or meta.get('title_en') or ''}》。"  # i18n-ok
+                + "用" + langs.reply_lang(meta) + "。" + OVERVIEW  # i18n-ok
+                + "行内公式只用 $TeX$，行间公式只用 $$TeX$$（$$ 单独占一行）。只输出内容本身，不要客套。\n\n"  # i18n-ok
+                + "整份文件的文字（按页；公式和表格可能是乱的）：\n" + docmap.full_text(ws)  # i18n-ok
+                + f"\n\n读者现在问：{ask}")  # i18n-ok
+        return localize(text, langs.reply_code(meta))
     if followup:
         text = ((_context(ws, anchor, quote, refs, page) + "\n\n") if with_context else "读者还指着刚才那一处。\n\n")  # i18n-ok
         text += (marks + "\n\n") if marks else ""
         hint = _images_hint(images, engine).strip()
         text += (hint + "\n\n") if hint else ""
+        text += ("问题可能涉及的其他页：\n" + near_text + "\n\n") if near_text else ""  # i18n-ok
+        text += (aside_text + "\n\n") if aside_text else ""
         text += (special + "\n") if special else ""
         text += f"读者接着问：{ask}"  # i18n-ok
         return localize(text, langs.reply_code(meta))
     style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
              else "用" + langs.reply_lang(ws.load("paper").get("meta")) + "，直接、具体，能举例就举例。\n")  # i18n-ok
     whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
-    noun = kinds.noun(kinds.of(ws.load("paper").get("meta")))
+    noun = noun_of(ws)
     text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。\n" + style  # i18n-ok
             # 结论先行：第一句就是答案，读者一两秒内就看到有用的东西，再往下展开（回答逐字流出来，开头最值钱）
             + "第一句直接给出结论或答案，再往下展开说明；不要先铺垫背景。"  # i18n-ok
@@ -279,10 +339,12 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
             "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
             "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
             + _context(ws, anchor, quote, refs, page)
+            + whole_doc
             + ("\n\n" + whole if whole else "")
             + ("\n\n" + marks if marks else "")
             + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
             + _images_hint(images, engine)
+            + ("\n\n" + aside_text if aside_text else "")
             + ("\n\n" + special.rstrip() if special else "")
             + f"\n\n读者现在问：{ask}")  # i18n-ok
     # 回答語言是繁體時整段提示詞轉成繁體，模型才不會跟著提示詞寫簡體（讀者的問題、原文和 TeX 不受影響）

@@ -164,13 +164,18 @@ class Handler(BaseHTTPRequestHandler):
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options}
         if images:
             user["images"] = [clips.rel(p) for p in images]
-        mode = body.get("mode") if body.get("mode") in chat.MODES else None  # 推導、圖解這類專門寫法
+        mode = body.get("mode") if body.get("mode") in chat.MODES or body.get("mode") == "overview" else None  # 推導、圖解、整份導讀
         if mode:
             user["mode"] = mode
+        # 小視窗追問：指著之前某段回答裡的一句另外問（第一問帶 aside，之後這個對話裡的追問從對話上記的拿）
+        aside_in = body.get("aside") if isinstance(body.get("aside"), dict) else (thread or {}).get("aside")
+        aside = chat.aside_context(ws, aside_in)
+        if aside and isinstance(body.get("aside"), dict):
+            user["aside"] = {"thread": str(aside_in.get("thread")), "msg": str(aside_in.get("msg") or ""), "quote": aside["quote"]}
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                  images=user.get("images"), mode=mode)
+                                  images=user.get("images"), mode=mode, aside=aside)
         # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
         prev_turns = sum(1 for x in past if x.get("role") == "assistant")
         live = {"thread": tid, "turns": prev_turns}
@@ -178,7 +183,7 @@ class Handler(BaseHTTPRequestHandler):
             prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
             same = chat.same_spot(prev_user, user, refs, page) and not images
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                                images=user.get("images"), followup=True, with_context=not same, mode=mode)
+                                                images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
