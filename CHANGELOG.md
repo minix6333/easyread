@@ -21,6 +21,10 @@
 - **Zotero 整库迁移**：一键把 Zotero 文献库搬进 EasyRead，包括分类、标签、元数据、PDF，以及已有的笔记和高亮。这次大改动的思路受 [#26](https://github.com/Edwardxlai/easyread/issues/26) 社区插件 [zotero-easyread](https://github.com/apple5089/zotero-easyread)（@apple5089）启发，发布时特别致谢。
 - **PDF 原页标注**（[#25](https://github.com/Edwardxlai/easyread/issues/25)，英文标注已在 1.3.1 完成）：原页目前是图片，需要另做文字层、坐标定位和标注保存，单独评估，暂不承诺。
 
+## v1.3.2（开发中）
+
+- 整页都是上一页那段的续文时不再误报“模型没有译出任何内容”（[PR #30](https://github.com/Edwardxlai/easyread/pull/30)，@NGman-s）：核对这页原文确实完整并在上一段结尾、页上没有图形，才算译完；分段并行交界处上一页还在另一段里译时，等全部译完再核对，核对不上再译一次。只读原文后补译时，这类页要等所属段落有了译文才算译完。
+
 ## v1.3.1
 
 **翻译提速**
