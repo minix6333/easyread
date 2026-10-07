@@ -85,6 +85,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out release notes
+        uses: actions/checkout@v4
       - name: Download installers
         uses: actions/download-artifact@v4
         with:
@@ -92,6 +94,7 @@ jobs:
       - name: Publish installers
         uses: softprops/action-gh-release@v2
         with:
+          body_path: RELEASE_NOTES.md  # 這一版改了什麼（應用程式裡「有新版本」的說明也讀這個）
           files: |
             release-assets/**/*.exe
             release-assets/**/*.dmg

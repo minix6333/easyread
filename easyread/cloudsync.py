@@ -281,10 +281,13 @@ def report(lib_root: Path, pull: dict | None = None) -> dict:
         if drive and r["root"] != drive["root"]:
             continue  # 文獻庫在某個雲端硬碟裡：只看同一個硬碟（別的雲端硬碟裡的文獻庫可能是刻意分開的）
         for lib in libraries(Path(r["root"])):
-            if Path(lib["path"]) == lib_root or lib["moved"]:
+            if Path(lib["path"]) == lib_root:
                 continue
             lib["drive"] = r["label"]
             lib["new"] = [i for i in lib["ids"] if i not in mine]
+            # 已經併過、留了路標的不再提——除非之後又有電腦（還沒更新的舊版）往那裡加了這裡沒有的論文
+            if lib["moved"] and not (synced and lib["new"]):
+                continue
             found.append(lib)
     out["others"] = [{k: v for k, v in lib.items() if k != "ids"} for lib in found]
     if config.temp_library():
@@ -390,8 +393,9 @@ def absorb(current: Path, stray: Path) -> dict:
         staging.mkdir()
         try:
             cloudlib._copy_verified(src, staging / pid)
-            for skip in (".write.lock",):
-                (staging / pid / skip).unlink(missing_ok=True)
+            (staging / pid / ".write.lock").unlink(missing_ok=True)
+            for name in paths.DERIVED:  # 頁面圖、抽取文字、本機的修改記錄：可以重算，不放進雲端的文獻庫
+                shutil.rmtree(staging / pid / name, ignore_errors=True)
             _legacy_reader(staging / pid, staging / pid)
             (staging / pid / "reader.json").unlink(missing_ok=True)  # 已經轉成日誌裡的快照
             (staging / pid).rename(dst)

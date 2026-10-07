@@ -156,6 +156,8 @@
           body: (mode === "use" ? PR.t("以後這台直接用那裡的論文和筆記。") : mode === "merge" ? PR.t("這台的論文會複製過去（那邊已經有的跳過，筆記併在一起），以後兩台用同一個資料夾。") : PR.t("這台的論文會複製過去，以後都存在那裡。")) +
             PR.t("原來的資料夾保留不刪。完成後 EasyRead 會重新啟動。") }))) return;
         busy = true; paint();
+        // 換文獻庫位置前別的閱讀頁要先關：在分頁外殼裡就請它把論文分頁收掉（shell.js），等它們斷線
+        if (PR.framed) { window.parent.postMessage({ easyread: true, type: "close-papers" }, location.origin); await new Promise((r) => setTimeout(r, 900)); }
         const r = kind === "join" ? await PR.api("/api/sync/join", { method: "POST", body: { path: a.path } })
           : await PR.api("/api/library/move", { method: "POST", body: { path: a.path, mode } });
         if (r.ok === false) throw new Error(r.message);

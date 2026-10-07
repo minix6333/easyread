@@ -214,6 +214,10 @@
     else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*EasyRead$/, ""); renderTabs(); save(); }
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
     else if (d.type === "key") key(String(d.key), !!d.shift);
+    else if (d.type === "close-papers") {  // 文獻庫要換位置了：論文分頁全部收掉（它們開著時後端不讓換）
+      for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
+      render();
+    }
     else if (d.type === "theme" && from && d.theme && document.documentElement.dataset.theme !== d.theme) {
       document.documentElement.dataset.theme = d.theme;
       for (const t of st.tabs) {  // 其他格先把顏色換過去（它們自己的設定下一次讀到時會再對一次）

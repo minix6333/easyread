@@ -134,12 +134,14 @@ class MergeTest(Base):
         journal(old, "devwin", note("n1", "另一台在舊資料夾寫的"))
         (old / "clips").mkdir(); (old / "clips" / "c-1.png").write_bytes(b"png")
         only = paper(stray, "onlythere", pages=2)
+        (only / "extract").mkdir(); (only / "extract" / "page-001.txt").write_text("x", encoding="utf-8")  # 舊版把可重算的檔也放在論文資料夾裡
         write_json_atomic(only / "reader.json", {"notes": {"n9": {"id": "n9", "kind": "note", "body": "舊格式的筆記", "updated": "2026-10-05T09:00:00"}}})
         done = cloudsync.absorb(self.canon, stray)
         self.assertEqual((done["copied"], done["merged"]), (["onlythere"], ["both"]))
         self.assertTrue((self.canon / "onlythere" / "source.pdf").is_file())
         self.assertTrue((stray / "onlythere" / "source.pdf").is_file())                    # 舊資料夾不刪
         self.assertFalse((self.canon / "onlythere" / "reader.json").exists())              # 舊格式的筆記轉成日誌裡的快照
+        self.assertFalse((self.canon / "onlythere" / "extract").exists())                  # 可重算的不帶進雲端的文獻庫
         self.assertIn("舊格式的筆記", (self.canon / "onlythere" / "sync" / "merged.jsonl").read_text(encoding="utf-8"))
         self.assertTrue((both / "sync" / "devwin.jsonl").is_file())
         self.assertTrue((both / "clips" / "c-1.png").is_file())
@@ -152,6 +154,10 @@ class MergeTest(Base):
         self.assertEqual(Workspace(both).load("reader")["notes"]["n1"]["body"], "另一台在舊資料夾寫的")
         self.assertEqual(Workspace(self.canon / "onlythere").load("reader")["notes"]["n9"]["body"], "舊格式的筆記")
         self.assertIsNone(cloudsync.report(self.canon)["advice"])                           # 留了路標的不再提
+        paper(stray, "addedlater")                                                          # 還沒更新的舊版又往舊資料夾加了一篇
+        again = cloudsync.report(self.canon)["advice"]
+        self.assertEqual((again["kind"], again["new"]), ("absorb", 1))
+        shutil.rmtree(stray / "addedlater")
         cloudsync.absorb(self.canon, stray)                                                 # 再做一次也不會重複
         self.assertEqual(len(read_json(both / "chat.json")["threads"]), 2)
 
