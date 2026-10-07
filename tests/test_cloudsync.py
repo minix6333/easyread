@@ -117,6 +117,8 @@ class DiscoveryTest(Base):
             r = cloudsync.report(local)
             self.assertEqual((r["advice"]["kind"], r["advice"]["mode"], r["advice"]["count"]), ("join", "merge", 1))
             self.assertNotIn("split", r["advice"])
+        paths.forget()  # 已經在同步、只是不在這台認得的雲端硬碟根目錄底下（別家的網路硬碟）：不去建議別的硬碟
+        self.assertIsNone(cloudsync.report(local)["advice"])
 
     def test_picking_the_drive_root_means_the_easyread_folder_inside_it(self):
         paper(self.drive, "rootpaper")  # 根目錄裡散著論文也一樣

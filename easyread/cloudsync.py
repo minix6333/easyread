@@ -293,7 +293,9 @@ def report(lib_root: Path, pull: dict | None = None) -> dict:
     if config.temp_library():
         return out
     canon = [lib for lib in found if lib["rel"] == NAME]
-    if not drive:  # 這台用本機資料夾
+    if not drive and synced:
+        pass  # 在某個這台認不出根目錄的同步資料夾裡（別家的網路硬碟、放在特別位置）：已經在同步，不去建議別的硬碟
+    elif not drive:  # 這台用本機資料夾
         best = (canon or sorted(found, key=lambda x: -x["count"]))[:1]
         if best:
             out["advice"] = {"kind": "join", "path": best[0]["path"], "count": best[0]["count"], "devices": best[0]["devices"], "label": best[0]["drive"],
