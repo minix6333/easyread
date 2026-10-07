@@ -68,7 +68,8 @@ class Library:
             "discussions": len(disc.get("entries", [])),
             "has_paper_note": bool((reader.get("paper_note") or {}).get("body")),
             "job": {k: job.get(k) for k in ("type", "state", "message", "done", "total", "updated", "error", "failed", "scope", "read", "model", "target", "pages", "cap_check", "page_cap", "usage", "usage_total")} if job else None,
-            "thumb": f"/p/{ws.id}/pages/page-001.webp" if (paths.derived(ws.root, "pages") / "page-001.webp").exists() else "",
+            # 這台的快取還沒有第一頁的圖（另一台匯入的論文）也給網址：伺服器收到請求時從 PDF 做出來（derive.py）
+            "thumb": f"/p/{ws.id}/pages/page-001.webp" if (paths.derived(ws.root, "pages") / "page-001.webp").exists() or (ws.root / "source.pdf").exists() else "",
         }
 
     def list(self) -> list[dict]:

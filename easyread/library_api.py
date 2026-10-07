@@ -36,7 +36,7 @@ class LibraryLocation:
     def request(self, method: str, raw_path: str):
         path = unquote(urlparse(raw_path).path)
         protected = (method == "POST" and path not in (
-            "/api/library/move", "/api/library/inspect", "/api/library/pick-folder", "/api/library/reveal", "/api/shutdown", "/api/presence/keep"))
+            "/api/library/move", "/api/sync/join", "/api/library/inspect", "/api/library/pick-folder", "/api/library/reveal", "/api/shutdown", "/api/presence/keep"))
         if method in ("GET", "HEAD"):
             protected = path.startswith(("/read/", "/p/")) or (path.startswith("/api/p/") and not path.endswith("/versions"))
         entered = False
@@ -66,7 +66,7 @@ class LibraryLocation:
         return self.app.jobs.busy() or any((ws.load("job") or {}).get("state") in ("queued", "running")
                                            for ws in self.app.lib.all())
 
-    def move(self, body: dict) -> dict:
+    def _start_moving(self):
         with self.lock:
             if self.status != "idle":
                 raise self._error()
@@ -82,8 +82,12 @@ class LibraryLocation:
             if self.active:
                 raise ValueError(tr("文献库仍在保存或生成页面，请稍后再试"))
             self.status = "moving"
+
+    def _moving(self, work):
+        """work() 做完就進入「要重啟」；出錯就回到原狀。"""
+        self._start_moving()
         try:
-            result = cloudlib.move(self.app.lib.root, body.get("path", ""), body.get("mode", ""))
+            result = work()
             with self.lock:
                 self.status = "restart_required"
             return result
@@ -91,6 +95,15 @@ class LibraryLocation:
             with self.lock:
                 if self.status == "moving":
                     self.status = "idle"
+
+    def move(self, body: dict) -> dict:
+        return self._moving(lambda: cloudlib.move(self.app.lib.root, body.get("path", ""), body.get("mode", "")))
+
+    def join(self, body: dict) -> dict:
+        """這台改用雲端硬碟裡已經有的那個文獻庫（頁面上的「改用它」）。這台原本就在同一個雲端硬碟的別的資料夾裡（兩台走散了）：
+        把這台的併過去、舊資料夾留路標；這台在本機資料夾：照一般的切換／合併做。見 cloudsync.py。"""
+        from . import cloudsync
+        return self._moving(lambda: cloudsync.join(self.app.lib.root, str(body.get("path") or "")))
 
     def location(self) -> dict:
         current = cloudlib.inspect(self.app.lib.root, exact=True)
@@ -147,7 +160,16 @@ def post(app, path: str, body: dict):
     if path == "/api/library/cleanup":
         return cloudlib.cleanup(body.get("path", ""), app.lib.root)
     if path == "/api/library/move":
-        return app.location.move(body)
+        result = app.location.move(body)
+        try:  # 換到雲端的文獻庫：同一篇兩邊都有的把筆記併過去；舊資料夾在雲端的留個路標，別台會自己跟過來（cloudsync.py）
+            from . import cloudsync
+            cloudsync.after_move(result, str(body.get("mode") or ""))
+        except Exception:  # noqa: BLE001 —— 位置已經換好了，後續整理失敗不算失敗
+            from .log import log
+            log.exception("換文獻庫位置後的整理失敗")
+        return result
+    if path == "/api/sync/join":
+        return app.location.join(body)
     if path == "/api/library/reveal":
         from .reader_files import reveal
         reveal(app.lib.root)
@@ -157,4 +179,4 @@ def post(app, path: str, body: dict):
     return None
 
 
-POST = {"/api/library/inspect", "/api/library/pick-folder", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}
+POST = {"/api/sync/join", "/api/library/inspect", "/api/library/pick-folder", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}

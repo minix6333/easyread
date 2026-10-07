@@ -37,7 +37,8 @@ _STOP_ZH = ("什麼", "什么", "這個", "这个", "這裡", "这里", "這段"
 def page_texts(ws: Workspace) -> list[str]:
     """第 1 頁到最後一頁的抽取文字（沒抽到的是空字串）。"""
     meta = ws.load("paper").get("meta") or {}
-    extract = paths.derived(ws.root, "extract")
+    from . import derive  # 這台沒有這篇的抽取文字（另一台匯入的）就先重做
+    extract = derive.extract(ws.root)
     total = int(meta.get("page_count") or 0)
     if not total and extract.is_dir():
         total = len([p for p in extract.glob("page-*.txt")])

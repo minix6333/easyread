@@ -231,7 +231,7 @@ class Workspace:
 
     def apply_reader_ops(self, ops: list[dict], client: str = "", journal: bool = True) -> dict:
         """journal=False：這批是從別台電腦的日誌讀進來的（sync.py），不要再寫回自己的日誌。"""
-        with dir_lock(self.root):
+        with dir_lock(paths.lock_dir(self.root)):
             reader = self.load("reader")
             applied = apply_ops(reader, ops)
             if applied:
@@ -261,7 +261,7 @@ class Workspace:
 
     def update(self, name: str, fn):
         """在锁内读-改-写一个翻译方的文件（paper / discussion / job / item）。"""
-        with dir_lock(self.root):
+        with dir_lock(paths.lock_dir(self.root)):
             data = self.load(name)
             result = fn(data)
             write_json_atomic(self.part_path(name), data)

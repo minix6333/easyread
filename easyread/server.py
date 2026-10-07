@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -52,11 +52,13 @@ def _prefetch_pages(root, rel: str, w: int) -> None:
         return
     n, ext = int(m.group(1)), m.group(2)
     todo = []
+    pages_dir = paths.derived(root, "pages")  # 同步模式下在本機快取（以前這裡看的是論文資料夾，同步模式下永遠不預先做）
+    total = derive.page_count(root)
     with _prefetch_lock:
         for k in range(n + 1, n + 1 + _PREFETCH_AHEAD):
             key = (str(root), k, w)
             nxt = f"pages/page-{k:03d}{ext}"
-            if key in _prefetching or not (root / nxt).exists() or (paths.derived(root, "pages") / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
+            if key in _prefetching or k > total or (pages_dir / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
                 continue
             _prefetching.add(key)
             todo.append((key, nxt))
@@ -66,6 +68,7 @@ def _prefetch_pages(root, rel: str, w: int) -> None:
     def go():
         for key, nxt in todo:
             try:
+                derive.page_image(root, derive.page_of(nxt))
                 pdfwork.page_variant(root, nxt, w)
             except Exception:  # noqa: BLE001 —— 預先做失敗沒關係，真的要時再做
                 pass
@@ -288,14 +291,17 @@ class Handler(BaseHTTPRequestHandler):
         location = library_api.get(app, path)
         if location is not None:
             return self._json(200, location)
-        if path == "/api/sync":  # 文獻庫在同步資料夾時：合併了幾批、看過哪些電腦、有沒有雲端硬碟的衝突副本
-            return self._json(200, {**sync.status(), "device": paths.device()})
+        if path == "/api/sync":  # 雲端同步的現況：哪些電腦在用這個文獻庫、收到幾批別台的修改、雲端硬碟裡有沒有別的文獻庫（cloudsync.py）
+            report = cloudsync.report(lib.root, sync.status())
+            if app.location.status != "idle":  # 已經換了位置、等重啟：不要再建議一次
+                report.update(advice=None, restart_required=True)
+            return self._json(200, report)
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg), "auto_translate": bool(cfg.get("auto_translate")),
-                                    "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root))})
+                                    "first_run": config.is_first_run(), "version": VERSION, "trash": len(trash.items(lib.root))})
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
             return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
         if path == "/api/trash":
@@ -326,6 +332,7 @@ class Handler(BaseHTTPRequestHandler):
                     opened["status"] = "reading"
                 if app.location.status == "idle":
                     ws.patch_item(opened)
+                    derive.ensure(ws.root, app.location)  # 另一台電腦匯入的論文：這台的頁面圖、文字要從 PDF 重做（derive.py）
                     _warm(ws.root, app.location)
                     _refresh_layout(ws)
                 state = {**{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item")}, "job": jobs.view(ws.load("job")),
@@ -353,6 +360,8 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
             ws = lib.ws(pid)
+            if ws and app.location.status == "idle" and rel.startswith("pages/") and derive.page_of(rel):
+                derive.page_image(ws.root, derive.page_of(rel))  # 這台的快取沒有這一頁：先從 PDF 做出來
             if ws and app.location.status == "idle" and rel.startswith("pages/") and "w=" in url.query:  # 原页面板用的小一号图，第一次请求时生成
                 try:
                     w = int(parse_qs(url.query)["w"][0])
@@ -366,6 +375,8 @@ class Handler(BaseHTTPRequestHandler):
             if ws and (rel.split("/", 1)[0] in ("figures", clips.DIR) or rel == "source.pdf"):
                 return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")
             if ws and rel.startswith("extract/") and rel.endswith((".chars.json", ".txt")):  # PDF 文字層用的字元座標
+                if app.location.status == "idle":
+                    derive.extract(ws.root)
                 return self._file(_derived_file(ws.root, rel), cache=True)
         return self._json(404, {"error": "not found"})
 
@@ -406,6 +417,27 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in library_api.POST:
             return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))
+        if path == "/api/sync/pull":  # 立即同步：馬上讀一次別台的筆記日誌、寫一次這台的心跳
+            self._body()  # 請求體要讀掉：連線是保持著的，留在裡面會被當成下一個請求
+            if paths.is_synced(lib.root):
+                sync.pull_once(lib.root)
+                cloudsync.beat(lib.root)
+            cloudsync.roots(fresh=True)
+            return self._json(200, cloudsync.report(lib.root, sync.status()))
+        if path == "/api/sync/absorb":  # 把雲端硬碟裡走散的別的 EasyRead 文獻庫併進這一個（原資料夾不刪，留路標）
+            self._body()
+            if app.jobs.busy():
+                raise ValueError(tr("还有翻译或 AI 任务在运行，请等任务结束再更改文献库位置"))
+            advice = cloudsync.report(lib.root).get("advice") or {}
+            if advice.get("kind") != "absorb":
+                raise ValueError(tr("沒有需要合併的文獻庫"))
+            results = [cloudsync.absorb(lib.root, Path(p)) for p in advice["paths"]]
+            paths.forget()
+            if paths.is_synced(lib.root):
+                sync.pull_once(lib.root)
+                cloudsync.beat(lib.root)
+            return self._json(200, {"results": results, "copied": sum(len(r["copied"]) for r in results), "merged": sum(len(r["merged"]) for r in results),
+                                    **cloudsync.report(lib.root, sync.status())})
         if path == "/api/update":  # 开关“自动检查新版本”
             config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})
             return self._json(200, updates.check())

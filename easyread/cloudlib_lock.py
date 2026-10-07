@@ -1,4 +1,7 @@
-"""同步目录中的设备占用提醒；它不是跨设备互斥锁。"""
+"""同步目录中的设备占用提醒；它不是跨设备互斥锁。
+
+同步模式（paths.is_synced）下不寫這個檔：兩台電腦每分鐘輪流覆蓋同一個檔，雲端硬碟會一直在同步它、還可能產生衝突副本。
+誰在用這個文獻庫改由每台各寫各的心跳檔表示（cloudsync.py 的裝置名冊），「另一台電腦正在開著」的警告也換成同步狀態。"""
 from __future__ import annotations
 
 import os
@@ -19,6 +22,8 @@ class LibraryMarker:
         self.host, self.pid = socket.gethostname(), os.getpid()
         self.owner = uuid4().hex
         self.other = {}
+        from . import paths
+        self.synced = paths.is_synced(root)
         self.stopped = threading.Event()
         self.thread = None
 
@@ -30,6 +35,8 @@ class LibraryMarker:
             return {}
 
     def other_device(self) -> str:
+        if self.synced:
+            return ""
         data = self._read()
         if data.get("host") and data.get("host") != self.host:
             self.other = data
@@ -44,6 +51,14 @@ class LibraryMarker:
         write_json_atomic(self.path, {"host": self.host, "pid": self.pid, "at": now_iso(), "owner": self.owner})
 
     def start(self):
+        if self.synced:
+            try:  # 舊版留下的、屬於這台的標記順手清掉
+                if self._read().get("host") == self.host:
+                    self.path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return
+
         def run():
             while not self.stopped.wait(60):
                 try:
@@ -59,6 +74,8 @@ class LibraryMarker:
 
     def close(self):
         self.stopped.set()
+        if self.synced:
+            return
         if self.thread:
             self.thread.join(timeout=2)
         if self._read().get("owner") == self.owner:

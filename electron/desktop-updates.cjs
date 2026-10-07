@@ -12,7 +12,9 @@ function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prep
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
     updater.allowDowngrade = false;
-    updater.setFeedURL({ provider: "github", owner: "Edwardxlai", repo: "easyread" });
+    // 這個分支只從自己的 Releases 更新（上游的版本沒有這裡加的功能）。版本是 1.3.1-tw.N：electron-updater 把 tw 當成頻道，
+    // 會在 Releases 裡找下一個 -tw. 的版本，讀它的 tw.yml（沒有就退回 latest.yml）。
+    updater.setFeedURL({ provider: "github", owner: "minix6333", repo: "easyread" });
     updater.on("error", error => publish({ phase: "error", error: error.message }));
     updater.on("download-progress", progress => publish({ phase: "downloading", percent: progress.percent, transferred: progress.transferred, total: progress.total }));
     updater.on("update-downloaded", info => publish({ phase: "downloaded", version: info.version, percent: 100 }));

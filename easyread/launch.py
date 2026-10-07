@@ -7,7 +7,7 @@ import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import __version__, config, detect, sync
+from . import VERSION, cloudsync, config, detect, sync
 from .log import log, setup as setup_log
 from .presence import Presence
 from .server import App, Handler
@@ -24,6 +24,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     setup_log(config.LOG_PATH)
     started = time.monotonic()
     cfg = config.load()
+    cfg = cloudsync.startup(cfg)  # 文獻庫被另一台電腦併到別的資料夾了：跟著路標換過去（cloudsync.py）
     log.info("startup config-ready +%.0fms", (time.monotonic() - started) * 1000)
     app = App(cfg)
     log.info("startup library-jobs-ready +%.0fms", (time.monotonic() - started) * 1000)
@@ -43,7 +44,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     app.presence = Presence(app.jobs.busy, httpd.shutdown, exit_on_close)
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
-    log.info("EasyRead %s 已启动：%s  文献库：%s", __version__, url, app.lib.root)
+    log.info("EasyRead %s 已启动：%s  文献库：%s", VERSION, url, app.lib.root)
     print(f"EasyRead 已启动：{url}  文献库：{app.lib.root}", flush=True)  # i18n-ok Electron 和 smoke_backend 用正则匹配这行
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url + path)).start()

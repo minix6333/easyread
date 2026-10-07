@@ -100,12 +100,35 @@ def sync_dir(paper_root: Path) -> Path:
 
 
 def sync_append(paper_root: Path, ops: list[dict]) -> None:
-    """把這批操作寫進這台電腦自己的日誌（一個檔只有一台在寫，雲端硬碟不會產生衝突副本）。"""
+    """把這批操作寫進這台電腦自己的日誌（一個檔只有一台在寫，雲端硬碟不會產生衝突副本）。
+    Windows 上雲端硬碟的同步程式正在讀這個檔時會開不了（PermissionError）：等一下再試，不要把這批操作丟掉。"""
+    import time
     d = sync_dir(paper_root)
     d.mkdir(exist_ok=True)
     line = json.dumps({"t": _now(), "ops": ops}, ensure_ascii=False)
-    with _lock, open(d / f"{device()['id']}.jsonl", "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    with _lock:
+        for attempt in range(40):
+            try:
+                with open(d / f"{device()['id']}.jsonl", "a", encoding="utf-8", newline="\n") as f:
+                    f.write(line + "\n")
+                return
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+
+
+def lock_dir(paper_root: Path) -> Path:
+    """寫入鎖放哪裡。同步模式下放本機快取：鎖只管這台電腦上的行程互斥，放進雲端硬碟只會讓它一直忙著同步一個馬上就刪掉的檔。"""
+    root = Path(paper_root)
+    if not is_synced(root.parent):
+        return root
+    out = cache_dir(root)
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return root
+    return out
 
 
 def device() -> dict:

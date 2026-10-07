@@ -33,6 +33,23 @@ class UpdatesTest(unittest.TestCase):
         self.assertFalse(updates.newer("1.2.5", "1.2.5"))
         self.assertFalse(updates.newer("1.2.4", "1.2.5"))
         self.assertFalse(updates.newer("", "1.2.5"))
+        # 這個分支自己的版次：v<上游版本>-tw.N，第四個數也要比
+        self.assertTrue(updates.newer("v1.3.1-tw.4", "1.3.1-tw.3"))
+        self.assertFalse(updates.newer("1.3.1-tw.3", "1.3.1-tw.3"))
+        self.assertFalse(updates.newer("1.3.1-tw.2", "1.3.1-tw.3"))
+        self.assertTrue(updates.newer("1.3.1-tw.10", "1.3.1-tw.9"))
+        self.assertTrue(updates.newer("1.3.2-tw.1", "1.3.1-tw.9"))
+
+    def test_answer_from_another_repo_is_ignored(self):
+        """以前問的是上游的倉庫：留下來的答案（上游的新版本）不能拿來提示更新。"""
+        from easyread.store import write_json_atomic
+        import time
+        write_json_atomic(self.home / "update.json", {"latest": "9.9.9", "url": "https://github.com/Edwardxlai/easyread/releases/tag/v9.9.9", "checked": time.time()})
+        with self.fake(tag="v1.3.1-tw.3"):
+            u = updates.check()
+        self.assertEqual(self.calls, 1)
+        self.assertEqual(u["latest"], "1.3.1-tw.3")
+        self.assertEqual(updates.REPO, "minix6333/easyread")
 
     def test_asks_once_a_day(self):
         with self.fake():
