@@ -2,8 +2,9 @@
 name: test
 on:
   push:
-    branches: [main]
+    branches: [main, zh-tw-pdf-first]  # 這個分支也跑：雲端同步那些路徑、檔案鎖的程式要在 Windows 上驗過
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
