@@ -1439,5 +1439,9 @@
  "那個程式沒有開出視窗。": "That app did not open a window.",
  "那個程式開不起來。": "That app could not be started.",
  "重新載入": "Reload",
- "電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 EasyRead 右邊。": "Apps on this computer (such as ChatGPT) work too: drag the icon here from Applications and its window docks to the right of EasyRead."
+ "電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 EasyRead 右邊。": "Apps on this computer (such as ChatGPT) work too: drag the icon here from Applications and its window docks to the right of EasyRead.",
+ "把「{name}」的視窗貼在旁邊": "Dock the “{name}” window beside EasyRead",
+ "要再把「{name}」貼在旁邊：點上面它的圖示。": "To dock “{name}” again, click its icon above.",
+ "換成網頁工具：挑一個或輸入網址": "Switch to a web tool: pick one or enter an address",
+ "收回：不再貼在旁邊（再按一次打開網頁工具欄）": "Undock: stop keeping it beside EasyRead (click again to open the web tools column)"
 }

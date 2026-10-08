@@ -7,7 +7,9 @@
    - 電腦上的應用程式（ChatGPT.app 這種）：macOS 不允許把別的程式的「視窗」放進另一個程式裡，能做的是「貼齊」——
      EasyRead 的視窗讓出右邊，請系統把那個程式的視窗擺在旁邊，EasyRead 移動、改大小時跟著走（electron/native-dock.cjs）。
      要你在「系統設定 → 隱私權與安全性 → 輔助使用」允許 EasyRead。把 App 圖示拖到欄的上緣，或按「＋ → 貼齊一個 App」。
-     貼齊的時候欄本身收起來（位置讓給那個視窗），切換的圖示改放在分頁列右邊。重開 App 不會自動再貼（不會一開就去動別的視窗）。
+     貼齊的時候欄本身收起來（位置讓給那個視窗），切換的圖示和「＋」改放在分頁列右邊。
+     分頁列那顆按鈕只管開關這一欄，不會自己去貼別的程式：要貼就點那個程式的圖示。所以貼過之後按兩下按鈕（收回、再打開）
+     就回到可以挑網頁、輸入網址的畫面；貼著的時候按分頁列上的「＋」也可以直接加。重開 App 不會自動再貼。
    PR.dockModel 是純函式（tests/test_dock.cjs）。 */
 (function (PR) {
   "use strict";
@@ -154,6 +156,8 @@
     views[app.id] = v;
     return v;
   }
+  /* 上面那排圖示哪個算「目前這個」：網頁的看選到誰；電腦上的程式要真的貼著才算 */
+  const isOn = (a) => (a.kind === "app" ? nativeOn === a.id : a.id === st.active && !nativeOn);
   function appIcon(a) {
     return a.icon ? '<img src="' + PR.esc(a.icon) + '" alt="" draggable="false">' : '<i class="ltr">' + PR.esc((a.name || "?").trim().charAt(0).toUpperCase()) + "</i>";
   }
@@ -162,7 +166,7 @@
     let canBack = false;
     try { canBack = !!(v && v.canGoBack && v.canGoBack()); } catch (e) { canBack = false; }  // 還沒掛上時會丟例外
     PR.$(".dock-head", dock).innerHTML =
-      '<div class="dock-apps">' + st.apps.map((a) => '<button class="dock-app' + (a.id === st.active ? " on" : "") + (a.loading ? " loading" : "") + '" data-app="' + PR.esc(a.id) + '" title="' + PR.esc(a.title || a.name) + '">' +
+      '<div class="dock-apps">' + st.apps.map((a) => '<button class="dock-app' + (isOn(a) ? " on" : "") + (a.loading ? " loading" : "") + '" data-app="' + PR.esc(a.id) + '" title="' + PR.esc(a.kind === "app" ? PR.t("把「{name}」的視窗貼在旁邊", { name: a.name }) : a.title || a.name) + '">' +
         appIcon(a) + '<span class="x" data-x="' + PR.esc(a.id) + '" title="' + PR.t("拿掉") + '">' + PR.icon("x", "sm") + "</span></button>").join("") +
       '<button class="btn icon" data-d="add" title="' + PR.t("加一個外部工具（也可以把網址拖進來）") + '">' + PR.icon("plus", "sm") + "</button></div>" +
       '<span class="grow"></span>' +
@@ -173,11 +177,12 @@
   }
   function paintState() {
     const box = PR.$(".dock-state", dock), cur = active();
-    if (!st.apps.length) {
+    if (!cur || cur.kind === "app") {
       box.hidden = false;
       box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("把外部工具嵌在這裡") + "</h3><p>" + PR.t("把網址或連結從瀏覽器拖進來，或從下面挑一個。它有自己的登入，讀不到 EasyRead 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 EasyRead 右邊。") : "") + "</p>" +
         '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '">' + PR.esc(p.name) + "</button>").join("") +
-        '<button data-d="url">' + PR.icon("link", "sm") + PR.t("輸入網址…") + "</button>" + (native ? '<button data-d="pickapp">' + PR.icon("panel", "sm") + PR.t("貼齊一個 App…") + "</button>" : "") + "</div></div>";
+        '<button data-d="url">' + PR.icon("link", "sm") + PR.t("輸入網址…") + "</button>" + (native ? '<button data-d="pickapp">' + PR.icon("panel", "sm") + PR.t("貼齊一個 App…") + "</button>" : "") + "</div>" +
+        (cur && cur.kind === "app" ? '<p class="again">' + PR.t("要再把「{name}」貼在旁邊：點上面它的圖示。", { name: PR.esc(cur.name) }) + "</p>" : "") + "</div>";
     } else if (cur && cur.failed) {
       box.hidden = false;
       box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("這一頁沒載入") + "</h3><p>" + PR.esc(cur.failed) + '</p><div class="dock-presets"><button data-d="reload">' + PR.t("再試一次") + "</button></div></div>";
@@ -250,11 +255,11 @@
   PR.dock = {
     isOpen: () => st.open,
     async toggle(force) {
-      const open = force != null ? !!force : !st.open;
-      const cur = active();
+      const open = force != null ? !!force : !(st.open || nativeOn);
       if (!open) { await leaveNative(); st.open = false; return render(); }
-      if (cur && cur.kind === "app") return goNative(cur, PR.$('#tabs [data-act="dock"]'));
-      st.open = true; render();
+      await leaveNative();
+      st.open = true;  // 只是把欄打開（上次用的是貼齊的程式，就停在挑網頁、輸入網址的畫面）；要貼就點那個程式的圖示
+      render();
     },
     add(url, name) {
       const app = M.add(st, url, name);
@@ -265,8 +270,9 @@
     native: () => nativeOn,
     addApp: (path) => addNative(path, PR.$('#tabs [data-act="dock"]')),
     /* 分頁列右邊的按鈕；貼著別的程式時欄收起來了，切換用的圖示也放在這裡 */
-    button: () => (nativeOn ? '<span class="dock-rail">' + st.apps.map((a) => '<button class="dock-app' + (a.id === st.active ? " on" : "") + '" data-dockapp="' + PR.esc(a.id) + '" title="' + PR.esc(a.title || a.name) + '">' + appIcon(a) + "</button>").join("") + "</span>" : "") +
-      '<button class="btn icon' + (st.open ? " on" : "") + '" data-act="dock" title="' + PR.t("外部工具：把 ChatGPT 之類的網頁或程式放在右邊") + '">' + PR.icon("popout", "sm") + "</button>",
+    button: () => (nativeOn ? '<span class="dock-rail">' + st.apps.map((a) => '<button class="dock-app' + (isOn(a) ? " on" : "") + '" data-dockapp="' + PR.esc(a.id) + '" title="' + PR.esc(a.title || a.name) + '">' + appIcon(a) + "</button>").join("") +
+        '<button class="btn icon" data-dockadd title="' + PR.t("換成網頁工具：挑一個或輸入網址") + '">' + PR.icon("plus", "sm") + "</button></span>" : "") +
+      '<button class="btn icon' + (st.open || nativeOn ? " on" : "") + '" data-act="dock" title="' + (nativeOn ? PR.t("收回：不再貼在旁邊（再按一次打開網頁工具欄）") : PR.t("外部工具：把 ChatGPT 之類的網頁或程式放在右邊")) + '">' + PR.icon("popout", "sm") + "</button>",
   };
 
   /* ---------- 按鈕 ---------- */
@@ -315,7 +321,9 @@
 
   document.addEventListener("click", (e) => {  // 貼著別的程式時，切換的圖示在分頁列上
     const chip = e.target.closest && e.target.closest("#tabs [data-dockapp]");
-    if (chip) { e.stopPropagation(); select(chip.dataset.dockapp, chip); }
+    if (chip) { e.stopPropagation(); return select(chip.dataset.dockapp, chip); }
+    const plus = e.target.closest && e.target.closest("#tabs [data-dockadd]");
+    if (plus) { e.stopPropagation(); addMenu(plus); }
   }, true);
 
   /* ---------- 拉欄寬：拖的時候只移一條線，放開才重排（網頁和 PDF 每一幀都重排會卡） ---------- */

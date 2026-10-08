@@ -84,3 +84,4 @@ body.sizing .dock-view { pointer-events: none; }
 #tabs .dock-rail { display: inline-flex; align-items: center; gap: 2px; margin-right: 2px; }
 #tabs .dock-rail .dock-app { width: 28px; height: 28px; border-radius: 8px; }
 #tabs .dock-rail .dock-app.on::after { bottom: -2px; }
+.dock-empty .again { margin: 14px 0 0; font-size: 12.5px; }
