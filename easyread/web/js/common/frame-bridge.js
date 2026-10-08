@@ -32,6 +32,14 @@
   // 在這一格裡切了淺色／深色：外殼和其他格跟著換
   const sendTheme = () => post({ type: "theme", theme: document.documentElement.dataset.theme || "" });
   new MutationObserver(sendTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  // 拖著網址、連結經過這一格：告訴外殼（它會在視窗右緣亮出「嵌在右邊」的地方，見 dock.js）。拖檔案不算——那是匯入 PDF、貼圖
+  let dragAt = 0;
+  document.addEventListener("dragover", (e) => {
+    const t = Array.from((e.dataTransfer && e.dataTransfer.types) || []);
+    if (!t.includes("text/uri-list") || t.includes("Files") || Date.now() - dragAt < 150) return;
+    dragAt = Date.now();
+    post({ type: "drag-link" });
+  }, true);
   document.addEventListener("mousedown", () => post({ type: "focus" }), true);
   window.addEventListener("focus", () => post({ type: "focus" }));
   document.addEventListener("keydown", (e) => {

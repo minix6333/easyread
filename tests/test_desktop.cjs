@@ -15,6 +15,10 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     relaunch() { this.relaunched = true; }, exit() { this.exited = true; },
   });
   const windows = [], launches = [], menus = [], stages = [], handlers = new Map();
+  // 右邊嵌外部網頁用的儲存區（session.fromPartition("persist:embed")）：記下主程式對它設了什麼
+  const embed = { setUserAgent(ua) { this.ua = ua; }, setPermissionRequestHandler(fn) { this.ask = fn; }, setPermissionCheckHandler(fn) { this.check = fn; },
+    webRequest: { onBeforeRequest(fn) { embed.filter = fn; } }, clearStorageData: async () => { embed.cleared = true; }, clearCache: async () => {} };
+  app.userAgentFallback = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) easyread-desktop/1.3.1 Chrome/152.0.0.0 Electron/44.5.1 Safari/537.36";
   const ipcMain = { handle(name, fn) { handlers.set(name, fn); } };
   class Window extends EventEmitter {
     constructor() { super(); this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = (fn) => { this.webContents.openHandler = fn; }; this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" }; windows.push(this); }
@@ -42,7 +46,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   };
   const proc = new EventEmitter();
   Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
-  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: { openExternal(url) { app.external = (app.external || []).concat(url); } } }
+  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: { openExternal(url) { app.external = (app.external || []).concat(url); } }, session: { fromPartition(name) { embed.name = name; return embed; } } }
     : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
     : name === "http" ? { request(url, options, callback) {
       const req = new EventEmitter(); req.setTimeout = () => {}; req.end = () => queueMicrotask(() => {
@@ -55,6 +59,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     : name === "./startup-feedback.cjs" ? { ...require("../electron/startup-feedback.cjs"), mark(_app, stage) { stages.push(stage); }, loginShellPath: async () => "/usr/bin:/bin" }
     : name === "./desktop-updates.cjs" ? { registerUpdates() {} }
     : name === "./deep-link.cjs" ? require("../electron/deep-link.cjs")
+    : name === "./native-dock.cjs" ? require("../electron/native-dock.cjs")
     : name === "electron-updater" ? { autoUpdater: {} }
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
     : require(name);
@@ -62,7 +67,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout, clearTimeout, console });
   const settled = () => new Promise(resolve => setImmediate(resolve));
   await settled();
-  return { app, windows, launches, menus, handlers, stages, settled };
+  return { app, windows, launches, menus, handlers, stages, settled, embed };
 }
 
 test("macOS keeps native editing roles and offers input context actions", async () => {
@@ -112,6 +117,50 @@ test("the detached Ask AI window is allowed, other links go to the system browse
   assert.equal(child.handler({ url: "http://127.0.0.1:9876/read/abc123" }).action, "deny");
   main.close();
   assert.deepEqual(opened, ["closed"]);
+  d.app.quit();
+});
+
+test("the backend is asked for a fixed port so the page address (and what the page remembers) survives a restart", async () => {
+  const d = await desktop();
+  const args = d.launches[0].args;
+  assert.equal(args[args.indexOf("--port") + 1], "47865");
+  d.app.quit();
+});
+
+test("embedded web tools are locked down: own storage, no preload or Node, no local addresses, few permissions", async () => {
+  const d = await desktop();
+  const main = d.windows[0];
+  // 掛上去之前收緊
+  const prefs = { preload: "/evil.js", nodeIntegration: true, contextIsolation: false }, params = { src: "https://chatgpt.com/", partition: "" };
+  let blocked = false;
+  main.webContents.emit("will-attach-webview", { preventDefault() { blocked = true; } }, prefs, params);
+  assert.equal(blocked, false);
+  assert.equal(JSON.stringify([prefs.preload, prefs.nodeIntegration, prefs.contextIsolation, prefs.sandbox, params.partition]), JSON.stringify([undefined, false, true, true, "persist:embed"]));
+  for (const src of ["http://127.0.0.1:47865/api/library", "file:///etc/passwd", "", "http://localhost:8765/"]) {
+    blocked = false;
+    main.webContents.emit("will-attach-webview", { preventDefault() { blocked = true; } }, {}, { src });
+    assert.equal(blocked, true, src);
+  }
+  // 儲存區：報成一般的 Chrome、只給剪貼簿和全螢幕、連不到本機
+  assert.ok(!/Electron|easyread/i.test(d.embed.ua) && /Chrome\/152/.test(d.embed.ua));
+  const allowed = (p) => { let r; d.embed.ask({}, p, (ok) => { r = ok; }); return r; };
+  assert.equal(JSON.stringify(["clipboard-read", "fullscreen", "media", "notifications", "geolocation"].map(allowed)), JSON.stringify([true, true, false, false, false]));
+  const cancelled = (url) => { let r; d.embed.filter({ url }, (x) => { r = x.cancel; }); return r; };
+  assert.equal(JSON.stringify(["http://127.0.0.1:47865/api/library", "http://localhost:3000/x", "https://chatgpt.com/backend-api"].map(cancelled)), JSON.stringify([true, true, false]));
+  // 嵌的網頁要開新視窗：登入的小彈窗放行（同一個儲存區），一般連結交給系統瀏覽器，本機位址擋掉
+  const guest = new EventEmitter();
+  guest.getType = () => "webview";
+  guest.setWindowOpenHandler = (fn) => { guest.open = fn; };
+  d.app.emit("web-contents-created", {}, guest);
+  const popup = guest.open({ url: "https://accounts.google.com/o/oauth2/auth", disposition: "new-window" });
+  assert.equal(popup.action, "allow");
+  assert.equal(popup.overrideBrowserWindowOptions.webPreferences.partition, "persist:embed");
+  assert.equal(guest.open({ url: "https://example.org/paper", disposition: "foreground-tab" }).action, "deny");
+  assert.equal(JSON.stringify(d.app.external), JSON.stringify(["https://example.org/paper"]));
+  assert.equal(guest.open({ url: "http://127.0.0.1:47865/", disposition: "new-window" }).action, "deny");
+  let stopped = false;
+  guest.emit("will-navigate", { preventDefault() { stopped = true; } }, "file:///etc/passwd");
+  assert.equal(stopped, true);
   d.app.quit();
 });
 

@@ -9,7 +9,8 @@
     "dev": "electron .",
     "start": "electron .",
     "build:backend": "python3 scripts/build_backend.py || python scripts/build_backend.py",
-    "dist": "npm run build:backend && electron-builder --publish never"
+    "build:native": "python3 scripts/build_native.py || python scripts/build_native.py",
+    "dist": "npm run build:backend && npm run build:native && electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -46,6 +47,13 @@
       {
         "from": "build/backend",
         "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build/native",
+        "to": "native",
         "filter": [
           "**/*"
         ]

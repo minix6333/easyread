@@ -22,7 +22,8 @@ html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
 .tab.drop-after::before { right: -2px; }
 #tabs .grow { flex: 1; }
 #tabs .btn.icon { align-self: center; width: 28px; height: 28px; }
-#panes { position: fixed; inset: var(--tabs-h) 0 0 0; display: flex; pointer-events: none; }
+:root { --dock-w: 0px; }
+#panes { position: fixed; inset: var(--tabs-h) var(--dock-w) 0 0; display: flex; pointer-events: none; }
 .pane { position: relative; flex: 1 1 0; min-width: 160px; }
 body.split .pane.on::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--accent); opacity: .6; z-index: 2; }
 .gap { flex: none; width: 5px; margin: 0 -1px; cursor: col-resize; background: var(--rule); pointer-events: auto; z-index: 3; transition: background var(--dur-fast); }
@@ -33,3 +34,53 @@ body.sizing { cursor: col-resize; }
 body.sizing #frames iframe { pointer-events: none; opacity: .92; }
 /* 拖分隔線時跟著滑鼠走的那條線；放開才真的重排兩邊 */
 .gap-ghost { position: fixed; z-index: 9; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 1px var(--bg); pointer-events: none; }
+
+/* ---------------- 右邊的外部工具欄（dock.js）：嵌 ChatGPT 之類的網頁 ---------------- */
+#dock { position: fixed; top: var(--tabs-h); right: 0; bottom: 0; width: var(--dock-w); z-index: 5; display: none; flex-direction: column; background: var(--surface); border-left: 1px solid var(--rule); }
+body.dock-open #dock { display: flex; }
+.dock-head { flex: none; display: flex; align-items: center; gap: 2px; height: 40px; padding: 0 6px 0 8px; border-bottom: 1px solid var(--rule); user-select: none; }
+.dock-head .grow { flex: 1; }
+.dock-head .btn.icon { width: 28px; height: 28px; }
+.dock-apps { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.dock-apps::-webkit-scrollbar { display: none; }
+.dock-app { position: relative; flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); }
+.dock-app:hover { background: var(--surface-2); }
+.dock-app.on { background: var(--accent-soft); }
+.dock-app.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -4px; height: 2px; border-radius: 2px; background: var(--accent); }
+.dock-app img { width: 18px; height: 18px; border-radius: 4px; }
+.dock-app .ltr { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font: 600 11.5px/1 var(--ui); font-style: normal; color: var(--accent); background: var(--accent-soft-2, var(--accent-soft)); }
+.dock-app.loading img, .dock-app.loading .ltr { animation: dock-pulse 1s ease-in-out infinite; }
+@keyframes dock-pulse { 50% { opacity: .35; } }
+.dock-app .x { position: absolute; right: -3px; top: -3px; width: 14px; height: 14px; border-radius: 50%; display: none; place-items: center; background: var(--surface); box-shadow: 0 0 0 1px var(--rule); color: var(--ink-3); }
+.dock-app .x svg { width: 9px; height: 9px; }
+.dock-app:hover .x { display: grid; }
+.dock-app .x:hover { color: var(--danger); }
+.dock-body { position: relative; flex: 1; min-height: 0; background: var(--bg); }
+/* 切走的只是看不見（display:none 會讓網頁重新載入） */
+.dock-view { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; visibility: hidden; }
+.dock-view.on { visibility: visible; }
+.dock-state { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; padding: 24px; background: var(--bg); overflow: auto; }
+.dock-state[hidden] { display: none; }
+.dock-empty { max-width: 320px; text-align: center; font: 13px/1.7 var(--ui); color: var(--ink-2); }
+.dock-empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.dock-empty p { margin: 0 0 14px; color: var(--ink-3); }
+.dock-presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.dock-presets button { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border-radius: 15px; font: 13px var(--ui); color: var(--ink); background: var(--surface); box-shadow: 0 0 0 1px var(--rule); }
+.dock-presets button:hover { box-shadow: 0 0 0 1px var(--accent); color: var(--accent); }
+#dock.drop-on .dock-head { background: var(--accent-soft); }
+#dock.drop-on .dock-state { box-shadow: inset 0 0 0 2px var(--accent); }
+#dockGrip { position: fixed; top: var(--tabs-h); bottom: 0; right: calc(var(--dock-w) - 3px); width: 6px; z-index: 6; cursor: col-resize; display: none; }
+body.dock-open #dockGrip { display: block; }
+#dockGrip:hover, body.sizing #dockGrip { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px); }
+body.sizing .dock-view { pointer-events: none; }
+/* 拖著網址經過視窗：右緣亮出放下的地方 */
+#dockDrop { position: fixed; top: calc(var(--tabs-h) + 10px); right: 10px; bottom: 10px; width: 132px; z-index: 30; display: none; place-items: center; border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow-lg, 0 8px 30px rgba(0,0,0,.18)); color: var(--accent); font: 13px/1.5 var(--ui); text-align: center; }
+#dockDrop.show { display: grid; }
+#dockDrop.over { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); box-shadow: 0 0 0 2px var(--accent), var(--shadow-lg, 0 8px 30px rgba(0,0,0,.18)); }
+#dockDrop span { display: grid; justify-items: center; gap: 6px; pointer-events: none; padding: 0 10px; }
+#dockDrop b { font-weight: 600; }
+#tabs .btn.icon.on { background: var(--accent-soft); color: var(--accent); }
+/* 貼著別的程式時（欄收起來了）：切換的圖示放在分頁列右邊 */
+#tabs .dock-rail { display: inline-flex; align-items: center; gap: 2px; margin-right: 2px; }
+#tabs .dock-rail .dock-app { width: 28px; height: 28px; border-radius: 8px; }
+#tabs .dock-rail .dock-app.on::after { bottom: -2px; }

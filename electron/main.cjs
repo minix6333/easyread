@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain, session } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -9,10 +9,12 @@ const http = require("http");
 const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
 const deepLink = require("./deep-link.cjs");
+const { createNativeDock } = require("./native-dock.cjs");
 
 // 視窗快取等放 %APPDATA%\EasyRead（預設會用 package.json 的 name，叫 easyread-desktop）。
 // 論文和設定不放這裡：打包後的後端預設用 ~/EasyRead，和 pip 安裝版同一個位置，使用者找得到、好備份。
-app.setPath("userData", path.join(app.getPath("appData"), "EasyRead"));
+// EASYREAD_USER_DATA：開發、測試時另外指定（才能和正在用的那一份同時開，不搶同一把鎖）
+app.setPath("userData", process.env.EASYREAD_USER_DATA || path.join(app.getPath("appData"), "EasyRead"));
 startup.mark(app, "electron-entry");
 
 // 桌面版自己的幾句報錯跟系統語言走（介面語言由後端決定，見 easyread/i18n.py）
@@ -24,6 +26,11 @@ let windowOpening = false;
 let backendUrl;
 let quitting = false;
 let pendingOpen = deepLink.fromArgv(process.argv);
+// 後端固定先試這個連接埠（被占用時後端自己換一個空的）。網址每次都一樣，頁面存在瀏覽器裡的東西
+// （開著哪些分頁、怎麼分割、右邊嵌了哪些外部工具）下次開 App 才還在；以前每次隨機一個埠，等於每次都是新的網站。
+const DESKTOP_PORT = "47865";
+// 右邊嵌的外部網頁（ChatGPT 之類，見 web/js/dock.js）用的獨立儲存區：登入狀態留在這裡，和 EasyRead 自己的頁面分開
+const EMBED_PARTITION = "persist:embed";
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -42,7 +49,7 @@ function backendCommand() {
     if (!fs.existsSync(executable)) {
       throw new Error(isZh() ? `找不到打包後的 EasyRead 後端：${executable}` : `Bundled EasyRead backend not found: ${executable}`);
     }
-    return { command: executable, args: ["serve", "--port", "0"], cwd: os.homedir() };
+    return { command: executable, args: ["serve", "--port", DESKTOP_PORT], cwd: os.homedir() };
   }
 
   const root = projectRoot();
@@ -50,7 +57,7 @@ function backendCommand() {
     ? path.join(root, ".venv", "Scripts", "python.exe")
     : path.join(root, ".venv", "bin", "python");
   const command = fs.existsSync(python) ? python : (process.platform === "win32" ? "python" : "python3");
-  return { command, args: ["-m", "easyread", "serve", "--port", "0"], cwd: root };
+  return { command, args: ["-m", "easyread", "serve", "--port", process.env.EASYREAD_DESKTOP_PORT || DESKTOP_PORT], cwd: root };
 }
 
 // macOS / Linux 從啟動台、桌面圖示開啟時，拿不到終端裡配的 PATH（Homebrew、npm 全域性目錄），
@@ -232,23 +239,116 @@ function windowOpenHandler({ url: target }) {
   return { action: "deny" };
 }
 
+// ---------- 右邊嵌的外部網頁 ----------
+// 它只是「放在那裡」：拿不到 EasyRead 的任何東西——沒有 preload、沒有 Node、獨立的儲存區、連不到本機的後端。
+function guardWebview(event, webPreferences, params) {
+  delete webPreferences.preload;
+  delete webPreferences.preloadURL;
+  webPreferences.nodeIntegration = false;
+  webPreferences.nodeIntegrationInSubFrames = false;
+  webPreferences.contextIsolation = true;
+  webPreferences.sandbox = true;
+  webPreferences.webSecurity = true;
+  params.partition = EMBED_PARTITION;
+  if (!/^https?:\/\//i.test(params.src || "") || isLoopback(params.src)) event.preventDefault();
+}
+function isLoopback(target) {
+  try { return ["127.0.0.1", "localhost", "[::1]", "0.0.0.0"].includes(new URL(target).hostname); } catch (_) { return false; }
+}
+// 嵌的網頁要開新視窗：登入用的小彈窗（有指定大小的）讓它開，用同一個儲存區；一般的「在新分頁開啟」交給系統瀏覽器
+function embedOpenHandler({ url: target, disposition }) {
+  if (!/^https?:\/\//i.test(target) || isLoopback(target)) return { action: "deny" };
+  if (disposition === "new-window") {
+    return { action: "allow", overrideBrowserWindowOptions: { width: 520, height: 720, autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, partition: EMBED_PARTITION } } };
+  }
+  shell.openExternal(target);
+  return { action: "deny" };
+}
+function setupEmbedSession() {
+  const ses = session.fromPartition(EMBED_PARTITION);
+  // 有些網站（Google 登入）看到 Electron 字樣就不給用：報成一般的 Chrome
+  ses.setUserAgent(app.userAgentFallback.replace(/\s(?:Electron|EasyRead|easyread[\w-]*)\/\S+/gi, ""));
+  // 權限：只給剪貼簿和全螢幕；麥克風、鏡頭、通知、定位一律不給
+  const ok = new Set(["clipboard-sanitized-write", "clipboard-read", "fullscreen"]);
+  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ok.has(permission)));
+  ses.setPermissionCheckHandler((_wc, permission) => ok.has(permission));
+  // 嵌的網頁碰不到本機的 EasyRead 後端（也碰不到這台電腦上其他只聽本機的服務）
+  ses.webRequest.onBeforeRequest((details, callback) => callback({ cancel: isLoopback(details.url) }));
+}
+app.on("web-contents-created", (_event, contents) => {
+  const type = contents.getType();
+  const embedded = type === "webview" || (contents.session && contents.session === session.fromPartition(EMBED_PARTITION));
+  if (!embedded) return;
+  contents.setWindowOpenHandler(embedOpenHandler);
+  contents.on("will-navigate", (event, target) => { if (!/^https?:\/\//i.test(target) || isLoopback(target)) event.preventDefault(); });
+  contents.on("context-menu", (_e, params) => {
+    const flags = params.editFlags || {};
+    const items = params.isEditable
+      ? [{ role: "undo", enabled: flags.canUndo }, { role: "redo", enabled: flags.canRedo }, { type: "separator" },
+         { role: "cut", enabled: flags.canCut }, { role: "copy", enabled: flags.canCopy }, { role: "paste", enabled: flags.canPaste }, { type: "separator" }, { role: "selectAll" }]
+      : (params.selectionText || "").trim() ? [{ role: "copy" }] : [];
+    if (items.length) Menu.buildFromTemplate(items).popup();
+  });
+});
+// 清掉嵌的網頁存的東西（登入狀態、快取）：面板選單裡的「登出並清除資料」
+// ---------- 把別的程式的視窗貼齊在右邊（macOS，見 native-dock.cjs） ----------
+const MIN_WINDOW = [960, 680];
+const nativeDock = createNativeDock({
+  platform: process.platform,
+  helperPath: app.isPackaged ? path.join(process.resourcesPath, "native", "easyread-winhelper") : path.join(projectRoot(), "build", "native", "easyread-winhelper"),
+  getWindow: () => mainWindow,
+  minSize: MIN_WINDOW,
+  dry: process.env.EASYREAD_WINHELPER_DRY === "1",
+  notify: (msg) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("easyread:native-dock", msg); },
+});
+ipcMain.handle("easyread:native-dock", async (event, action, arg) => {
+  trustedWindow(event);
+  if (action === "status") return nativeDock.status();
+  if (action === "request") return nativeDock.request();
+  if (action === "attach") return nativeDock.attach(String((arg && arg.path) || ""), arg && arg.width);
+  if (action === "detach") return nativeDock.detach();
+  if (action === "settings") {  // 系統設定 → 隱私權與安全性 → 輔助使用
+    await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+    return true;
+  }
+  if (action === "pick") {
+    const r = await dialog.showOpenDialog(mainWindow, { defaultPath: "/Applications", properties: ["openFile"], filters: [{ name: "Applications", extensions: ["app"] }] });
+    return r.canceled ? null : r.filePaths[0] || null;
+  }
+  if (action === "icon") {  // 那個程式的圖示（放在右欄上面那一排）
+    try { return (await app.getFileIcon(String(arg || ""), { size: "normal" })).resize({ width: 36, height: 36 }).toDataURL(); } catch (_) { return ""; }
+  }
+  return null;
+});
+
+ipcMain.handle("easyread:embed-clear", async event => {
+  trustedWindow(event);
+  const ses = session.fromPartition(EMBED_PARTITION);
+  await ses.clearStorageData();
+  await ses.clearCache();
+  return true;
+});
+
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
   const state = windowState.options();
   mainWindow = new BrowserWindow({
     ...state.opts,
-    minWidth: 960,
-    minHeight: 680,
+    minWidth: MIN_WINDOW[0],
+    minHeight: MIN_WINDOW[1],
     icon: path.join(__dirname, "assets", "icon.ico"),
     show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,  // 右邊嵌外部網頁用（只有外殼那一頁會建；掛上去之前 will-attach-webview 會把設定收緊）
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
   mainWindow.webContents.setWindowOpenHandler(windowOpenHandler);
+  mainWindow.webContents.on("will-attach-webview", guardWebview);
   // 問 AI 的獨立視窗：沒有選單列；它裡面的連結照主視窗的規則開；主視窗關了它跟著關
   mainWindow.webContents.on("did-create-window", (child) => {
     child.setMenuBarVisibility(false);
@@ -268,6 +368,7 @@ async function createWindow() {
       : params.selectionText.trim() ? [{ role: "copy" }] : [];
     if (items.length) Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
+  mainWindow.on("close", () => nativeDock.restoreNow());  // 貼著別的視窗時主視窗是窄的：先變回來，下一行才會記到原來的大小
   windowState.track(mainWindow);
   const openingWindow = mainWindow;
   mainWindow.once("ready-to-show", () => {
@@ -319,6 +420,7 @@ if (!app.requestSingleInstanceLock()) {
     openLink(deepLink.openPath(link));
   });
   app.whenReady().then(() => {
+    setupEmbedSession();
     deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
@@ -333,6 +435,8 @@ if (!app.requestSingleInstanceLock()) {
     return createWindow();
   });
   app.on("before-quit", event => {
+    nativeDock.restoreNow();
+    nativeDock.dispose();
     if (quitting) return;
     quitting = true;
     if (!backend) return;

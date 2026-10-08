@@ -4,6 +4,7 @@
    - 分割：工具列的分割鍵（或 ⌘\）：有還沒顯示的分頁就把它擺到新的一格，沒有就把目前這份再開一份並排（比對兩頁時用）。
    - 哪些分頁開著、怎麼分割都記著（localStorage），下次開 App 原樣回來；分頁用到才載入。
    - 快捷鍵：⌘1–9 切分頁，⌘⇧[ ] 上一個／下一個，⌘\ 分割。
+   - 右邊可以再開一欄「外部工具」（ChatGPT 之類的網頁，桌面版才有，見 dock.js）：格子會讓出那一欄的寬度。
    PR.shellModel 是純函式（tests/test_shell.cjs）。 */
 (function (PR) {
   "use strict";
@@ -148,7 +149,8 @@
       (t.kind === "paper" ? ' draggable="true"' : "") + ' title="' + PR.esc(tabTitle(t)) + '">' + PR.icon(t.kind === "library" ? "folder" : "book", "sm") +
       (t.kind === "library" ? "" : '<span class="tt">' + PR.esc(tabTitle(t)) + '</span><button class="x" data-x="' + PR.esc(t.id) + '" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>").join("") +
       '<span class="grow"></span>' + (st.panes.length > 1 ? '<button class="btn icon" data-act="closepane" title="' + PR.t("收起這一格") + '">' + PR.icon("x", "sm") + "</button>" : "") +
-      '<button class="btn icon" data-act="split" title="' + PR.t("分割視窗：並排再開一格（⌘\\）") + '"' + (st.panes.length >= 3 ? " disabled" : "") + ">" + PR.icon("panel", "sm") + "</button>";
+      '<button class="btn icon" data-act="split" title="' + PR.t("分割視窗：並排再開一格（⌘\\）") + '"' + (st.panes.length >= 3 ? " disabled" : "") + ">" + PR.icon("panel", "sm") + "</button>" +
+      (PR.dock ? PR.dock.button() : "");
     document.title = (cur === LIB ? "" : tabTitle(st.tabs.find((t) => t.id === cur) || {}) + " · ") + "EasyRead";
   }
   function renderPanes() {
@@ -175,6 +177,8 @@
     renderTabs(); renderPanes(); save();
   }
   window.addEventListener("resize", layout);
+  PR.shellLayout = layout;  // 右邊的外部工具欄開關、改寬度後叫（dock.js）
+  PR.on("dock-changed", () => { renderTabs(); layout(); });
 
   /* ---------- 動作 ---------- */
   function openUrl(url, title) {
@@ -214,6 +218,7 @@
     else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*EasyRead$/, ""); renderTabs(); save(); }
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
     else if (d.type === "key") key(String(d.key), !!d.shift);
+    else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方
     else if (d.type === "close-papers") {  // 文獻庫要換位置了：論文分頁全部收掉（它們開著時後端不讓換）
       for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
       render();
@@ -241,6 +246,7 @@
     if (x) { closeTab(x.dataset.x); return; }
     const act = e.target.closest("[data-act]");
     if (act && act.dataset.act === "split") { if (M.split(st)) { render(); focusFrame(M.focused(st).tab); } return; }
+    if (act && act.dataset.act === "dock") { PR.dock.toggle(); return; }
     if (act && act.dataset.act === "closepane") { M.closePane(st, st.focus); render(); focusFrame(M.focused(st).tab); return; }
     const tab = e.target.closest(".tab[data-tab]");
     if (tab) { M.show(st, tab.dataset.tab); render(); focusFrame(tab.dataset.tab); }

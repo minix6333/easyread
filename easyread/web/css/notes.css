@@ -380,3 +380,5 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .md-drawing { display: flex; align-items: center; gap: 8px; margin: .9em 0; padding: 16px; border-radius: 14px; background: var(--surface-2); color: var(--ink-3); font: 12.5px var(--ui); }
 .card .viz { background: var(--bg); padding: 10px; }
 .card .viz .big { font-size: 26px; }
+/* 一格不到 1000px 寬（分割、右邊開著外部工具欄）：頂欄中間那組放不下「下載 PDF」，會壓到右邊的按鈕——收掉它（說明抽屜裡還有） */
+@media (max-width: 1000px) { .topbar > .pv-head [data-pv="pdf"], .topbar > .pv-head .pv-r { display: none; } }
