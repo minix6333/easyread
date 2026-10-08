@@ -17,7 +17,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   const windows = [], launches = [], menus = [], stages = [], handlers = new Map();
   // 右邊嵌外部網頁用的儲存區（session.fromPartition("persist:embed")）：記下主程式對它設了什麼
   const embed = { setUserAgent(ua) { this.ua = ua; }, setPermissionRequestHandler(fn) { this.ask = fn; }, setPermissionCheckHandler(fn) { this.check = fn; },
-    webRequest: { onBeforeRequest(fn) { embed.filter = fn; } }, clearStorageData: async () => { embed.cleared = true; }, clearCache: async () => {} };
+    webRequest: { onBeforeRequest(fn) { embed.filter = fn; }, onBeforeSendHeaders(fn) { embed.headers = fn; } }, clearStorageData: async () => { embed.cleared = true; }, clearCache: async () => {} };
   app.userAgentFallback = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) easyread-desktop/1.3.1 Chrome/152.0.0.0 Electron/44.5.1 Safari/537.36";
   const ipcMain = { handle(name, fn) { handlers.set(name, fn); } };
   class Window extends EventEmitter {
@@ -142,7 +142,15 @@ test("embedded web tools are locked down: own storage, no preload or Node, no lo
     assert.equal(blocked, true, src);
   }
   // 儲存區：報成一般的 Chrome、只給剪貼簿和全螢幕、連不到本機
-  assert.ok(!/Electron|easyread/i.test(d.embed.ua) && /Chrome\/152/.test(d.embed.ua));
+  assert.ok(!/Electron|easyread/i.test(d.embed.ua) && /Chrome\/152\.0\.0\.0 /.test(d.embed.ua));
+  // Google 登入那一站：報成 Firefox（它擋嵌入的 Chrome），而且不送 Chrome 才有的 sec-ch-ua；別的網站原樣
+  const sent = (url) => { let r; d.embed.headers({ url, requestHeaders: { "User-Agent": d.embed.ua, "sec-ch-ua": '"Chromium";v="152"', "sec-ch-ua-mobile": "?0", Accept: "*/*" } }, (x) => { r = x.requestHeaders; }); return r; };
+  const g = sent("https://accounts.google.com/v3/signin/identifier");
+  assert.ok(/^Mozilla\/5\.0 \(.+; rv:(\d+)\.0\) Gecko\/20100101 Firefox\/\1\.0$/.test(g["User-Agent"]) && +/Firefox\/(\d+)/.exec(g["User-Agent"])[1] >= 150);
+  assert.equal(JSON.stringify(Object.keys(g).sort()), JSON.stringify(["Accept", "User-Agent"]));
+  const other = sent("https://chatgpt.com/backend-api/me");
+  assert.equal(JSON.stringify([other["User-Agent"], other["sec-ch-ua-mobile"]]), JSON.stringify([d.embed.ua, "?0"]));
+  assert.equal(sent("https://accounts.google.com.evil.example/x")["User-Agent"], d.embed.ua);  // 只認那一個主機
   const allowed = (p) => { let r; d.embed.ask({}, p, (ok) => { r = ok; }); return r; };
   assert.equal(JSON.stringify(["clipboard-read", "fullscreen", "media", "notifications", "geolocation"].map(allowed)), JSON.stringify([true, true, false, false, false]));
   const cancelled = (url) => { let r; d.embed.filter({ url }, (x) => { r = x.cancel; }); return r; };

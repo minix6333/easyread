@@ -265,10 +265,30 @@ function embedOpenHandler({ url: target, disposition }) {
   shell.openExternal(target);
   return { action: "deny" };
 }
+// Google 登入會擋「嵌在別的程式裡的瀏覽器」（顯示「這個瀏覽器或應用程式可能有安全疑慮」）。它對 Chrome 會查一堆只有
+// 真的 Chrome 才有的東西，嵌入的過不了；報成 Firefox 時那些查不了，就放行。Electron 做的瀏覽器（Min）多年來都是這樣處理：
+// 只有送去 accounts.google.com 的請求把 User-Agent 換成 Firefox 的，並拿掉 Chrome 才會送的 sec-ch-ua 標頭。
+// 版本號用日期推算（Firefox 四週出一版），不會報一個太舊、被要求更新的版本。
+function firefoxUA(now = Date.now()) {
+  const version = 91 + Math.floor((now - 1628553600000) / (4.1 * 7 * 24 * 60 * 60 * 1000));  // Firefox 91：2021-08-10
+  const os = process.platform === "win32" ? "Windows NT 10.0; Win64; x64" : process.platform === "darwin" ? "Macintosh; Intel Mac OS X 10.15" : "X11; Linux x86_64";
+  return `Mozilla/5.0 (${os}; rv:${version}.0) Gecko/20100101 Firefox/${version}.0`;
+}
+function embedHeaders(details) {
+  const headers = { ...details.requestHeaders };
+  let host = "";
+  try { host = new URL(details.url).hostname; } catch (_) { host = ""; }
+  if (host === "accounts.google.com") {
+    for (const name of Object.keys(headers)) if (/^user-agent$/i.test(name) || /^sec-ch-ua/i.test(name)) delete headers[name];
+    headers["User-Agent"] = firefoxUA();
+  }
+  return headers;
+}
 function setupEmbedSession() {
   const ses = session.fromPartition(EMBED_PARTITION);
-  // 有些網站（Google 登入）看到 Electron 字樣就不給用：報成一般的 Chrome
-  ses.setUserAgent(app.userAgentFallback.replace(/\s(?:Electron|EasyRead|easyread[\w-]*)\/\S+/gi, ""));
+  // 報成一般的 Chrome：拿掉 Electron 和程式名稱；版本只留主版號（真的 Chrome 現在只報 152.0.0.0 這種，報完整版號反而顯眼）
+  ses.setUserAgent(app.userAgentFallback.replace(/\s(?:Electron|EasyRead|easyread[\w-]*)\/\S+/gi, "").replace(/Chrome\/(\d+)\.[\d.]+/, "Chrome/$1.0.0.0"));
+  ses.webRequest.onBeforeSendHeaders((details, callback) => callback({ requestHeaders: embedHeaders(details) }));
   // 權限：只給剪貼簿和全螢幕；麥克風、鏡頭、通知、定位一律不給
   const ok = new Set(["clipboard-sanitized-write", "clipboard-read", "fullscreen"]);
   ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ok.has(permission)));
