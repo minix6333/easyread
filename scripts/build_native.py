@@ -3,6 +3,7 @@
 用法：python scripts/build_native.py（npm run build:native、npm run dist 會叫）"""
 from __future__ import annotations
 
+import platform
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,9 @@ def main() -> int:
         print("build_native: swiftc not found; the docked-app feature will be unavailable in this build", file=sys.stderr)
         return 0
     out = OUT / "easyread-winhelper"
-    cmd = [swiftc, "-O", "-swift-version", "5", "-o", str(out), str(ROOT / "electron" / "native" / "winhelper.swift")]
+    # 指定最低的系統版本：不指定的話會用打包那台電腦的版本，舊一點的 macOS 就開不了
+    arch = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x86_64"
+    cmd = [swiftc, "-O", "-swift-version", "5", "-target", f"{arch}-apple-macos12.0", "-o", str(out), str(ROOT / "electron" / "native" / "winhelper.swift")]
     print("build_native:", " ".join(cmd))
     done = subprocess.run(cmd)
     if done.returncode != 0:
