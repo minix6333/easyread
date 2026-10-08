@@ -30,6 +30,7 @@
     return [b.id];
   };
 
+  PR.buildIndex = () => buildIndex();  // 問 AI 的獨立視窗不畫正文，只要索引（段落、引用）
   function buildIndex() {
     PR.blockById = {};
     PR.xindex = { eq: {}, tab: {}, fig: {}, sec: {} };
@@ -257,6 +258,7 @@
   const natural = new WeakMap();
   let typeface = "";
   PR.fitWide = function (scope, remeasure) {  // remeasure：字体刚加载完这类，量过的也不作数
+    PR.fitMargin && PR.fitMargin();  // 右邊那一欄卡片擺不擺得下會改正文寬度：先定好再量公式
     const paper = PR.$("#paper");
     const cs = getComputedStyle(paper);
     const tf = cs.fontSize + "|" + cs.fontFamily;

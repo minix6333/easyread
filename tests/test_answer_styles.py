@@ -38,11 +38,11 @@ class AnswerStyleTest(unittest.TestCase):
             with self.subTest(engine=engine):
                 normal = chat.prompt(self.ws, messages, "b", "引用", engine)
                 ste = chat.prompt(self.ws, messages, "b", "引用", engine, answer_style="ste100")
-                self.assertIn("用中文，直接", normal)
+                self.assertIn("用中文。写法", normal)
                 self.assertNotIn("本次使用 ASD-STE100", normal)
                 self.assertNotIn("当前已导入的正文", normal)
                 self.assertNotIn("A final limitation.", normal)
-                self.assertNotIn("用中文，直接", ste)
+                self.assertNotIn("用中文。写法", ste)
                 self.assertIn("只输出中文回答，不附英文答案", ste)
                 self.assertNotIn("## English (ASD-STE100)", ste)
                 for fact in ("Previous answer in English.", "A source fact with $x$.", "引用", "A test condition.", "2%", "$$y=2x$$", "A final limitation."):

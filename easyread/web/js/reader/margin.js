@@ -99,10 +99,10 @@
       (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") + PR.md(d.quote, { cite: false, xref: false }) + "</div>" : "");
     // 快速問題：還沒打字時給幾顆小按鈕，按了直接送。推導、圖解是專門的寫法（data-mode，伺服器那邊換一套要求，見 chat.py MODES）
     const quick = !isQ || !canAsk || d.body ? "" : '<div class="qchips">' + (d.region
-      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。")], [PR.t("解題"), PR.t("把框起來的題目完整解出來，算式和答案都寫清楚。"), "solve"],
+      ? [[PR.t("解釋"), PR.t("解釋這個區域在表達什麼、重點是什麼。"), "explain"], [PR.t("解題"), PR.t("把框起來的題目完整解出來，算式和答案都寫清楚。"), "solve"],
         [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"],
         [PR.t("圖解"), PR.t("用圖講解這個區域。"), "diagram"], [PR.t("翻譯"), PR.t("把這個區域裡的文字翻譯出來。")]]
-      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。")], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")], [PR.t("解題"), PR.t("把這題完整解出來，算式和答案都寫清楚。"), "solve"],
+      : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。"), "explain"], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")], [PR.t("解題"), PR.t("把這題完整解出來，算式和答案都寫清楚。"), "solve"],
         [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"], [PR.t("圖解"), PR.t("用圖講解這段。"), "diagram"]])
       .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>";
     const body = editing
@@ -131,8 +131,43 @@
   }
 
   // PDF 優先時譯文排在 PDF 旁邊，沒有空間放邊注欄（#margin 是藏著的）：卡片收成段尾角標，不然會畫進看不見的地方
-  PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches && !document.body.classList.contains("pdf-main") &&
+  const roomy = () => window.matchMedia("(min-width: 1240px)").matches && !document.body.classList.contains("pdf-main") &&
     !document.body.classList.contains("side-open") && !document.body.classList.contains("no-margin");
+  PR.marginWide = () => roomy() || document.body.classList.contains("margin-fit");
+
+  /* 視窗不夠寬、或右邊開著面板（問 AI、筆記）時，以前筆記和 AI 的回答只能收成段尾的小數字、點開排在段落下面。
+     現在只要剩下的寬度還擺得下「正文＋一欄卡片」，就照樣排在右邊（正文讓窄一點）；真的擺不下才收成小數字。
+     純函式（tests/test_margin_fit.cjs）：avail＝正文區可用的寬度，want＝想要的欄寬，measure＝設定的版心寬（px）。
+     回傳 null（擺不下）或 {stage, gutter, gap, margin}（都是 px） */
+  PR.marginFit = function (avail, want, measure) {
+    const GUTTER = 28, GAP = 30, PAD = 12, MIN_TEXT = 460, MIN_M = 210;
+    const room = avail - PAD * 2 - GUTTER - GAP;
+    if (room < MIN_TEXT + MIN_M) return null;
+    const margin = Math.round(Math.max(MIN_M, Math.min(want || 260, room - MIN_TEXT, 420)));
+    const text = Math.min(room - margin, Math.max(MIN_TEXT, measure || 735));
+    return { stage: Math.round(GUTTER + text + GAP + margin), gutter: GUTTER, gap: GAP, margin };
+  };
+  PR.fitMargin = function () {
+    const b = document.body, root = document.documentElement;
+    let fit = null, sideW = 0;
+    const side = b.classList.contains("side-open");
+    if (!roomy() && !b.classList.contains("pdf-main") && !b.classList.contains("no-margin") && innerWidth > 760 && !(side && innerWidth < 1180)) {
+      const panel = side ? PR.$(".side-panel") : null;
+      sideW = panel ? panel.offsetWidth + 8 : 0;
+      const fs = parseFloat(getComputedStyle(PR.$("#stage")).fontSize) || 21;
+      fit = PR.marginFit(innerWidth - sideW, Number((PR.prefs || {}).marginW) || 0, (Number((PR.prefs || {}).measure) || 35) * fs);
+    }
+    if (b.classList.contains("margin-fit") === !!fit && (!fit || root.style.getPropertyValue("--fit-stage") === fit.stage + "px")) return !!fit;
+    b.classList.toggle("margin-fit", !!fit);
+    if (fit) {
+      root.style.setProperty("--fit-stage", fit.stage + "px");
+      root.style.setProperty("--fit-gutter", fit.gutter + "px");
+      root.style.setProperty("--fit-gap", fit.gap + "px");
+      root.style.setProperty("--fit-margin", fit.margin + "px");
+      root.style.setProperty("--fit-left", Math.max(12, Math.round((innerWidth - sideW - fit.stage) / 2)) + "px");
+    }
+    return !!fit;
+  };
 
   PR.renderMargin = function () {
     const groups = collect();
@@ -144,6 +179,7 @@
       return;
     }
     PR.$$(".note-pin, .inline-notes").forEach((n) => n.remove());
+    PR.fitMargin();
     const wide = PR.marginWide();
     margin.innerHTML = wide ? '<div class="margin-grip" title="' + PR.t("拖動調整筆記欄寬度（雙擊回預設）") + '"></div>' : "";
     for (const [anchor, items] of Object.entries(groups)) {
@@ -158,6 +194,7 @@
       }
     }
     PR.$$("#margin .card, .inline-notes .card").forEach(prepCard);
+    if (wide && PR.applyCardUi) PR.$$("#margin .card").forEach((c) => PR.applyCardUi(c));  // 收起、拉過的大小（cardsize.js）
     if (wide) PR.layoutMargin();
     PR.renderPvMargin && PR.renderPvMargin();  // PDF 頁旁邊的邊註欄（pvmargin.js）跟著重畫
     PR.emit("margin-rendered");
@@ -218,12 +255,13 @@
     if (!grip || e.button !== 0) return;
     e.preventDefault();
     const margin = PR.$("#margin"), stage = PR.$("#stage"), root = document.documentElement;
-    const x0 = e.clientX, w0 = margin.offsetWidth, max = Math.min(560, innerWidth - (stage.offsetWidth - w0) - 24);
+    const fit = document.body.classList.contains("margin-fit");  // 擠著排的時候：欄變寬正文就變窄，握把跟著 1:1 走
+    const x0 = e.clientX, w0 = margin.offsetWidth, max = fit ? Math.min(420, stage.offsetWidth - 28 - 30 - 460) : Math.min(560, innerWidth - (stage.offsetWidth - w0) - 24);
     let w = w0, raf = 0;
     document.body.classList.add("margin-sizing");
     const move = (ev) => {
-      w = Math.round(Math.max(220, Math.min(max, w0 + 2 * (x0 - ev.clientX))));
-      root.style.setProperty("--margin-w", w + "px");
+      w = Math.round(Math.max(220, Math.min(Math.max(220, max), w0 + (fit ? 1 : 2) * (x0 - ev.clientX))));
+      root.style.setProperty(fit ? "--fit-margin" : "--margin-w", w + "px");
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; PR.layoutMargin(); });
     };
     const up = () => {

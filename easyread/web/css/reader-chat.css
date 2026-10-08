@@ -194,3 +194,46 @@ body.ch-open #chatpanel { transform: none; }
 .ch-thread.sub { padding-left: 24px; }
 .ch-thread.sub .tt { color: var(--ink-2); }
 .ch-empty .chips button.ov .ic { background: var(--accent); color: var(--accent-ink); }
+
+/* 回答裡的小節標題：分節的講解靠它分段（「## 1. 標題就是結論」），要一眼看得出來 */
+.cm.ai .body .md-h[data-l="1"] { font-size: 1.34em; margin: 1.1em 0 .45em; }
+.cm.ai .body .md-h[data-l="2"] { font-size: 1.24em; line-height: 1.4; margin: 1.15em 0 .4em; letter-spacing: .005em; }
+.cm.ai .body .md-h[data-l="3"] { font-size: 1.08em; margin: .9em 0 .3em; }
+.cm.ai .body > :first-child, .cm.ai .body .md-sealed > :first-child { margin-top: 0; }
+.card .body .md-h[data-l="2"], .card .body .md-h[data-l="1"] { font-size: 1.12em; margin: .9em 0 .3em; }
+
+/* ---------------- 選取的那一句、AI 讀過的範圍、獨立視窗（chat-link.js、chat-doc.js） ---------------- */
+.ch-chips:empty { display: none; }
+.chip-ctx.sel { color: var(--accent); background: var(--accent-soft); }
+.chip-ctx.sel svg { color: var(--accent); }
+::highlight(ai-sel) { background-color: color-mix(in srgb, var(--accent) 24%, transparent); }
+.ch-doc { position: relative; }
+.ch-doc.on { background: var(--accent-soft); color: var(--accent); }
+.ch-doc .dot { position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); box-shadow: 0 0 0 1.5px var(--surface); }
+.ch-doc.s-stale .dot, .ch-doc.s-error .dot { background: var(--gold); }
+.ch-doc .dot.run { background: var(--accent); animation: ch-doc-pulse 1.1s ease-in-out infinite; }
+.ch-doc.s-done { color: var(--ok); }
+@keyframes ch-doc-pulse { 50% { opacity: .25; } }
+.ch-docpop { position: absolute; right: 8px; top: 54px; z-index: 7; width: min(340px, calc(100% - 16px)); padding: 12px 12px 10px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule), var(--shadow); font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.ch-docpop .cd-h { display: flex; align-items: center; gap: 7px; color: var(--ink); }
+.ch-docpop .cd-h b { font-weight: 600; flex: 1; min-width: 0; }
+.ch-docpop .cd-h svg { flex: none; color: var(--accent); }
+.ch-docpop .cd-p { margin: 6px 0 0; }
+.ch-docpop .cd-p.dim { color: var(--ink-3); font-size: 12.5px; }
+.ch-docpop .cd-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.ch-docpop .cd-note { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-3); }
+.ch-docpop .cd-sec { margin: 12px 0 2px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12px; letter-spacing: .08em; color: var(--ink-3); }
+.ch-docpop .cd-supp { display: flex; align-items: center; gap: 7px; padding: 4px 0; }
+.ch-docpop .cd-supp .k { flex: none; min-width: 24px; height: 18px; padding: 0 5px; border-radius: 9px; font: 600 11px/18px var(--ui); text-align: center; color: var(--accent); background: var(--accent-soft); }
+.ch-docpop .cd-supp a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); text-decoration: none; }
+.ch-docpop .cd-supp a:hover { text-decoration: underline; }
+.ch-docpop .cd-supp .m { flex: none; font-size: 12px; color: var(--ink-3); }
+.ch-docpop .cd-supp button { flex: none; width: 20px; height: 20px; border-radius: 50%; color: var(--ink-3); }
+.ch-docpop .cd-supp button:hover { background: var(--surface-2); color: var(--danger); }
+.ch-docpop .cd-add { margin-top: 8px; }
+.ch-docpop .cd-add svg { margin-right: 4px; }
+
+/* 問 AI 的獨立視窗：同一頁只留面板，鋪滿整個視窗 */
+html.chat-only :is(#progress, #bar, #drawer, #scrim, #stage, #pageview, #notespanel, #selbar, #blockbar, .panel-grip, .jumpback) { display: none !important; }
+html.chat-only body { overflow: hidden; }
+html.chat-only #chatpanel { inset: 0; width: 100%; transform: none; border-left: 0; transition: none; }

@@ -212,6 +212,26 @@ function openLink(target) {
   else mainWindow.loadURL(href);
 }
 
+// 頁面要開新視窗：問 AI 的獨立視窗（同一個後端的 /read/<id>?chat=1）讓它開成一個小視窗；其餘 http(s) 連結交給系統瀏覽器
+const chatWindows = new Set();
+function windowOpenHandler({ url: target }) {
+  try {
+    const u = new URL(target);
+    if (backendUrl && u.origin === new URL(backendUrl).origin && u.pathname.startsWith("/read/") && u.searchParams.get("chat") === "1") {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 480, height: 800, minWidth: 360, minHeight: 420, autoHideMenuBar: true,
+          icon: path.join(__dirname, "assets", "icon.ico"),
+          webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.cjs") },
+        },
+      };
+    }
+  } catch (_) { /* 不是網址：照下面的處理 */ }
+  if (/^https?:/i.test(target)) shell.openExternal(target);
+  return { action: "deny" };
+}
+
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
@@ -228,9 +248,13 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
-  mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (/^https?:/i.test(target)) shell.openExternal(target);
-    return { action: "deny" };
+  mainWindow.webContents.setWindowOpenHandler(windowOpenHandler);
+  // 問 AI 的獨立視窗：沒有選單列；它裡面的連結照主視窗的規則開；主視窗關了它跟著關
+  mainWindow.webContents.on("did-create-window", (child) => {
+    child.setMenuBarVisibility(false);
+    child.webContents.setWindowOpenHandler(windowOpenHandler);
+    chatWindows.add(child);
+    child.on("closed", () => chatWindows.delete(child));
   });
   // A native context menu is separate from the application Edit menu.
   // Electron does not emit this event when the page prevents contextmenu,
@@ -251,7 +275,10 @@ async function createWindow() {
     if (state.maximized) openingWindow.maximize();
     openingWindow.show();
   });
-  mainWindow.on("closed", () => { mainWindow = undefined; });
+  mainWindow.on("closed", () => {
+    mainWindow = undefined;
+    for (const w of Array.from(chatWindows)) { try { w.close(); } catch (_) { /* 已經關了 */ } }
+  });
   try {
     await openingWindow.loadURL(startup.loadingUrl(isZh()));
     if (mainWindow !== openingWindow || quitting) return;

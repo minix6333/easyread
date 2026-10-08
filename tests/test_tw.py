@@ -82,7 +82,9 @@ class TwTest(unittest.TestCase):
         with mock.patch("easyread.i18n.lang", lambda: "zh"):
             paper["meta"]["target"] = "zh"
             write_json_atomic(ws.root / "paper.json", paper)
-            self.assertIn("用中文，直接", chat.prompt(ws, [{"role": "user", "content": "问"}], "p1-1", "", "openai"))
+            zh = chat.prompt(ws, [{"role": "user", "content": "问"}], "p1-1", "", "openai")
+            self.assertIn("用中文。写法", zh)   # 這個分支用繁體寫的提示詞，簡體回答時轉成簡體
+            self.assertNotIn("寫法", zh)
 
     def test_marks_detected_in_traditional_chinese(self):
         self.assertEqual(chat.wants_marks("我標紅的那些公式有什麼關係"), (True, {"红"}))

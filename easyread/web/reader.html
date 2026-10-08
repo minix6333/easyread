@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only")</script>
 </head>
 <body>
 <div id="progress" aria-hidden="true"><i></i></div>
@@ -113,6 +113,7 @@
 <script src="/web/js/common/theme.js"></script>
 <script src="/web/js/common/markup.js"></script>
 <script src="/web/js/common/flow.js"></script>
+<script src="/web/js/common/viz.js"></script>
 <script src="/web/js/reader/store.js"></script>
 <script src="/web/js/reader/undo.js"></script>
 <script src="/web/js/reader/render.js"></script>
@@ -129,6 +130,7 @@
 <script src="/web/js/reader/pdfmode.js"></script>
 <script src="/web/js/reader/sticky.js"></script>
 <script src="/web/js/reader/pvmargin.js"></script>
+<script src="/web/js/reader/cardsize.js"></script>
 <script src="/web/js/reader/region.js"></script>
 <script src="/web/js/reader/pdffind.js"></script>
 <script src="/web/js/reader/side-resize.js"></script>
@@ -137,6 +139,8 @@
 <script src="/web/js/reader/chat.js"></script>
 <script src="/web/js/reader/noteadd.js"></script>
 <script src="/web/js/reader/chat-aside.js"></script>
+<script src="/web/js/reader/chat-doc.js"></script>
+<script src="/web/js/reader/chat-link.js"></script>
 <script src="/web/js/reader/ask.js"></script>
 <script src="/web/js/reader/notehelp.js"></script>
 <script src="/web/js/reader/jumpback.js"></script>

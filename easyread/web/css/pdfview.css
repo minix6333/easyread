@@ -82,18 +82,27 @@ body.pdf-main .pv-scroll.has-margin { padding-right: calc(24px + var(--pv-margin
 .card .body.clamp:has(.md-flow), .pv-margin .card .body.clamp:has(.md-flow) { max-height: 24em; }  /* 有圖的：收起時也至少看得到一張圖的大半 */
 .pv-margin .card.dragging { transition: none; cursor: grabbing; box-shadow: var(--shadow-lg); z-index: 3; opacity: .94; }
 /* 拉過大小的卡片：右緣貼齊欄位、往左變寬（蓋在頁面上），有高度就在裡面捲 */
-.pv-margin .card.sized { left: auto; right: 0; overflow: auto; z-index: 2; box-sizing: border-box; background: var(--card); }
-.pv-margin .card > .rz { position: absolute; left: 0; bottom: 0; width: 16px; height: 16px; cursor: nesw-resize; opacity: 0; transition: opacity var(--dur-fast); }
-.pv-margin .card > .rz::after { content: ""; position: absolute; left: 4px; bottom: 4px; width: 7px; height: 7px; border-left: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); border-radius: 0 0 0 2px; }
-.pv-margin .card:hover > .rz, .pv-margin .card.sized > .rz { opacity: .7; }
-.pv-margin .card > .rz:hover { opacity: 1; }
-/* 收成一行：只留標題列（雙擊標題列或邊緣） */
-.pv-margin .card.fold { height: auto !important; overflow: hidden; cursor: pointer; padding-bottom: 8px; }
-.pv-margin .card.fold > :not(.hd) { display: none !important; }
-.pv-margin .card.fold > .hd { cursor: pointer; }
-.pv-margin .card.fold > .hd .lbl::after { content: " …"; color: var(--ink-3); }
-body.card-sizing { cursor: nesw-resize; user-select: none; }
-body.card-sizing .pv-margin .card { transition: none; }
+/* 拉大小、收起：PDF 旁的邊註欄和文章優先的筆記欄共用（cardsize.js）。滑鼠到卡片左緣、下緣、左下角游標會變，整條邊都能抓 */
+:is(.pv-margin, #margin) .card.sized { z-index: 2; box-sizing: border-box; background: var(--card); }
+:is(.pv-margin, #margin) .card.wide { left: auto; right: 0; }  /* 拉過寬度的：右緣貼齊欄位，往左蓋出去 */
+:is(.pv-margin, #margin) .card.tall { overflow: auto; overscroll-behavior: contain; }
+:is(.pv-margin, #margin) .card.tall > .hd { position: sticky; top: -8px; z-index: 1; margin-top: -8px; padding-top: 8px; background: var(--card); }  /* 在卡片裡捲的時候標題列（按鈕、拖動）留在上面 */
+:is(.pv-margin, #margin) .card[data-edge="w"], :is(.pv-margin, #margin) .card[data-edge="w"] * { cursor: ew-resize !important; }
+:is(.pv-margin, #margin) .card[data-edge="s"], :is(.pv-margin, #margin) .card[data-edge="s"] * { cursor: ns-resize !important; }
+:is(.pv-margin, #margin) .card[data-edge="ws"], :is(.pv-margin, #margin) .card[data-edge="ws"] * { cursor: nesw-resize !important; }
+/* 抓得到的那條邊亮一下：畫在卡片自己的陰影上，卡片裡面怎麼捲都還在原位 */
+:is(.pv-margin, #margin) .card[data-edge="w"] { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--mine) 55%, transparent); }
+:is(.pv-margin, #margin) .card[data-edge="s"] { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--mine) 55%, transparent); }
+:is(.pv-margin, #margin) .card[data-edge="ws"] { box-shadow: inset 3px -3px 0 color-mix(in srgb, var(--mine) 55%, transparent); }
+:is(.pv-margin, #margin) .card.fold { height: auto !important; overflow: hidden; cursor: pointer; padding-bottom: 8px; }
+:is(.pv-margin, #margin) .card.fold > :not(.hd) { display: none !important; }
+:is(.pv-margin, #margin) .card.fold > .hd { cursor: pointer; }
+:is(.pv-margin, #margin) .card.fold > .hd .lbl::after { content: " …"; color: var(--ink-3); }
+body.card-sizing { user-select: none; }
+body.card-sizing-w, body.card-sizing-w * { cursor: ew-resize !important; }
+body.card-sizing-s, body.card-sizing-s * { cursor: ns-resize !important; }
+body.card-sizing-ws, body.card-sizing-ws * { cursor: nesw-resize !important; }
+body.card-sizing :is(.pv-margin, #margin) .card { transition: none; }
 .pv-margin .card.drop-link, .np-list .card.drop-link { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.dragging-card { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 .pv-wire { position: absolute; top: 0; pointer-events: none; overflow: visible; z-index: 1; }

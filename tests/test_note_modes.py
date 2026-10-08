@@ -32,7 +32,7 @@ class NoteModesTest(unittest.TestCase):
         derive = chat.prompt(self.ws, msgs, "b", "", "openai", mode="derive")
         diagram = chat.prompt(self.ws, msgs, "b", "", "openai", mode="diagram")
         self.assertNotIn("推导", plain.replace("多行推导使用 aligned", ""))
-        self.assertNotIn("```flow", plain)
+        self.assertNotIn("以下要求优先", plain)  # 一般的問題只有通用寫法（裡面會提到示意圖怎麼畫），沒有專門的要求
         self.assertIn("为什么可以这样写", derive)
         self.assertIn("不许写“显然”", derive)
         self.assertIn("```flow", diagram)

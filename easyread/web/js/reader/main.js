@@ -141,6 +141,14 @@
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
     const m = S.paper.meta || {};
+    if (PR.chatOnly) {  // 問 AI 的獨立視窗（chat-link.js）：只要面板，不畫正文和 PDF，也不記閱讀進度
+      document.title = PR.t("問 AI") + " · " + (m.short_zh || m.title_zh || m.title_en || PR.t("论文"));
+      PR.buildIndex();
+      PR.startPolling();
+      PR.toggleChat(true);
+      PR.chatHello && PR.chatHello();
+      return;
+    }
     document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · EasyRead";
     PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));

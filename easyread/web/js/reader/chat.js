@@ -7,14 +7,16 @@
    - 圖片：直接貼上（Ctrl/⌘+V）、把圖片檔拖進來、或按迴紋針選檔；在 PDF 上框選的區域也是當圖片附上。圖片存在這份文件的 clips/。
    - 页边笔记里的问题在卡片裡就地回答（ask.js），「追問」才到這裡接著問。
    - 整份文件：每一問都帶全文地圖和問題相關的幾頁（chat.py / docmap.py）；「整份導讀」把整份文字給模型，按部分講主題、觀念、先備知識和數學。
-   - 回答裡選一段字可以「問這句」（chat-aside.js，小視窗另外問）；每段回答可以「加入筆記」並分類（noteadd.js）。 */
+   - 回答裡選一段字可以「問這句」（chat-aside.js，小視窗另外問）；每段回答可以「加入筆記」並分類（noteadd.js）。
+   - 在文件上選了字，這一問就是在問那一句（「選取」標籤，chat-link.js）；面板可以拉成獨立視窗（同一個檔）。
+   - 標題列的書本圖示：AI 讀過整份了沒、補充資料（chat-doc.js）。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
   const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
   const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
-  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null, images: [], uploading: 0 });
+  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null, images: [], uploading: 0, sel: null });
   const clipUrl = (src) => "/p/" + PR.pid + "/" + src;
   const clipCls = (src) => (/\/c-/.test(src) ? " pdf" : "");  // 從 PDF 框選的（深色模式要跟著頁面反相）；貼進來的照片不動
 
@@ -23,9 +25,14 @@
   PR.chatView = () => PR.canChat() || !!(S.chat && (S.chat.threads || []).length);
   PR.chatOpen = () => PR.side === "chat";
   PR.toggleChat = function (force) {
+    if (force !== false && PR.chatLink && PR.chatLink.forward("toggle")) return;  // 問 AI 在獨立視窗：把那個視窗叫到前面
     const open = force != null ? force : PR.side !== "chat";
     PR.openSide(open ? "chat" : null);
-    if (open) { autoContext(); load().then(() => { render(); focusInput(); }); render(); }
+    if (open) {
+      autoContext(); load().then(() => { render(); focusInput(); }); render();
+      PR.chatDoc && PR.chatDoc.refresh();
+      PR.chatLink && PR.chatLink.capture();  // 打開前就選著字：直接認得
+    } else if (st.sel) { st.sel = null; PR.chatLink && PR.chatLink.cleared(); }
   };
   const focusInput = () => setTimeout(() => { const t = PR.$("#chatInput"); t && t.focus(); }, 300);
   /* 讀者點進輸入框、換了模型：先叫伺服器把模型行程拉起來（不連網、不花額度），按送出時少等一秒。一分鐘內同一個模型只叫一次 */
@@ -39,12 +46,33 @@
   }
   document.addEventListener("focusin", (e) => { if (e.target.id === "chatInput") warm(); });
 
-  function autoContext() {
+  /* 正在讀哪裡：指著的段落，或 PDF 正在看的那一頁 */
+  function readingContext() {
     const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock();
-    if (PR.blockById[id]) st.auto = { anchor: id, quote: "" };
-    else if (PR.pdfMain && PR.pdfMain() && PR.pdfPage) st.auto = { anchor: "", quote: "", page: PR.pdfPage() };  // 沒翻譯的 PDF：帶上正在看的那一頁
-    else st.auto = null;
+    if (PR.blockById[id]) return { anchor: id, quote: "" };
+    if (PR.pdfMain && PR.pdfMain() && PR.pdfPage) return { anchor: "", quote: "", page: PR.pdfPage() };  // 沒翻譯的 PDF：帶上正在看的那一頁
+    return null;
   }
+  PR.chatAutoContext = readingContext;
+  let remoteAuto = null;  // 獨立視窗：主視窗告訴這邊正在讀哪裡
+  function autoContext() { st.auto = PR.chatOnly ? remoteAuto : readingContext(); }
+  PR.chatSetAuto = function (auto) {
+    remoteAuto = auto && (PR.blockById[auto.anchor] || auto.page) ? auto : null;
+    if (st.streaming) return;
+    autoContext();
+    paintChips();
+  };
+  /* 在文件上選的那一句（chat-link.js 設）：這一問就是在問它 */
+  PR.chatSel = {
+    get: () => st.sel,
+    set(sel) {
+      const same = (a, b) => (!a && !b) || (a && b && a.anchor === b.anchor && a.quote === b.quote && (a.page || 0) === (b.page || 0));
+      if (same(st.sel, sel)) return;
+      st.sel = sel || null;
+      paintChips();
+      if (sel) warm();
+    },
+  };
   /* 引用：段落（anchor），或 PDF 上的一頁／一段原話（page，沒對到段落時） */
   function addRef(anchor, quote, page) {
     if (!PR.blockById[anchor]) { if (!page) return false; anchor = ""; }
@@ -56,10 +84,11 @@
     return true;
   }
   /* 这次提问带哪几段：手动引用的；没有就用正在读的那段 */
-  const sendRefs = () => (st.refs.length ? st.refs.slice() : st.auto && !st.noAuto ? [st.auto] : []);
+  const sendRefs = () => (st.refs.length ? st.refs.slice() : st.sel ? [st.sel] : st.auto && !st.noAuto ? [st.auto] : []);
 
   /* 外部入口：段落操作条、选中文字（都是“加一段引用”），笔记卡片（直接问这一条） */
   PR.chatAsk = function (opts) {
+    if (PR.chatLink && PR.chatLink.forward("ask", opts)) return;  // 問 AI 在獨立視窗：交給那邊
     if (PR.side !== "chat") { PR.openSide("chat"); autoContext(); }
     load().then(async () => {
       // 追問：接著那一問的對話（就地問答時建的），還在的話切過去
@@ -126,6 +155,9 @@
     },
   };
   PR.chatCurrent = () => st.cur;
+  /* 下次讀對話清單時切到這個對話（獨立視窗接著側邊正在看的那個；收回時側邊接著獨立視窗的） */
+  let wantThread = typeof location !== "undefined" && /[?&]chat=1(&|$)/.test(location.search) ? new URLSearchParams(location.search).get("thread") : null;  // 這時 chat-link.js 還沒載入，PR.chatOnly 還沒設
+  PR.chatUse = function (id) { wantThread = id || null; st.loaded = false; };
   /* 就地問答建了新對話：下次打開面板時重新讀清單 */
   PR.chatReload = function () { if (st.streaming) return; st.loaded = false; if (PR.chatOpen()) load().then(render); };
 
@@ -146,6 +178,7 @@
       if (!st.model && last && st.models.some((m) => m.id === last && m.ready !== false)) st.model = last;
       if (!st.model || !st.models.some((m) => m.id === st.model)) st.model = st.def;
       if (!modelsOnly) {
+        if (wantThread) { if (st.threads.some((t) => t.id === wantThread)) st.cur = wantThread; wantThread = null; }
         if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
         if (st.cur) { st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; }
       }
@@ -179,6 +212,20 @@
     return '<span class="chip-ctx' + (auto ? " auto" : "") + '" title="' + PR.esc(tip) + '">' + PR.icon(auto ? "book" : "link", "sm") + "<span>" + PR.esc(label) +
       '</span><button data-c="' + (auto ? "noauto" : "unref") + '" data-i="' + i + '" title="' + PR.t("不带这段") + '">×</button></span>';
   }
+  /* 輸入框上面的標籤：手動引用的幾段；沒有就是選取的那一句；再沒有就是正在讀的地方 */
+  function selChip(r) {
+    const label = ctxLabel(r) || PR.t("「{q}」", { q: r.quote.slice(0, 18) + (r.quote.length > 18 ? "…" : "") });
+    return '<span class="chip-ctx sel" title="' + PR.esc(PR.t("這一問在問你選的這一句：") + "\n" + r.quote.slice(0, 300)) + '">' + PR.icon("cursor", "sm") + "<span>" + PR.t("選取") + " · " + PR.esc(label) +
+      '</span><button data-c="unsel" title="' + PR.t("不問這一句") + '">×</button></span>';
+  }
+  function chipsHtml() {
+    return st.refs.length ? st.refs.map((r, i) => refChip(r, i)).join("") : st.sel ? selChip(st.sel) : st.auto && !st.noAuto ? refChip(st.auto, 0, true) : "";
+  }
+  /* 只換標籤那一排：選字、捲動時不重畫整個面板（輸入框的游標和正在打的字不能動） */
+  function paintChips() {
+    const box = PR.$("#chatpanel .ch-compose > .ch-chips");
+    if (box) box.innerHTML = chipsHtml();
+  }
   function markCounts() {
     const out = {};
     PR.myNotes().forEach((n) => { if (n.quote) out[n.color || "yellow"] = (out[n.color || "yellow"] || 0) + 1; });
@@ -191,8 +238,12 @@
   function headHtml() {
     const t = thread();
     return '<div class="ch-head"><button class="ch-title" data-c="list" title="' + PR.t("全部对话") + '">' + PR.icon("menu", "sm") + "<span>" + PR.md(t ? t.title : PR.t("新对话"), { cite: false, xref: false }) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
-      '<span class="grow"></span>' + (PR.canChat() ? '<button class="btn icon" data-c="overview" title="' + PR.t("整份導讀：各部分的主題、要懂的觀念、先備知識和數學（上課前先看）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("book", "sm") + "</button>" : "") +
-      '<button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + '</button><button class="btn icon" data-c="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
+      '<span class="grow"></span>' + (PR.canChat() && PR.chatDoc ? PR.chatDoc.button() : "") +
+      (PR.canChat() ? '<button class="btn icon" data-c="overview" title="' + PR.t("整份導讀：各部分的主題、要懂的觀念、先備知識和數學（上課前先看）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("list", "sm") + "</button>" : "") +
+      '<button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + "</button>" +
+      (PR.chatOnly ? '<button class="btn icon" data-c="dock" title="' + PR.t("收回主視窗的側邊") + '">' + PR.icon("dock", "sm") + "</button>"
+        : (PR.canChat() && typeof BroadcastChannel !== "undefined" ? '<button class="btn icon" data-c="popout" title="' + PR.t("拉成獨立視窗") + '">' + PR.icon("popout", "sm") + "</button>" : "") +
+          '<button class="btn icon" data-c="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>" +
       (st.listOpen ? listHtml() : "");
   }
   function listHtml() {
@@ -222,7 +273,7 @@
     if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
     const ICONS = ["bulb", "question", "list", "sparkle", "book"];
     const overview = PR.canChat() ? '<button data-c="overview" class="ov"><span class="ic">' + PR.icon("book", "sm") + '</span><span class="tx">' + PR.esc(PR.t("整份在講什麼？各部分的主題、要懂的觀念、先備知識和數學——上課前先看")) + "</span></button>" : "";
-    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3><p>" + PR.t("看得到整份文件，也會帶上你正在看的地方；可以貼圖片。回答裡選字可以「問這句」。") + "</p>" +
+    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3><p>" + PR.t("AI 讀過整份文件，也知道你正在看哪裡；在文件上選一句，就是在問那一句。可以貼圖片，回答裡選字可以「問這句」。") + "</p>" +
       '<div class="chips">' + overview + sug.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(ICONS[i % ICONS.length], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
   }
   function composerHtml() {
@@ -232,7 +283,7 @@
         '<a class="btn sm accent" href="' + repo + '" target="_blank" rel="noopener">' + PR.t("去 GitHub 安装 ↗") + "</a></div>";
     }
     const m = modelOf(st.model);
-    const chips = st.refs.length ? st.refs.map((r, i) => refChip(r, i)).join("") : st.auto && !st.noAuto ? refChip(st.auto, 0, true) : "";
+    const chips = chipsHtml();
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + (x.id === st.model ? '<span class="ch-model-check">✓</span>' : '') + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
       PR.chatEffort.section(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
@@ -242,7 +293,7 @@
       PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
     const imgs = st.images.length || st.uploading ? '<div class="ch-imgs">' + st.images.map((src, i) => '<span class="ch-img"><img class="' + clipCls(src).trim() + '" src="' + PR.esc(clipUrl(src)) + '" alt=""><button data-c="unimg" data-i="' + i + '" title="' + PR.t("不附這張") + '">×</button></span>').join("") +
       (st.uploading ? '<span class="ch-img busy"><span class="spin"></span></span>' : "") + "</div>" : "";
-    return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") + imgs +
+    return '<div class="ch-compose"><div class="ch-chips">' + chips + "</div>" + imgs +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-attach" data-c="attach" title="' + PR.t("附圖片（也可以直接貼上）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("clip", "sm") + "</button>" +
       '<button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + menu +
@@ -309,6 +360,7 @@
     if (!text || st.streaming || st.uploading) return;
     if (opts.mode === "overview") st.cur = null;  // 導讀自己開一個新對話
     const refs = opts.mode === "overview" ? [] : only || sendRefs();
+    if (!only && st.sel) { st.sel = null; PR.chatLink && PR.chatLink.cleared(); }  // 這一句問出去了：選取收掉
     const images = only || opts.mode === "overview" ? [] : st.images.slice();
     const c = refs[0] || null;
     const answerStyle = st.answerStyle;
@@ -366,16 +418,23 @@
     if (noteId) { PR.asking.delete(noteId); setTimeout(() => PR.poll && PR.poll(), 300); }
     if (!only) { st.refs = []; st.noAuto = false; autoContext(); }  // 问完清掉引用，回到“正在读”
     render();
+    PR.chatDoc && PR.chatDoc.refresh();  // 第一問會在背景開始預讀：狀態跟著更新
+    PR.chatLink && PR.chatLink.changed();
   }
 
   /* ---------- 事件 ---------- */
   document.addEventListener("click", async (e) => {
     if (!e.target.closest("#chatpanel")) return;
     const b = e.target.closest("[data-c]");
+    if (e.target.closest("#chatDocPop")) return;  // 「AI 讀過的範圍」那一塊自己處理（chat-doc.js）
     if (!b) { if ((st.menuOpen && !e.target.closest(".ch-menu")) || (st.usageOpen && !e.target.closest(".us-pop"))) { st.menuOpen = st.usageOpen = false; render(); } return; }
     const c = b.dataset.c;
     const row = b.closest(".ch-thread[data-t]");
     if (c === "close") return PR.toggleChat(false);
+    if (c === "doc") return PR.chatDoc.toggle();
+    if (c === "popout") return PR.chatPopout && PR.chatPopout();
+    if (c === "dock") return PR.chatDock && PR.chatDock();
+    if (c === "unsel") { st.sel = null; PR.chatLink && PR.chatLink.cleared(); return paintChips(); }
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "style") {
@@ -403,7 +462,7 @@
     if (c === "overview") { if (st.streaming) return; return send(PR.t("整份在講什麼？每個部分的主題、要懂的觀念、需要的先備知識和數學。"), null, null, { mode: "overview" }); }
     if (c === "unref") { st.refs.splice(+b.dataset.i, 1); return render(); }
     if (c === "noauto") { st.noAuto = true; return render(); }
-    if (c === "go") return b.dataset.anchor ? PR.jumpTo("b-" + b.dataset.anchor) : PR.openPage(+b.dataset.page);
+    if (c === "go") return PR.chatOnly ? PR.chatLink.go(b.dataset.anchor, +b.dataset.page) : b.dataset.anchor ? PR.jumpTo("b-" + b.dataset.anchor) : PR.openPage(+b.dataset.page);
     if ((c === "rename" || c === "del") && st.streaming) return PR.toast(PR.t("请先停止当前回答，再修改对话"));
     if (c === "rename" && row) {
       const t = st.threads.find((x) => x.id === row.dataset.t);
@@ -432,6 +491,7 @@
       try {
         await PR.api("/api/p/" + PR.pid + "/chat/pin", { method: "POST", body: { thread: st.cur, id: m.id } });
         PR.toast(PR.t("已放到页边")); setTimeout(() => PR.poll && PR.poll(), 200);
+        PR.chatLink && PR.chatLink.changed();
       } catch (err) { PR.toast(PR.t("没放成：{msg}", { msg: PR.esc(err.message) })); }
     }
   });
@@ -499,12 +559,11 @@
   });
   /* 读到别处时，上下文跟着换成当前段（手动指定的不动）；PDF 優先時跟著 PDF 捲動 */
   const followReading = PR.debounce(() => {
-    if (!PR.chatOpen() || st.streaming) return;
+    if (!PR.chatOpen() || st.streaming || PR.chatOnly) return;
     const before = st.auto && (st.auto.anchor || "p" + st.auto.page);
     autoContext();
-    if ((st.auto && (st.auto.anchor || "p" + st.auto.page)) === before || st.refs.length || st.noAuto) return;
-    const el = PR.$(".chip-ctx.auto > span");
-    if (el && st.auto) { el.textContent = ctxLabel(st.auto); el.parentElement.title = PR.t("会带上你正在读的这段：") + ctxLabel(st.auto); } else render();
+    if ((st.auto && (st.auto.anchor || "p" + st.auto.page)) === before || st.refs.length || st.noAuto || st.sel) return;
+    paintChips();
   }, 400);
   window.addEventListener("scroll", followReading, { passive: true });
   const pv = PR.$(".pv-scroll");

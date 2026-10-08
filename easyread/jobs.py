@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, langs, paths, translate, usage
+from . import chat_models, config, langs, paths, preread, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -160,6 +160,7 @@ class Jobs:
             translate.prepare(ws)
         if cancel.is_set():
             raise Cancelled()
+        preread.auto(ws)  # 匯入、翻譯時就讓 AI 在背景把整份讀過一遍（設定可關；已經讀過就不重複）
         read = bool(job.get("read"))
         if not job.get("translate") or cfg.get("engine") == "none":
             self._write(ws, state="done", message=tr("已导入（没有可用的模型，先放原页）") if read else tr("已导入（未开启自动翻译）") if job.get("translate") else tr("已导入"))

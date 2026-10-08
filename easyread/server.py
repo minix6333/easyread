@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, settings_api, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -175,6 +175,7 @@ class Handler(BaseHTTPRequestHandler):
         aside = chat.aside_context(ws, aside_in)
         if aside and isinstance(body.get("aside"), dict):
             user["aside"] = {"thread": str(aside_in.get("thread")), "msg": str(aside_in.get("msg") or ""), "quote": aside["quote"]}
+        preread.auto(ws)  # 還沒讀過整份（舊論文、另一台匯入的）：趁這一問在背景讀，下一問起就帶著全文筆記
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
@@ -346,6 +347,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
+            if action == "brief":  # AI 讀過這份了沒（預讀的狀態、補充資料清單；preread.py）
+                return self._json(200, preread.status(ws))
             if action == "log":
                 return self._json(200, {"text": tail(ws.root / "job.log", 300)})
             if action == "export":
@@ -372,7 +375,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(variant or _derived_file(ws.root, rel), cache=True)
             if ws and rel.startswith("pages/"):  # 原頁圖（同步模式下在本機快取，見 paths.py）
                 return self._file(_derived_file(ws.root, rel), cache=True)
-            if ws and (rel.split("/", 1)[0] in ("figures", clips.DIR) or rel == "source.pdf"):
+            if ws and (rel.split("/", 1)[0] in ("figures", clips.DIR, supp.DIR) or rel == "source.pdf"):
                 return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")
             if ws and rel.startswith("extract/") and rel.endswith((".chars.json", ".txt")):  # PDF 文字層用的字元座標
                 if app.location.status == "idle":
@@ -481,7 +484,21 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, {"src": clips.save_upload(ws.root, raw)})
                 spec = json.loads(raw or b"{}")
                 return self._json(200, {"src": clips.region(ws.root, spec.get("page"), spec.get("rect"))})
+            if action == "supp":  # 補充資料：請求體是 PDF（?name=檔名）就加一份；JSON {remove: 檔名} 是拿掉（supp.py）
+                raw = self._body()
+                if "name" in q:
+                    supp.add(ws.root, raw, q.get("name", ""))
+                else:
+                    supp.remove(ws.root, str(json.loads(raw or b"{}").get("remove") or ""))
+                preread.auto(ws)  # 補充資料變了：全文筆記重讀一次
+                return self._json(200, preread.status(ws))
             body = json.loads(self._body() or b"{}")
+            if action == "brief":  # 讓 AI 現在把整份讀一遍（start）、或停下來（cancel）
+                if body.get("action") == "cancel":
+                    preread.cancel(ws)
+                else:
+                    preread.start(ws, body.get("model") or None)
+                return self._json(200, preread.status(ws))
             if action == "chat" and len(parts) > 5:
                 sub, tid = parts[5], body.get("thread", "")
                 if sub == "warm":  # 讀者打開面板、開始打字：先把模型行程拉起來（claude_live / codex_live），不連網、不花額度

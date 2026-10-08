@@ -2,8 +2,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from easyread import chat, docmap, paths
+from easyread import chat, docmap, paths, preread
 from easyread.store import Workspace, write_json_atomic
 
 PAGES = {
@@ -58,20 +59,38 @@ class DocmapTest(unittest.TestCase):
         self.assertLess(len(short), 1000 + 4 * 80)
         self.assertIn("Finetuning with Sampling", short)  # 短的頁照舊
 
-    def test_prompt_carries_map_and_related_pages(self):
+    def test_prompt_carries_the_whole_document_when_it_fits(self):
         msgs = [{"role": "user", "content": "acceptance ratio 在實驗裡重要嗎？"}]
         text = chat.prompt(self.ws, msgs, None, "", "openai", page=1)
-        self.assertIn("全文地图", text)
-        self.assertIn("p3: 3 Method", text)
-        self.assertIn("问题可能涉及的其他页", text)
-        self.assertIn("[第 3 页]", text)
-        self.assertIn("[第 4 页]", text)
-        self.assertLess(text.index("全文地图"), text.index("读者现在问"))
+        self.assertIn("整份文件的文字", text)
+        for n in (1, 2, 3, 4):
+            self.assertIn(f"[第 {n} 页]", text)
+        self.assertNotIn("全文地图", text)             # 整份都在：不用地圖，也不用另外找相關頁
+        self.assertNotIn("问题可能涉及的其他页", text)
+        self.assertIn("第 1 页（这一页的文字在上面的全文里）", text)  # 正在看的那頁只說頁碼，不再貼一次
+        self.assertLess(text.index("整份文件的文字"), text.index("读者正在看"))  # 不變的在前，吃得到快取
+        self.assertLess(text.index("读者正在看"), text.index("读者现在问"))
         codex = chat.prompt(self.ws, msgs, None, "", "codex", page=1)
         self.assertIn(str(paths.derived(self.ws.root, "extract")), codex)  # Codex 也能自己去讀別頁
         follow = chat.prompt(self.ws, msgs, None, "", "openai", page=1, followup=True)
-        self.assertNotIn("全文地图", follow)  # 行程記得地圖，追問只補相關頁
-        self.assertIn("[第 3 页]", follow)
+        self.assertNotIn("整份文件的文字", follow)       # 行程記得整份，追問不重送
+        self.assertNotIn("[第 3 页]", follow)
+
+    def test_long_document_gets_map_and_related_pages(self):
+        msgs = [{"role": "user", "content": "acceptance ratio 在實驗裡重要嗎？"}]
+        with mock.patch.object(preread, "WHOLE", 100):  # 當成整份放不下
+            text = chat.prompt(self.ws, msgs, None, "", "openai", page=1)
+            self.assertNotIn("整份文件的文字", text)
+            self.assertIn("全文地图", text)
+            self.assertIn("p3: 3 Method", text)
+            self.assertIn("问题可能涉及的其他页", text)
+            self.assertIn("[第 3 页]", text)
+            self.assertIn("[第 4 页]", text)
+            self.assertIn("这一页抽取的文字", text)       # 正在看的那頁要貼上
+            self.assertLess(text.index("全文地图"), text.index("读者现在问"))
+            follow = chat.prompt(self.ws, msgs, None, "", "openai", page=1, followup=True)
+            self.assertNotIn("全文地图", follow)          # 行程記得地圖，追問只補相關頁
+            self.assertIn("[第 3 页]", follow)
 
     def test_overview_mode_sends_the_whole_document(self):
         msgs = [{"role": "user", "content": "整份在講什麼？"}]

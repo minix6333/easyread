@@ -64,6 +64,7 @@
 
   /* 页面调用这个提交修改 */
   PR.commit = function (op) {
+    if (PR.chatOnly && op.op === "progress") return;  // 問 AI 的獨立視窗沒有在讀：不能把主視窗記的閱讀位置蓋掉
     op.at = op.at || PR.nowIso();
     // 同一目标还没发出去的旧操作合并掉，避免队列无限长
     if (op.op === "note") outbox = outbox.filter((o) => !(o.op === "note" && o.note.id === op.note.id));

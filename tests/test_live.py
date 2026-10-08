@@ -330,10 +330,12 @@ class SmallThingsTest(unittest.TestCase):
         self.assertIn("之前的對話", full)
         follow = chat.prompt(ws, msgs, None, "", "claude", page=2, followup=True)
         self.assertIn("讀者接著問：為什麼？", follow)
-        self.assertIn("page two text", follow)      # 位置變了：帶上下文
+        self.assertIn("page two text", full)        # 整份不長：第一問就把整份文字帶上
+        self.assertIn("第 2 頁", follow)             # 位置變了：說現在看哪一頁（那頁的文字行程已經有了，不再貼一次）
+        self.assertNotIn("page two text", follow)
         self.assertNotIn("之前的對話", follow)
         same = chat.prompt(ws, msgs, None, "", "claude", page=2, followup=True, with_context=False)
-        self.assertNotIn("page two text", same)
+        self.assertNotIn("第 2 頁", same)
         self.assertIn("還指著剛才那一處", same)
 
 

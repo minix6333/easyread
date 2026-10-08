@@ -28,6 +28,7 @@ DEFAULTS = {
     "port": 8765,
     "engine": "claude",          # claude | codex（本机 CLI 无头）| openai（任意 OpenAI 兼容接口）| none
     "auto_translate": False,     # 匯入後自動開始翻譯。本分支預設關：匯入只準備 PDF，要譯文時自己按（設定 → 模型可以開）
+    "preread": True,             # 匯入、翻譯、第一次問 AI 時，讓 AI 在背景把整份文件（含補充資料）先讀過一遍、寫成全文筆記（preread.py）
     "target": "zh-TW",           # 译文语言，见 langs.py（本分支預設繁體中文）
     "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数

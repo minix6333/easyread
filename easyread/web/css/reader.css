@@ -295,3 +295,10 @@ textarea.editor { display: block; width: 100%; resize: none; overflow: hidden; b
 .margin-grip::after { content: ""; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: var(--mine); opacity: 0; transition: opacity var(--dur-fast); }
 .margin-grip:hover::after, body.margin-sizing .margin-grip::after { opacity: .45; }
 body.margin-sizing #margin .card { transition: none; }
+
+/* 視窗不寬、或右邊開著面板，但還擺得下「正文＋一欄卡片」（margin.js 的 PR.fitMargin 算好寬度、掛上 margin-fit）：
+   筆記和 AI 的回答照樣排在右邊，不收成段尾的小數字。規則放在最後、寫得比上面的媒體查詢專一，蓋過它們 */
+body.margin-fit:not(.pdf-main) #stage { grid-template-columns: var(--fit-gutter) minmax(0, 1fr) var(--fit-gap) var(--fit-margin); width: var(--fit-stage); max-width: none; margin-left: var(--fit-left); margin-right: auto; }
+body.margin-fit:not(.pdf-main) #margin { display: block; grid-column: 4; }
+body.margin-fit:not(.pdf-main) .note-pin { display: none; }
+body.margin-fit:not(.pdf-main) .blk.notes-open > .inline-notes, body.margin-fit:not(.pdf-main) .inline-notes { display: none; }

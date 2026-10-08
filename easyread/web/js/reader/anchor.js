@@ -123,6 +123,7 @@
     if (PR.isEnEl(el)) out.side = "en";
     return out;
   }
+  PR.readSelection = readSelection;  // chat-link.js：問 AI 跟著選的字走
   PR.hasPendingSelection = () => !!pendingSel && selbar().classList.contains("open");
 
   PR.pendingSelection = () => (PR.hasPendingSelection() ? pendingSel : null);

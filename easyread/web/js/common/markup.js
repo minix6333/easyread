@@ -24,7 +24,10 @@
 
   // 語言標成 flow（或 mermaid 的 flowchart）的程式碼區塊畫成圖，見 flow.js；別的圖種照程式碼顯示
   const FLOW_LANG = /^(flow|flowchart|mermaid|graph)$/, NOT_FLOW = /^\s*(sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|mindmap|timeline|journey|gitGraph)/;
+  // 語言標成 viz 的是示意圖（一小段受限的 HTML，viz.js 過濾後畫成卡片）；模型偶爾會標成 html，開頭是 viz 外框的也算（\x22 是雙引號，寫成字面會干擾 i18n 檢查）
+  const isViz = (t) => t.lang === "viz" || (t.lang === "html" && /^\s*<div class=\x22viz\x22/.test(t.text));
   function tokenHtml(t, block) {
+    if (t.code && t.display && PR.vizHtml && isViz(t)) return '<div class="md-viz">' + PR.vizHtml(t.text) + "</div>";
     if (t.code && t.display && FLOW_LANG.test(t.lang || "") && !NOT_FLOW.test(t.text)) {
       return '<div class="md-flow" data-flow="' + PR.esc(t.text) + '">' + (PR.flowCached ? PR.flowCached(t.text) : "") + "</div>";  // 畫過的直接放進來（串流時整段會重排很多次）
     }
@@ -120,8 +123,18 @@
   };
 
   /* 行间公式先拆出来，再按空行分段；已有回答的 \[...\] 也能显示，不需要改记录。 */
+  /* 回答還在流出來、圖的程式碼區塊還沒收尾：先放一個「正在畫圖」的佔位，不要把半截原始碼露出來 */
+  function pendingFigure(text) {
+    const fences = Array.from(text.matchAll(/^[ \t]*\x60\x60\x60([\w+-]*)[ \t]*$/gm));  // \x60 是反引號
+    if (fences.length % 2 === 0) return null;
+    const last = fences[fences.length - 1];
+    return /^(viz|flow|flowchart|mermaid|graph)$/i.test(last[1]) ? last.index : null;
+  }
   PR.mdBlocks = function (text, opts) {
-    const saved = tokens(String(text || "").trim(), true);
+    text = String(text || "").trim();
+    const cut = pendingFigure(text);
+    if (cut != null) return PR.mdBlocks(text.slice(0, cut), opts) + '<div class="md-drawing"><span class="spin"></span>' + PR.t("正在畫圖…") + "</div>";
+    const saved = tokens(text, true);
     const html = saved.text.split(saved.blocks).map((part, i) => i % 2 ? tokenHtml(saved.values[part], true) :
       part.split(/\n\s*\n/).map((p) => para(p, opts)).join("")).join("");
     return restore(html, saved);

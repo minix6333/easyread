@@ -28,6 +28,7 @@
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;
     body.classList.toggle("side-open", !!name);
+    PR.fitMargin && PR.fitMargin();  // 文章優先：右邊那欄卡片還擺不擺得下，馬上定（不然面板滑出來的那一下卡片會先消失）
     if (PR.applyLayout) PR.applyLayout();  // PDF 優先：三欄擠不下時重新分配寬度
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
     // 寬公式重量、邊注重排（開著譯文時要一兩百毫秒）等面板滑完再做，滑動的那 0.2 秒才不會掉幀

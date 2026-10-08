@@ -160,7 +160,9 @@
       '<label class="field"><span>' + PR.t("超过多少页先问我") + '</span><select class="input" data-k="page_cap">' + PR.opt([30, 60, 100, 200].map((n) => [n, PR.t("{n} 页", { n })]).concat([[0, PR.t("不限")]]), c.page_cap == null ? 60 : c.page_cap) + "</select></label></div>" +
       '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>' +
       '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="auto_translate"' + (c.auto_translate ? " checked" : "") + ">" + PR.t("匯入後自動翻譯") + "</label>" +
-      '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("關著時匯入只準備 PDF，不會用到模型；要譯文時在閱讀頁按「譯文」。") + "</p>" +
+      '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("關著時匯入不翻譯，只準備 PDF；要譯文時在閱讀頁按「譯文」。") + "</p>" +
+      '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="preread"' + (c.preread !== false ? " checked" : "") + ">" + PR.t("匯入時讓 AI 先讀過整份") + "</label>" +
+      '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("匯入、翻譯或第一次問 AI 時，在背景請模型把整份文件（含補充資料）讀一遍、寫成全文筆記，之後每一問都帶著它。每份文件用一次模型額度（很長的分幾次）；關掉就只在你按「現在讀」時才讀。") + "</p>" +
       '<label class="field" style="margin:14px 0 0;max-width:340px"><span>' + PR.t("選字翻譯用的模型") + '</span><select class="input" data-k="quick.translate_model">' +
       PR.opt([["", PR.t("跟翻譯用的模型一樣")]].concat(s.chat.models.map((x) => [x.id, x.label || x.name])), (c.quick || {}).translate_model || "") + "</select></label>" +
       '<p class="hint" style="margin:2px 0 0">' + PR.t("閱讀頁選字工具列的「翻譯」用它；挑一個快的比較順。") + "</p>";

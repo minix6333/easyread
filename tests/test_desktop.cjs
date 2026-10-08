@@ -17,7 +17,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   const windows = [], launches = [], menus = [], stages = [], handlers = new Map();
   const ipcMain = { handle(name, fn) { handlers.set(name, fn); } };
   class Window extends EventEmitter {
-    constructor() { super(); this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = () => {}; this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" }; windows.push(this); }
+    constructor() { super(); this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = (fn) => { this.webContents.openHandler = fn; }; this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" }; windows.push(this); }
     static getAllWindows() { return windows.filter(w => !w.closed); }
     async loadURL(url) { this.url = url; }
     show() { this.shown = true; }
@@ -42,7 +42,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   };
   const proc = new EventEmitter();
   Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
-  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: {} }
+  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: { openExternal(url) { app.external = (app.external || []).concat(url); } } }
     : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
     : name === "http" ? { request(url, options, callback) {
       const req = new EventEmitter(); req.setTimeout = () => {}; req.end = () => queueMicrotask(() => {
@@ -85,6 +85,34 @@ test("reopening a macOS window reuses one backend, even during repeated activati
   d.app.quit();
   await d.settled();
   assert.equal(d.launches[0].child.killed, true);
+});
+
+test("the detached Ask AI window is allowed, other links go to the system browser, and it closes with the main window", async () => {
+  const d = await desktop();
+  const opened = [];
+  const main = d.windows[0];
+  const open = main.webContents.openHandler;
+  // 同一個後端的 /read/<id>?chat=1：開成一個小視窗（問 AI 的獨立視窗，見 web/js/reader/chat-link.js）
+  const chat = open({ url: "http://127.0.0.1:9876/read/abc123?chat=1" });
+  assert.equal(chat.action, "allow");
+  assert.ok(chat.overrideBrowserWindowOptions.width <= 520 && chat.overrideBrowserWindowOptions.webPreferences.contextIsolation);
+  assert.equal(chat.overrideBrowserWindowOptions.webPreferences.nodeIntegration, false);
+  // 沒有 ?chat=1 的閱讀頁、別的來源冒充的，都不開新視窗
+  assert.equal(open({ url: "http://127.0.0.1:9876/read/abc123" }).action, "deny");
+  assert.equal(open({ url: "http://evil.example/read/abc123?chat=1" }).action, "deny");
+  assert.equal(open({ url: "not a url" }).action, "deny");
+  assert.equal(JSON.stringify(d.app.external), JSON.stringify(["http://127.0.0.1:9876/read/abc123", "http://evil.example/read/abc123?chat=1"]));  // 交給系統瀏覽器
+  // 那個視窗開出來之後：裡面的連結照同樣的規則；主視窗關了它跟著關
+  const child = new EventEmitter();
+  child.webContents = { setWindowOpenHandler(fn) { child.handler = fn; } };
+  child.setMenuBarVisibility = (v) => { child.menuBar = v; };
+  child.close = () => { opened.push("closed"); child.emit("closed"); };
+  main.webContents.emit("did-create-window", child);
+  assert.equal(child.menuBar, false);
+  assert.equal(child.handler({ url: "http://127.0.0.1:9876/read/abc123" }).action, "deny");
+  main.close();
+  assert.deepEqual(opened, ["closed"]);
+  d.app.quit();
 });
 
 test("a second app instance exits before starting a backend", async () => {
