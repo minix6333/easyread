@@ -387,6 +387,9 @@ li.todo.done > i { background: var(--accent); }
 .badge, .cm-def { border-radius: 5px; }
 .linkish { color: var(--accent); }
 .set-foot .lang-link { margin-left: 14px; }
+.glass-field > span { display: flex; justify-content: space-between; align-items: baseline; }
+.glass-field > span small { font-size: 11px; color: var(--ink-3); }
+input[type=range].glass-range { width: 100%; height: var(--ctl); margin: 0; accent-color: var(--ink); }
 
 /* ---------------- 字距：大字收緊、小字放鬆 ---------------- */
 h1, h2, .bk-h1, .bk-h2, .list-head h1, .dialog h2 { font-optical-sizing: auto; }

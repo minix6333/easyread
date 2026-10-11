@@ -44,7 +44,7 @@
     dlg().querySelector(".dialog").innerHTML =
       '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" + (st.tab === "chat" ? saveStatusHtml() : "") + "</div>" +
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
-      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span>  // i18n-ok 寫的是要切換到的語言<button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";
+      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span><button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";  // i18n-ok 寫的是要切換到的語言
   }
 
   function saveStatusHtml() {
@@ -125,6 +125,10 @@
     if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(err.message) })); } return; }
     const t = PR.settingsTabs[st.tab];
     if (t && t.click && (await t.click(e, st, dlg()))) render();
+  });
+  dlg().addEventListener("input", (e) => {  // 玻璃折射：拉著就看得到，不用按保存
+    const g = e.target.closest("[data-glass-level]");  // 不能用 data-glass：那是玻璃元素自己的記號
+    if (g && PR.setGlass) PR.setGlass(+g.value);
   });
   dlg().addEventListener("change", (e) => {
     const t = PR.settingsTabs[st.tab];

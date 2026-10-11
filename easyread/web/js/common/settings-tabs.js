@@ -21,6 +21,8 @@
         PR.FEATURES.map(([id, name, , desc]) => '<label class="switch-row"><span><b>' + name + "</b><small>" + desc + '</small></span><input type="checkbox" class="switch" data-feat="' + id + '"' + (s.ui.features[id] !== false ? " checked" : "") + "></label>").join("") +
         "</div>" + '<div class="settings-sec grid2"><label class="field"><span>' + PR.t("界面主题") + '</span><select class="input" id="themeSel">' +
         PR.opt([["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]], s.theme) + "</select></label>" +
+        // 玻璃折射：拉的時候就套到畫面上（settings.js 的 input 事件 → PR.setGlass），不用按保存
+        (PR.setGlass ? '<label class="field glass-field"><span>' + PR.t("玻璃折射") + '<small>' + PR.t("左邊是只有毛玻璃") + '</small></span><input type="range" class="glass-range" data-glass-level min="0" max="100" step="5" value="' + PR.glassLevel() + '"></label>' : "") +
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("界面语言") + '</span><select class="input" id="langSel">' +
           PR.opt([["auto", PR.t("跟随系统")], ["zh-TW", "繁體中文"], ["zh", "简体中文"], ["en", "English"]], s.lang || PR.langChoice) + "</select></label>") +  // i18n-ok 語言名用各自的寫法
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("论文译成") + '</span><select class="input" id="targetSel">' +
