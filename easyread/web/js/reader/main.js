@@ -141,6 +141,13 @@
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
     const m = S.paper.meta || {};
+    if (PR.notesOnly) {  // 筆記的獨立視窗（notes-link.js）：只要筆記面板
+      document.title = PR.t("筆記") + " · " + (m.short_zh || m.title_zh || m.title_en || PR.t("论文"));
+      PR.buildIndex();
+      PR.startPolling();
+      PR.toggleNotesPanel(true);
+      return;
+    }
     if (PR.chatOnly) {  // 問 AI 的獨立視窗（chat-link.js）：只要面板，不畫正文和 PDF，也不記閱讀進度
       document.title = PR.t("問 AI") + " · " + (m.short_zh || m.title_zh || m.title_en || PR.t("论文"));
       PR.buildIndex();

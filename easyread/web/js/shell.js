@@ -10,7 +10,8 @@
   "use strict";
   const KEY = "easyread-shell";
   const LIB = "lib";
-  const paperOf = (url) => { const m = /^\/read\/([^/?#]+)/.exec(url || ""); return m ? m[1] : null; };
+  const paperOf = (url) => { const m = /^\/(?:read|note)\/([^/?#]+)/.exec(url || ""); return m ? m[1] : null; };  // 論文（/read/）和獨立筆記（/note/）都是一個分頁
+  const kindOf = (url) => (/^\/note\//.test(url || "") ? "note" : "paper");
 
   /* ---------- 狀態的純操作：st = {tabs:[{id, kind, url, title}], panes:[{tab, w}], focus, seq} ---------- */
   const M = (PR.shellModel = {
@@ -22,7 +23,7 @@
       const pid = paperOf(url);
       let tab = pid ? st.tabs.find((t) => paperOf(t.url) === pid) : null;
       if (!tab) {
-        tab = { id: "t" + ++st.seq, kind: "paper", url, title: title || "" };
+        tab = { id: "t" + ++st.seq, kind: kindOf(url), url, title: title || "" };
         const cur = M.focused(st).tab, at = st.tabs.findIndex((t) => t.id === cur);
         st.tabs.splice(at < 0 ? st.tabs.length : at + 1, 0, tab);
       } else if (url && (url.includes("#") || url.length > tab.url.length) && tab.url !== url) tab.url = url;  // 帶了段落錨點：換成新的
@@ -107,7 +108,7 @@
     const saved = PR.ls.get(KEY, null);
     const st = M.blank();
     if (saved && Array.isArray(saved.tabs)) {
-      const tabs = saved.tabs.filter((t) => t && t.id && t.kind === "paper" && paperOf(t.url)).map((t) => ({ id: String(t.id), kind: "paper", url: String(t.url), title: String(t.title || "") }));
+      const tabs = saved.tabs.filter((t) => t && t.id && (t.kind === "paper" || t.kind === "note") && paperOf(t.url)).map((t) => ({ id: String(t.id), kind: kindOf(t.url), url: String(t.url), title: String(t.title || "") }));
       st.tabs = st.tabs.concat(tabs);
       st.seq = Number(saved.seq) || tabs.length;
       const ids = new Set(st.tabs.map((t) => t.id));
@@ -120,7 +121,7 @@
     return st;
   }
   const st = load();
-  const save = () => PR.ls.set(KEY, { tabs: st.tabs.filter((t) => t.kind === "paper"), panes: st.panes, focus: st.focus, seq: st.seq });
+  const save = () => PR.ls.set(KEY, { tabs: st.tabs.filter((t) => t.kind !== "library"), panes: st.panes, focus: st.focus, seq: st.seq });
 
   /* ---------- iframe ---------- */
   const frames = {};  // tab id → iframe
@@ -146,7 +147,7 @@
   function renderTabs() {
     const shown = new Set(st.panes.map((p) => p.tab)), cur = M.focused(st).tab;
     tabsEl.innerHTML = st.tabs.map((t) => '<div class="tab' + (t.id === cur ? " on" : "") + (shown.has(t.id) ? " shown" : "") + (t.kind === "library" ? " lib" : "") + '" data-tab="' + PR.esc(t.id) + '" role="tab" aria-selected="' + (t.id === cur) + '"' +
-      (t.kind === "paper" ? ' draggable="true"' : "") + ' title="' + PR.esc(tabTitle(t)) + '">' + PR.icon(t.kind === "library" ? "folder" : "book", "sm") +
+      (t.kind !== "library" ? ' draggable="true"' : "") + ' title="' + PR.esc(tabTitle(t)) + '">' + PR.icon(t.kind === "library" ? "folder" : t.kind === "note" ? "notebook" : "book", "sm") +
       (t.kind === "library" ? "" : '<span class="tt">' + PR.esc(tabTitle(t)) + '</span><button class="x" data-x="' + PR.esc(t.id) + '" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>").join("") +
       '<span class="grow"></span>' + (st.panes.length > 1 ? '<button class="btn icon" data-act="closepane" title="' + PR.t("收起這一格") + '">' + PR.icon("x", "sm") + "</button>" : "") +
       '<button class="btn icon" data-act="split" title="' + PR.t("分割視窗：並排再開一格（⌘\\）") + '"' + (st.panes.length >= 3 ? " disabled" : "") + ">" + PR.icon("panel", "sm") + "</button>" +

@@ -39,6 +39,12 @@
     return before + "\n\n" + piece + "\n" + (after ? "\n" + after : "");
   };
 
+  /* 一條頁邊筆記的出處卡：「> [!ref 筆記id p頁碼] 原話（或筆記的第一行）」——總結裡只有一行、收著，點展開看內容，點箭頭跳回文件裡那個位置 */
+  PR.noteRefLine = function (n) {
+    const page = (n.side === "pdf" && n.page) || (PR.blockById[n.anchor] || {}).page || 0;
+    const label = String(n.quote || PR.plain((n.body || "").split("\n")[0]) || PR.t("筆記")).replace(/\s+/g, " ").trim();
+    return "> [!ref " + n.id + (page ? " p" + page : "") + "] " + (label.length > 80 ? label.slice(0, 80) + "…" : label);
+  };
   function afterChange() {
     if (PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel) PR.renderNotesPanel();
   }
@@ -65,6 +71,28 @@
         PR.toast(PR.t("已加到第 {page} 頁的筆記", { page }), { label: PR.t("撤销"), fn: () => { PR.commit(Object.assign({ op: "page_note", page, body: was }, pn.star ? { star: true } : {})); afterChange(); } }, 5000);
       } });
     }
+    PR.menu(at, items);
+  };
+  /* 把頁邊的一條筆記加進總結：選分類，放一張出處卡（收起來的）；已經放過就只是提示 */
+  PR.noteRefMenu = function (at, nid) {
+    const n = (S.reader.notes || {})[nid];
+    if (!n) return;
+    const line = PR.noteRefLine(n);
+    const put = (category) => {
+      const was = (S.reader.paper_note || {}).body || "";
+      if (was.includes("[!ref " + nid + " ") || was.includes("[!ref " + nid + "]")) return PR.toast(PR.t("總結裡已經有這一條了"), null, 2000);
+      const body = PR.noteInsert(was, category, line);
+      PR.commit({ op: "paper_note", body });
+      const ed = PR.notesEditor && PR.notesEditor("paper");
+      if (ed) ed.setValue(body);
+      afterChange();
+      PR.toast(PR.t("已加到總結的「{c}」", { c: PR.esc(category) }), { label: PR.t("撤销"), fn: () => { PR.commit({ op: "paper_note", body: was }); if (ed) ed.setValue(was); afterChange(); } }, 5000);
+    };
+    const items = PR.noteCategories((S.reader.paper_note || {}).body).map((c) => ({ label: c, icon: "tag", fn: () => put(c) }));
+    items.push({ label: PR.t("新分類…"), icon: "plus", fn: async () => {
+      const name = await PR.promptText({ title: PR.t("新分類"), value: "", ok: PR.t("加入"), at });
+      if (name && name.trim()) put(name.trim().replace(/^#+\s*/, ""));
+    } });
     PR.menu(at, items);
   };
 })(window.PR);

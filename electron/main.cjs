@@ -224,7 +224,7 @@ const chatWindows = new Set();
 function windowOpenHandler({ url: target }) {
   try {
     const u = new URL(target);
-    if (backendUrl && u.origin === new URL(backendUrl).origin && u.pathname.startsWith("/read/") && u.searchParams.get("chat") === "1") {
+    if (backendUrl && u.origin === new URL(backendUrl).origin && u.pathname.startsWith("/read/") && (u.searchParams.get("chat") === "1" || u.searchParams.get("notes") === "1")) {
       return {
         action: "allow",
         overrideBrowserWindowOptions: {

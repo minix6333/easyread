@@ -2,7 +2,8 @@
    - 本頁：跟著 PDF 現在這一頁走。上面是這一頁的筆記（上課邊聽邊打，自動存），下面是這一頁上的畫線、筆記、提問。
      正在打字時 PDF 翻到別頁不會把輸入框換掉，只給一顆「PDF 在第 N 頁」讓你自己切。
    - 全部：整份文件的標記按頁排好，可以搜尋、按種類和顏色篩，點一張就翻到那裡。
-   - 總結：整篇的筆記（論文筆記），可以套範本、讓 AI 起草或點評。 */
+   - 總結：整篇的筆記（論文筆記），可以套範本、讓 AI 起草或點評。
+   本頁筆記和整篇筆記都是區塊編輯器（js/common/blocks.js，像 Craft）：面板重畫時沿用同一個編輯器，正在打字就先不重畫。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
@@ -13,6 +14,8 @@
   let pnEdit = false;   // 本頁筆記正在編輯（平常顯示排好的樣子，點一下才變成輸入框；空的直接是輸入框）
   let sumEdit = false;  // 整篇筆記同上
   let panelPage = 1, detached = false;
+  const editors = {};         // 區塊編輯器：page（本頁筆記）、paper（整篇筆記）
+  let pendingRender = false;  // 正在打字時有東西要重畫：等離開編輯再畫
   const panel = () => PR.$("#notespanel");
   const pdf = () => !!(PR.pdfMain && PR.pdfMain());
   const pageCount = () => ((S.paper.meta || {}).pages || []).length;
@@ -32,8 +35,9 @@
   PR.focusPageNote = function () {
     pnEdit = true;
     PR.toggleNotesPanel(true, "page");
-    setTimeout(() => { const ta = PR.$("#notespanel .np-pnote"); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 60);
+    setTimeout(() => { if (editors.page) editors.page.focus("end"); }, 60);
   };
+  PR.notesEditor = (k) => editors[k] || null;
 
   function sectionOf(id) {
     let cur = null;
@@ -128,16 +132,15 @@
       '<span class="grow"></span><button class="np-chip" data-np-act="pgo"' + (detached ? "" : " hidden") + ">" + PR.t("PDF 在第 {n} 頁", { n: curPage() }) + "</button>" +
       '<button class="btn icon sm np-star' + (pn.star ? " on" : "") + '" data-np-act="star" title="' + PR.t("標成重點頁（之後可以只看重點頁）") + '">' + PR.icon("star", "sm") + "</button></div>" +
       (writing ? '<div class="np-pview writing"><div class="pw-body">' + PR.mdBlocks(joined(pw.base, pw.text)) + '</div><p class="thinking"><i></i><i></i><i></i></p></div>'
-        : pnEdit || !(pn.body || "").trim()
-        ? PR.mdEd('<textarea class="np-pnote" data-page="' + p + '" placeholder="' + PR.t("這一頁的筆記…") + '">' + PR.esc(pn.body || "") + "</textarea>")
-        : '<div class="np-pview" data-np-act="pedit" title="' + PR.t("點一下編輯") + '">' + PR.mdBlocks(pn.body) + "</div>") +
+        : '<div class="np-bk page" id="npPageEd" data-page="' + p + '"></div>') +
       '<div class="np-ptools">' +
       (writing ? '<button class="btn sm line" data-np-act="pwstop">' + PR.icon("stop", "sm") + PR.t("停止") + "</button>"
         : canWrite ? '<button class="btn sm line" data-np-act="pwrite"' + (pw ? " disabled" : "") + ' title="' + PR.t("AI 把這一頁講明白，寫進這一頁的筆記（接在你寫的後面）") + '">' + PR.icon("sparkle", "sm") + PR.t("幫這頁寫筆記") + "</button>" : "") +
       (canAsk() ? '<button class="btn sm line" data-np-act="explain">' + PR.icon("help", "sm") + PR.t("解釋這一頁") + "</button>" : "") +
       (pdf() ? '<button class="btn sm line" data-np-act="region">' + PR.icon("region", "sm") + PR.t("框選") + "</button>" : "") + "</div>" +
       '<div class="np-sub">' + PR.t("這一頁的標記") + (items.length ? " · " + items.length : "") + "</div>" +
-      '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選字可以畫線、寫筆記、問 AI；選不到字的地方用框選。") + "</p>") + "</div></div>";
+      '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選字可以畫線、寫筆記、問 AI；選不到字的地方用框選。") + "</p>") + "</div>" +
+      (PR.notesAi ? PR.notesAi.bar("page") : "") + "</div>";
   }
 
   const TEMPLATES = {
@@ -147,8 +150,7 @@
   function paperHtml() {
     const body = (S.reader.paper_note || {}).body || "";
     return '<div class="np-paper"><div class="np-tools"><button class="btn sm line" data-np-act="template"' + (body.trim() ? " hidden" : "") + ">" + PR.icon("template", "sm") + PR.t("套用範本") + '</button><span class="grow"></span>' + PR.noteHelpButtons() + "</div>" +
-      (sumEdit || !body.trim() ? PR.mdEd('<textarea id="paperNote" placeholder="' + PR.t("整篇的重點、想法、待辦…") + '">' + PR.esc(body) + "</textarea>")
-        : '<div class="np-preview" data-np-act="sedit" title="' + PR.t("點一下編輯") + '">' + PR.mdBlocks(body) + "</div>") + PR.noteHelpBox() + "</div>";
+      '<div class="np-bk paper" id="npPaperEd"></div>' + PR.noteHelpBox() + (PR.notesAi ? PR.notesAi.bar("paper") : "") + "</div>";
   }
 
   function notesHtml() {
@@ -165,7 +167,8 @@
     const el = panel();
     if (!el) return;
     const ae = document.activeElement;
-    if (editId === undefined && ae && el.contains(ae) && ae.matches && ae.matches("textarea, input")) return;
+    if (editId === undefined && ae && el.contains(ae) && ae.matches && ae.matches("textarea, input")) { pendingRender = true; return; }
+    if (editId === undefined && Object.values(editors).some((x) => x.isEditing())) { pendingRender = true; return; }
     if (editId !== undefined) {
       editing = editId;
       if (editId && tab === "paper") tab = "notes";
@@ -177,9 +180,11 @@
     const seg = [["page", PR.t("本頁")], ["notes", PR.t("全部") + (count ? ' <i class="n">' + count + "</i>" : "")], ["paper", PR.t("總結")]]
       .map(([k, l]) => '<button data-np="' + k + '" class="' + (tab === k ? "on" : "") + '">' + l + "</button>").join("");
     const keep = el.querySelector(".np-list") ? el.querySelector(".np-list").scrollTop : 0;
-    el.innerHTML = '<div class="np-head"><div class="seg">' + seg + '</div><span class="grow"></span><button class="btn icon" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.icon("download", "sm") +
-      '</button><button class="btn icon" data-np-act="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
+    el.innerHTML = '<div class="np-head"><div class="seg">' + seg + '</div><span class="grow"></span><button class="btn icon" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.icon("download", "sm") + "</button>" +
+      (PR.notesOnly ? "" : '<button class="btn icon" data-np-act="popout" title="' + PR.t("拉成獨立視窗") + '">' + PR.icon("popout", "sm") + "</button>" +
+      '<button class="btn icon" data-np-act="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>" +
       (tab === "paper" ? paperHtml() : tab === "notes" ? notesHtml() : pageHtml());
+    mountEditors();
     PR.$$(".card", el).forEach((c) => PR.prepCard && PR.prepCard(c));
     PR.$$(".np-list .card.mine[data-note]:not(.editing)", el).forEach((c) => { c.draggable = true; });  // 拖排順序、拖到另一張上建立關聯
     PR.$$("textarea", el).forEach(PR.autosize);
@@ -188,6 +193,50 @@
     const ta = editing && el.querySelector('.card[data-note="' + editing + '"] textarea');
     if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); ta.scrollIntoView({ block: "nearest" }); }
   };
+
+  /* ---------- 區塊編輯器：本頁筆記、整篇筆記 ----------
+     面板每次重畫都是整個 innerHTML 換掉：編輯器做好一次就留著，重畫時把它的節點搬回新的位置（折疊的狀態、復原記錄都還在），
+     內容有別的來源改了（另一台電腦、AI）就 setValue。 */
+  async function uploadClip(file) {
+    const r = await fetch("/api/p/" + PR.pid + "/clip", { method: "POST", headers: { "Content-Type": file.type || "image/png", "X-Token": PR.token || "" }, body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+    return d.src;
+  }
+  const refs = {
+    get(id) { const n = (S.reader.notes || {})[id]; if (!n || n.deleted) return null; return { title: n.quote || "", body: n.body || "", page: pageOfNote(n) }; },
+    go(id) { if (PR.goToNote) PR.goToNote(id); },
+  };
+  function mount(key, host, value, save, placeholder) {
+    if (!host) return;
+    let ed = editors[key];
+    if (ed && ed.root && ed.root.className.includes("bk")) {
+      ed.root.id = host.id; ed.root.className = host.className + " bk" + (key === "page" ? " compact" : "");
+      for (const k of Object.keys(host.dataset)) ed.root.dataset[k] = host.dataset[k];
+      host.replaceWith(ed.root);
+      ed.rebind(save);
+      ed.setValue(value);
+      return;
+    }
+    ed = editors[key] = PR.blockEditor(host, { value, placeholder, compact: key === "page", onChange: save, upload: uploadClip, refs });
+    ed.on("blur", () => { if (pendingRender) { pendingRender = false; PR.renderNotesPanel(); } });
+    ed.on("ai", (r) => { if (PR.notesAi) PR.notesAi.start(ed, r, key); });
+  }
+  function mountEditors() {
+    const el = panel();
+    const page = el.querySelector("#npPageEd"), paper = el.querySelector("#npPaperEd");
+    if (page) mount("page", page, (((S.reader.page_notes || {})[+page.dataset.page] || {}).body || ""), (md) => {
+      const p = +(editors.page.root.dataset.page || panelPage), cur = (S.reader.page_notes || {})[p] || {};
+      if (md !== (cur.body || "")) PR.commit(Object.assign({ op: "page_note", page: p, body: md }, cur.star ? { star: true } : {}));
+    }, PR.t("這一頁的筆記…"));
+    if (paper) mount("paper", paper, (S.reader.paper_note || {}).body || "", (md) => {
+      if (md !== ((S.reader.paper_note || {}).body || "")) PR.commit({ op: "paper_note", body: md });
+      const tpl = PR.$('#notespanel [data-np-act="template"]');
+      if (tpl) tpl.hidden = !!md.trim();
+      const btns = PR.$("#notespanel .nh-btns");  // 笔记从空变成有内容（或反过来）：“起草稿”换成“点评 / 帮我改”
+      if (btns && (btns.querySelector('[data-nh="draft"]') ? 1 : 0) !== (md.trim() ? 0 : 1)) btns.outerHTML = PR.noteHelpButtons();
+    }, PR.t("整篇的重點、想法、待辦…"));
+  }
 
   /* ---------- 本頁筆記：打字就存；換頁、重畫之前先把還沒存的寫進去 ---------- */
   let pendingPn = null, pnT = null;
@@ -387,6 +436,7 @@
     if (act) {
       const a = act.dataset.npAct;
       if (a === "close") PR.toggleNotesPanel(false);
+      if (a === "popout") PR.notesPopout && PR.notesPopout();
       if (a === "md") PR.openExport();
       if (a === "pedit" || a === "sedit") {
         if (e.target.closest("a, img") || String(getSelection())) return;
@@ -399,10 +449,8 @@
       if (a === "template") {
         const kind = (S.paper.meta || {}).kind;
         PR.commit({ op: "paper_note", body: TEMPLATES[kind === "slides" || kind === "notes" ? "class" : "paper"]() });
-        sumEdit = true;
         PR.renderNotesPanel(null);
-        const ta = PR.$("#paperNote");
-        if (ta) { ta.focus(); const i = ta.value.indexOf("\n") + 1; ta.setSelectionRange(i, i); }
+        if (editors.paper) editors.paper.focus("start");
       }
       if (a === "pprev" || a === "pnext") {
         flushPageNote();

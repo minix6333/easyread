@@ -14,10 +14,11 @@
 <link rel="stylesheet" href="/web/css/reader-chat.css">
 <link rel="stylesheet" href="/web/css/pdfview.css">
 <link rel="stylesheet" href="/web/css/notes.css">
+<link rel="stylesheet" href="/web/css/blocks.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only")</script>
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only");if(/[?&]notes=1(&|$)/.test(location.search))document.documentElement.classList.add("notes-only")</script>
 </head>
 <body>
 <div id="progress" aria-hidden="true"><i></i></div>
@@ -114,6 +115,7 @@
 <script src="/web/js/common/markup.js"></script>
 <script src="/web/js/common/flow.js"></script>
 <script src="/web/js/common/viz.js"></script>
+<script src="/web/js/common/blocks.js"></script>
 <script src="/web/js/reader/store.js"></script>
 <script src="/web/js/reader/undo.js"></script>
 <script src="/web/js/reader/render.js"></script>
@@ -141,8 +143,10 @@
 <script src="/web/js/reader/chat-aside.js"></script>
 <script src="/web/js/reader/chat-doc.js"></script>
 <script src="/web/js/reader/chat-link.js"></script>
+<script src="/web/js/reader/notes-link.js"></script>
 <script src="/web/js/reader/ask.js"></script>
 <script src="/web/js/reader/notehelp.js"></script>
+<script src="/web/js/reader/notes-ai.js"></script>
 <script src="/web/js/reader/jumpback.js"></script>
 <script src="/web/js/reader/keys.js"></script>
 <script src="/web/js/reader/export.js"></script>

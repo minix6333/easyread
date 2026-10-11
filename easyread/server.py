@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -294,6 +294,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._page(WEB / "library.html")
         if path.startswith("/read/"):
             return self._page(WEB / "reader.html")
+        if path.startswith("/note/"):  # 獨立筆記（notes.py）
+            return self._page(WEB / "note.html")
+        if path == "/api/notes":
+            return self._json(200, {"items": notes.listing(lib.root), "token": app.token})
+        if path.startswith("/api/notes/"):
+            n = notes.get(lib.root, path.split("/")[3])
+            if not n:
+                return self._json(404, {"error": tr("沒有這份筆記")})
+            return self._json(200, {**n, "token": app.token})
+        if path.startswith("/n/"):  # 筆記裡貼的圖
+            bits = path.split("/", 3)
+            if len(bits) == 4 and bits[3].startswith("clips/"):
+                return self._file(notes.clip_path(lib.root, bits[2], bits[3][6:]), cache=True)
+            return self._json(404, {"error": "not found"})
         if path == "/open":  # 外部工具打开指定论文/段落；桌面版的 easyread://open 也转到这里 → 交給外殼開成分頁
             target = open_link.target(lib, parse_qs(url.query))
             return self._redirect("/?open=" + quote(target, safe="") if target != "/" else "/")
@@ -455,6 +469,27 @@ class Handler(BaseHTTPRequestHandler):
                 cloudsync.beat(lib.root)
             return self._json(200, {"results": results, "copied": sum(len(r["copied"]) for r in results), "merged": sum(len(r["merged"]) for r in results),
                                     **cloudsync.report(lib.root, sync.status())})
+        if path == "/api/notes":  # 新筆記
+            body = json.loads(self._body() or b"{}")
+            return self._json(200, notes.create(lib.root, str(body.get("title") or ""), str(body.get("body") or ""), body.get("papers")))
+        if path.startswith("/api/notes/"):
+            bits = path.split("/")  # ['', 'api', 'notes', id, action?]
+            nid, action = bits[3], bits[4] if len(bits) > 4 else ""
+            if action == "clip":  # 貼進筆記的圖：請求體是圖片
+                raw = self._body()
+                return self._json(200, {"src": notes.clip(lib.root, nid, raw, self.headers.get("Content-Type") or "")})
+            body = json.loads(self._body() or b"{}")
+            if action == "delete":
+                return self._json(200, {"deleted": notes.delete(lib.root, nid)})
+            if action == "ai":  # 筆記 AI（edit / write），串流
+                n = notes.get(lib.root, nid)
+                if not n:
+                    raise ValueError(tr("沒有這份筆記"))
+                return notehelp.handle_note(self, body, n, notes.note_dir(lib.root, nid))
+            if not action:
+                return self._json(200, notes.save(lib.root, nid, title=body.get("title") if "title" in body else None,
+                                                  body=body.get("body") if "body" in body else None, papers=body.get("papers") if "papers" in body else None))
+            return self._json(404, {"error": "not found"})
         if path == "/api/update":  # 开关“自动检查新版本”
             config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})
             return self._json(200, updates.check())

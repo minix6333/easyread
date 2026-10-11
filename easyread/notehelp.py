@@ -88,6 +88,57 @@ def _paper_text(ws: Workspace) -> str:
     return "\n".join(out)
 
 
+# 筆記 AI（閱讀頁筆記面板最下面那一欄，見 web/js/reader/notes-ai.js）：
+# edit＝讀者選了筆記裡的幾塊，說要怎麼改，只回改好的那幾塊；write＝沒選，照要求寫一段新的，接在筆記最後（或指定的那一塊後面）。
+# 回的是 Markdown 本身，頁面先當「建議」預覽，讀者按採用才換上。
+EDIT_ASK = (
+    "讀者在寫這份文件的筆記，選了其中一段，要你照他的要求改。下面有整份筆記（看上下文和他的寫法）、選中的那一段、他的要求，"  # i18n-ok 提示詞
+    "還有文件本身的內容（要補充、查證時以它為準）。\n"  # i18n-ok 提示詞
+    "只輸出改好的那一段：Markdown，和筆記其他部分同一種寫法（標題層級、清單、行內 $TeX$），不要解釋、不要客套、不要加「以下是…」；"  # i18n-ok 提示詞
+    "他沒要求動的內容照原樣保留（含他自己的措辭）；要刪的就不要輸出。\n"  # i18n-ok 提示詞
+)
+WRITE_ASK = (
+    "讀者在寫這份文件的筆記，要你照他的要求寫一段新的內容，接在他指定的位置。下面有整份筆記（看他寫到哪、他的寫法、別重複寫過的）、"  # i18n-ok 提示詞
+    "他的要求，還有文件本身的內容（以它為準，不要編造）。\n"  # i18n-ok 提示詞
+    "只輸出要加進去的那一段：Markdown，和筆記其他部分同一種寫法（標題層級、清單、行內 $TeX$），簡潔、具體，不要解釋、不要客套。\n"  # i18n-ok 提示詞
+)
+NOTE_BUDGET = 16000  # 整份筆記最多帶幾個字
+
+
+def edit_prompt(ws: Workspace, body: dict, engine: str) -> str:
+    from . import docmap, preread
+    meta = ws.load("paper").get("meta", {})
+    title = meta.get("title_zh") or meta.get("title_en") or ""
+    mode = body.get("mode")
+    note = str(body.get("note") or "")
+    selection = str(body.get("selection") or "")
+    ask = str(body.get("ask") or "").strip()
+    if len(note) > NOTE_BUDGET:
+        note = note[:NOTE_BUDGET // 2] + "\n…（中間略）…\n" + note[-NOTE_BUDGET // 2:]  # i18n-ok 提示詞
+    parts = [f"你在幫讀者寫《{title}》的筆記。用{langs.reply_lang(meta)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK)]  # i18n-ok 提示詞
+    brief = preread.text(ws, budget=6000)
+    if brief:
+        parts.append("這份文件的全文筆記（AI 之前讀完整份寫的，每個部分講什麼、東西在哪一頁）：\n" + brief)  # i18n-ok 提示詞
+    near = docmap.nearby(ws, ask + " " + selection[:400], skip=(), k=3, per=2400)
+    if near:
+        parts.append("文件裡和這次要求最相關的幾頁（抽取的文字，公式和表格可能是亂的）：\n" + near)  # i18n-ok 提示詞
+    try:
+        page = int(body.get("page") or 0)
+    except (TypeError, ValueError):
+        page = 0
+    if page:
+        parts.append(f"讀者現在在第 {page} 頁，這一頁的文字：\n" + chat._page_text(ws, page)[:5000])  # i18n-ok 提示詞
+    parts.append("讀者的整份筆記：\n<<<\n" + (note.strip() or "（還是空的）") + "\n>>>")  # i18n-ok 提示詞
+    if mode == "edit":
+        parts.append("讀者選中、要你改的那一段：\n<<<\n" + selection + "\n>>>")  # i18n-ok 提示詞
+    elif selection:
+        parts.append("要接在這一段後面：\n<<<\n" + selection + "\n>>>")  # i18n-ok 提示詞
+    parts.append("讀者的要求：" + (ask or ("把這一段寫得更清楚、更好讀" if mode == "edit" else "接著寫下一段")))  # i18n-ok 提示詞
+    text = "\n\n".join(parts)
+    code = langs.reply_code(meta)
+    return localize(text if tw.is_tw(code) else tw.to_cn(text), code)
+
+
 def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     meta = ws.load("paper").get("meta", {})
     title = meta.get("title_zh") or meta.get("title_en") or ""
@@ -102,10 +153,12 @@ def handle(handler, ws: Workspace, body: dict) -> None:
     """server.py 里 POST /api/p/<id>/notehelp 调这里；handler 是那次请求的 BaseHTTPRequestHandler。"""
     mode = body.get("mode")
     note = str(body.get("note") or "")[:20000]
-    if mode != "page" and mode not in ASK:
+    if mode not in ("page", "edit", "write") and mode not in ASK:
         raise ValueError(tr("mode 只能是 review / revise / draft"))
     if mode in ("review", "revise") and not note.strip():
         raise ValueError(tr("笔记还是空的"))
+    if mode == "edit" and not str(body.get("selection") or "").strip():
+        raise ValueError(tr("先選要改的那幾塊"))
     ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
     images = []
     if mode == "page":
@@ -121,8 +174,15 @@ def handle(handler, ws: Workspace, body: dict) -> None:
         except Exception:  # noqa: BLE001 圖做不出來就只靠抽取的文字
             log.warning("第 %s 頁的原頁圖做不出來，只用文字寫筆記", page)  # i18n-ok 終端機記錄
         text = page_prompt(ws, page, note, ecfg["engine"], bool(images))
+    elif mode in ("edit", "write"):
+        text = edit_prompt(ws, body, ecfg["engine"])
     else:
         text = prompt(ws, mode, note, ecfg["engine"])
+    return _stream(handler, ecfg, m, text, ws.root, images, langs.reply_code(ws.load("paper").get("meta")))
+
+
+def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str) -> None:
+    """把模型的回答一行一個 JSON 流給頁面：{"model"} {"t": 片段}… {"done": true} 或 {"error"}。"""
     handler.send_response(200)
     handler.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
     handler.send_header("Cache-Control", "no-store")
@@ -136,8 +196,8 @@ def handle(handler, ws: Workspace, body: dict) -> None:
         handler.wfile.flush()
     try:
         send({"model": chat_models.label(m)})
-        guard = tw.Stream(tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))))  # 繁體保險
-        for piece in chat.stream(ecfg, text, ws.root, cancel, images=images):
+        guard = tw.Stream(tw.is_tw(code))  # 繁體保險
+        for piece in chat.stream(ecfg, text, cwd, cancel, images=images):
             piece = guard.feed(piece)
             if piece:
                 send({"t": piece})
@@ -150,8 +210,39 @@ def handle(handler, ws: Workspace, body: dict) -> None:
     except engines.Cancelled:
         pass
     except Exception as e:  # noqa: BLE001
-        log.exception("笔记帮手出错 %s", ws.id)
+        log.exception("笔记帮手出错 %s", cwd)
         try:
             send({"error": str(e)[:500]})
         except OSError:
             pass
+
+
+# ---------- 獨立筆記（notes.py）的 AI：沒有文件可以對照，只看筆記本身 ----------
+def note_prompt(note: dict, body: dict) -> str:
+    mode = body.get("mode")
+    md = str(body.get("note") if body.get("note") is not None else note.get("body") or "")
+    selection = str(body.get("selection") or "")
+    ask = str(body.get("ask") or "").strip()
+    if len(md) > NOTE_BUDGET:
+        md = md[:NOTE_BUDGET // 2] + "\n…（中間略）…\n" + md[-NOTE_BUDGET // 2:]  # i18n-ok 提示詞
+    title = str(note.get("title") or "")
+    parts = [f"你在幫讀者寫一份筆記《{title}》。用{langs.reply_lang(None)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK).replace("，還有文件本身的內容（要補充、查證時以它為準）", "").replace("，還有文件本身的內容（以它為準，不要編造）", "")]  # i18n-ok 提示詞
+    parts.append("讀者的整份筆記：\n<<<\n" + (md.strip() or "（還是空的）") + "\n>>>")  # i18n-ok 提示詞
+    if mode == "edit":
+        parts.append("讀者選中、要你改的那一段：\n<<<\n" + selection + "\n>>>")  # i18n-ok 提示詞
+    elif selection:
+        parts.append("要接在這一段後面：\n<<<\n" + selection + "\n>>>")  # i18n-ok 提示詞
+    parts.append("讀者的要求：" + (ask or ("把這一段寫得更清楚、更好讀" if mode == "edit" else "接著寫下一段")))  # i18n-ok 提示詞
+    text = "\n\n".join(parts)
+    code = langs.reply_code(None)
+    return localize(text if tw.is_tw(code) else tw.to_cn(text), code)
+
+
+def handle_note(handler, body: dict, note: dict, cwd) -> None:
+    mode = body.get("mode")
+    if mode not in ("edit", "write"):
+        raise ValueError(tr("mode 只能是 edit / write"))
+    if mode == "edit" and not str(body.get("selection") or "").strip():
+        raise ValueError(tr("先選要改的那幾塊"))
+    ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
+    return _stream(handler, ecfg, m, note_prompt(note, body), cwd, [], langs.reply_code(None))

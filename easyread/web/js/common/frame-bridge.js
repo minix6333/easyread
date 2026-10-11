@@ -9,7 +9,7 @@
   /* 到某個網址：被框住就請外殼開分頁，不然照常跳轉 */
   PR.navigate = function (url) {
     const u = new URL(url, location.href);
-    if (framed && u.origin === location.origin && u.pathname.startsWith("/read/")) { post({ type: "open", url: u.pathname + u.search + u.hash }); return true; }
+    if (framed && u.origin === location.origin && /^\/(read|note)\//.test(u.pathname)) { post({ type: "open", url: u.pathname + u.search + u.hash }); return true; }
     if (framed && u.origin === location.origin && (u.pathname === "/" || u.pathname === "/library")) { post({ type: "home", url: "/library" + u.search + u.hash }); return true; }
     location.href = url;
     return false;
@@ -20,7 +20,7 @@
     if (!a || e.defaultPrevented || e.button !== 0 || a.target === "_blank" || a.hasAttribute("download")) return;
     let u;
     try { u = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
-    if (u.origin !== location.origin || !(u.pathname.startsWith("/read/") || u.pathname === "/" || u.pathname === "/library")) return;
+    if (u.origin !== location.origin || !(/^\/(read|note)\//.test(u.pathname) || u.pathname === "/" || u.pathname === "/library")) return;
     e.preventDefault();
     PR.navigate(u.href);
   }, true);

@@ -116,7 +116,7 @@
         capture();
       } else if (m.type === "pong") docked();
       else if (m.type === "bye") undock(!!m.dock, m.thread);
-      else if (m.type === "go") { if (m.anchor && PR.blockById[m.anchor]) PR.jumpTo("b-" + m.anchor); else if (m.page && PR.openPage) PR.openPage(+m.page); window.focus(); }
+      else if (m.type === "go") { if (m.note && PR.goToNote) PR.goToNote(m.note); else if (m.anchor && PR.blockById[m.anchor]) PR.jumpTo("b-" + m.anchor); else if (m.page && PR.openPage) PR.openPage(+m.page); window.focus(); }
       else if (m.type === "clear-sel") paintHighlight(null);
       else if (m.type === "changed") PR.poll && PR.poll();
     };

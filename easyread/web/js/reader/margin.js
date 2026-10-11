@@ -90,7 +90,7 @@
       : isQ ? (answered ? act("followup", "message", PR.t("追问 AI")) : act("ask", "sparkle", PR.t("让 AI 回答"))) : act("ask", "sparkle", PR.t("让 AI 点评"));
     const head = '<div class="hd"><span class="ic">' + PR.icon(isQ ? "help" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
       (page ? '<span class="where">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
-      (editing ? "" : '<span class="acts">' + askBtn + act("link", "link", PR.t("建立關聯")) + act("edit", "edit", PR.t("编辑")) + act("del", "trash", PR.t("删除")) + "</span>") + "</div>";
+      (editing ? "" : '<span class="acts">' + askBtn + act("toref", "notebook", PR.t("加進總結：放一張收起來的出處卡，點它跳回這裡")) + act("link", "link", PR.t("建立關聯")) + act("edit", "edit", PR.t("编辑")) + act("del", "trash", PR.t("删除")) + "</span>") + "</div>";
     // 關聯的筆記：一排小標籤，點了跳過去，× 取消關聯
     const links = (d.links || []).map((id) => noteById(id)).filter((x) => x && !x.deleted);
     const linksHtml = links.length ? '<div class="links">' + links.map((x) => '<span class="lk"><button data-a="goto" data-to="' + PR.esc(x.id) + '" title="' + PR.t("看這條關聯的筆記") + '">' + PR.icon("link", "sm") +
@@ -407,6 +407,7 @@
     const rerender = () => (inSticky ? PR.openSticky(nid, { edit: true }) : inMargin ? PR.editInMargin(nid) : inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
     // 關聯：建立（進入選取模式）、跳過去、取消
     if (nid && a && a.dataset.a === "link") { PR.linkFrom && PR.linkFrom(nid); return true; }
+    if (nid && a && a.dataset.a === "toref") { PR.noteRefMenu && PR.noteRefMenu(a, nid); return true; }
     if (a && a.dataset.a === "goto") { PR.goToNote && PR.goToNote(a.dataset.to); return true; }
     if (nid && a && a.dataset.a === "unlink") { PR.unlinkNotes && PR.unlinkNotes(nid, a.dataset.to); return true; }
     if (a && a.dataset.a === "more") {

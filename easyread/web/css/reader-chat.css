@@ -237,3 +237,7 @@ body.ch-open #chatpanel { transform: none; }
 html.chat-only :is(#progress, #bar, #drawer, #scrim, #stage, #pageview, #notespanel, #selbar, #blockbar, .panel-grip, .jumpback) { display: none !important; }
 html.chat-only body { overflow: hidden; }
 html.chat-only #chatpanel { inset: 0; width: 100%; transform: none; border-left: 0; transition: none; }
+/* 筆記的獨立視窗（notes-link.js）：和問 AI 的一樣只留面板 */
+html.notes-only :is(#progress, #bar, #drawer, #scrim, #stage, #pageview, #chatpanel, #selbar, #blockbar, .panel-grip, .jumpback) { display: none !important; }
+html.notes-only body { overflow: hidden; }
+html.notes-only #notespanel { inset: 0; width: 100%; transform: none; border-left: 0; transition: none; }

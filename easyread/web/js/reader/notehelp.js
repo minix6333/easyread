@@ -5,7 +5,7 @@
   const S = PR.state;
   const NAMES = { review: PR.t("AI 点评"), revise: PR.t("AI 改过的笔记"), draft: PR.t("AI 起的草稿") };
   const ai = { mode: null, text: "", model: "", streaming: false, error: "", ctrl: null };
-  const noteNow = () => { const ta = PR.$("#paperNote"); return ta ? ta.value : (S.reader.paper_note || {}).body || ""; };
+  const noteNow = () => { const ed = PR.notesEditor && PR.notesEditor("paper"); return ed ? ed.getValue() : (S.reader.paper_note || {}).body || ""; };
 
   PR.noteHelpOn = () => PR.store.mode === "server" && PR.feature("chat") && PR.canChat && PR.canChat();
 
@@ -69,9 +69,10 @@
   }
 
   function setNote(body) {
-    const ta = PR.$("#paperNote");
-    if (ta) ta.blur();
+    const ed = PR.notesEditor && PR.notesEditor("paper");
+    if (ed) ed.blur();
     PR.commit({ op: "paper_note", body });
+    if (ed) ed.setValue(body);
     ai.mode = null;
     PR.renderNotesPanel();
   }

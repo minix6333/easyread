@@ -1,0 +1,17 @@
+/* 獨立筆記的頁面（note.html）：一欄置中、大標題、區塊編輯器，最下面浮一欄筆記 AI */
+body.note-page { background: var(--bg); }
+.note-main { max-width: 760px; margin: 0 auto; padding: calc(var(--bar-h) + 40px) 28px 160px; }
+.note-title { display: block; width: 100%; margin: 0 0 14px; padding: 0 0 0 26px; border: 0; outline: 0; resize: none; overflow: hidden; background: transparent; font: 700 30px/1.25 var(--read-zh, var(--ui)); letter-spacing: -.01em; color: var(--ink); }
+.note-title::placeholder { color: var(--ink-3); opacity: .7; }
+.note-page .bk { font-size: 16px; }
+.note-page .bk-list { padding-bottom: 20vh; }
+.note-state { display: inline-flex; align-items: center; height: 30px; padding: 0 6px; }
+.note-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); transition: background var(--dur-fast); }
+.note-state[data-s="saving"] i { background: var(--gold); }
+.note-state[data-s="error"] i { background: var(--danger); }
+.note-ai { position: fixed; left: 50%; bottom: 18px; z-index: 30; width: min(760px, calc(100vw - 32px)); transform: translateX(-50%); }
+.note-ai .nai { margin: 0; }
+.note-ai .nai-box { -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); background: color-mix(in srgb, var(--surface) 86%, transparent); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow-lg); }
+.note-ai .nai-quick { justify-content: center; }
+.note-ai .nai-quick button { background: color-mix(in srgb, var(--surface) 80%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 0 0 .5px var(--rule-2); }
+@media (max-width: 600px) { .note-main { padding-left: 14px; padding-right: 14px; } .note-title { font-size: 24px; } }

@@ -142,6 +142,11 @@
       h += '<h3>' + PR.t("最近阅读") + '</h3><div class="sgroup">' + shown.map((i) => paperRow(i)).join("") +
         (recent.length > RECENT_SHORT ? '<button class="srow toggle-more" data-recent>' + (ui.recentOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: Math.min(recent.length, RECENT_MAX) - RECENT_SHORT })) + "</button>" : "") + "</div>";
     }
+    const notes = L.notes || [];  // 獨立筆記（/api/notes）
+    h += '<h3>' + PR.t("筆記") + '<button class="h-add" data-newnote title="' + PR.t("新筆記") + '">' + PR.icon("plus", "sm") + '</button></h3><div class="sgroup">' +
+      notes.slice(0, ui.notesOpen ? 40 : 6).map((n) => '<a class="srow recent" href="/note/' + PR.esc(n.id) + '" title="' + PR.esc(n.preview || "") + '">' + PR.icon("notebook", "sm") + '<span class="t">' + PR.esc(n.title || PR.t("未命名筆記")) + "</span></a>").join("") +
+      (notes.length > 6 ? '<button class="srow toggle-more" data-notes-more>' + (ui.notesOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: notes.length - 6 })) + "</button>" : "") +
+      (!notes.length ? '<button class="srow hint-row" data-newnote>' + PR.icon("plus", "sm") + '<span class="t">' + PR.t("新筆記：不掛在哪一篇底下的") + "</span></button>" : "") + "</div>";
     if (L.trashCount) h += '<div class="sgroup side-trash"><button class="srow" data-trash>' + PR.icon("trash", "sm") + '<span class="t">' + PR.t("回收站") + '</span><span class="n">' + L.trashCount + "</span></button></div>";
     box.innerHTML = h;
     const inp = PR.$(".side-input", box);
@@ -268,5 +273,18 @@
       if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c) }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
       else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(c) }));
     }
+  });
+  /* 新筆記：建好直接開；外殼裡開成分頁 */
+  document.addEventListener("click", async (e) => {
+    const more = e.target.closest("#side [data-notes-more]");
+    if (more) { ui.notesOpen = !ui.notesOpen; return PR.renderSide(); }
+    const b = e.target.closest("#side [data-newnote]");
+    if (!b) return;
+    e.preventDefault();
+    try {
+      const n = await PR.api("/api/notes", { method: "POST", body: {} });
+      (L.notes = L.notes || []).unshift(n);
+      if (PR.navigate) PR.navigate("/note/" + n.id); else location.href = "/note/" + n.id;
+    } catch (err) { PR.toast(PR.t("沒建成：{msg}", { msg: PR.esc(err.message) })); }
   });
 })(window.PR);
