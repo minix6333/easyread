@@ -211,13 +211,16 @@
     loadNearby(pvPage); updatePageLabel();
     highlightBlock(pvPage, blockId);
     const loc = blockId && S.layout[blockId];
+    let top;
     if (loc && loc.page === pvPage) {
       const boxes = boxesOf(loc);
       const [, y0, , y1] = boxes[0];
-      scroller.scrollTo({ top: Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2), behavior });
+      top = Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2);
     } else {
-      scroller.scrollTo({ top: Math.max(0, pageTop(node) - 18), behavior });
+      top = Math.max(0, pageTop(node) - 18);
     }
+    scroller.scrollTo({ top, behavior });
+    PR.pdfSpotAt && PR.pdfSpotAt(top, behavior === "smooth");  // 「讀到哪裡」馬上換成這裡（pdfmode.js）：跳頁的同時版面變了，才不會被捲回原處
   }
 
   /* 译文里和原页框对应的那段也标出来（同一个颜色），一眼看出左右是哪两段 */

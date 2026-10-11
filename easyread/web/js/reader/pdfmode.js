@@ -40,10 +40,10 @@
   const pageW = () => { const n = PR.pageNodes ? PR.pageNodes() : []; return n.length ? n[0].node.offsetWidth : 0; };
   let spot = null, spotW = 0, spotHold = 0;
   /* at：畫面上的哪個高度（距捲動區頂端幾像素）；不給就是上三分之一處。縮放時給游標的位置——那一點要留在游標下 */
-  function capture(at) {
+  function capture(at, top) {  // top：假設捲到這個位置（不給就是現在的位置）
     const sc = PR.$(".pv-scroll"), nodes = PR.pageNodes ? PR.pageNodes() : [];
     if (!sc || !nodes.length || !sc.clientHeight || !nodes[0].node.offsetHeight) return null;
-    const y = sc.scrollTop + (at == null ? sc.clientHeight / 3 : at);
+    const y = (top == null ? sc.scrollTop : Math.max(0, Math.min(top, sc.scrollHeight - sc.clientHeight))) + (at == null ? sc.clientHeight / 3 : at);
     let i = 0;
     for (let lo = 0, hi = nodes.length - 1; lo <= hi;) {  // 最後一個頂端在 y 以上的頁
       const mid = (lo + hi) >> 1;
@@ -63,12 +63,23 @@
     restore(s);
     spotW = pageW();
   }
+  /* 程式自己要捲去某個位置（翻到某一頁、跳到某一段，pageview.js 的 showPage）時叫：馬上以那個位置為準。
+     不能等捲動事件——它下一格才來，這中間要是版面寬度變了（跳頁的同時開了面板、釘了導覽欄），會照舊的位置捲回去，等於沒跳。
+     smooth：平滑捲動途中的捲動事件不要把目標換掉（使用者自己動了滾輪就不管了，見下面） */
+  PR.pdfSpotAt = function (top, smooth) {
+    const s = capture(null, top);
+    if (!s) return;
+    spot = s; spotW = pageW();
+    spotHold = smooth ? performance.now() + 700 : 0;
+  };
   (function watchSpot() {
     const sc = PR.$(".pv-scroll");
     if (!sc) return;
     let raf = 0;
     // 縮放剛定好位置的那一下（spotHold）不換：那是程式捲的，換掉就變成記上三分之一處、不是游標那一點了
     sc.addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (performance.now() < spotHold) return; const s = capture(); if (s) spot = s; }); }, { passive: true });
+    // 使用者自己捲了（不是捏合縮放——那個是對著游標定位的）：馬上回到照實際位置記
+    ["wheel", "touchstart", "pointerdown", "keydown"].forEach((t) => sc.addEventListener(t, (e) => { if (!e.ctrlKey) spotHold = 0; }, { passive: true }));
     if (!window.ResizeObserver) return;
     const ro = new ResizeObserver(() => {  // 版面已經排好、還沒畫出來：這時候捲回去，畫面上看不到跳
       const w = pageW();
