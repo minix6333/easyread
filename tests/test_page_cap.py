@@ -26,6 +26,9 @@ class PageCapTest(unittest.TestCase):
                   patch("easyread.translate.netcheck.problem", return_value=""),
                   patch("easyread.translate.pdfwork.locate"),
                   patch("easyread.translate.tex_problems", return_value=[]),
+                  # 排程裡會在背景開「預讀整份」（preread.auto）：有文字的假論文真的會起一條執行緒去叫模型，
+                  # 測試收尾刪暫存資料夾時它還在寫 brief.json（CI 上偶爾撞到：Directory not empty）。預讀有自己的測試（test_preread.py）
+                  patch("easyread.jobs.preread.auto", return_value=False),
                   patch("easyread.i18n.lang", return_value="zh")):
             p.start()
             self.addCleanup(p.stop)

@@ -23,6 +23,9 @@ class JobsTest(unittest.TestCase):
         write_json_atomic(self.ws.paper_path, {"meta": {"pages": [{"n": 1}], "page_count": 1}})
         with patch("easyread.jobs.threading.Thread.start"):
             self.jobs = Jobs(self.lib)
+        auto = patch("easyread.jobs.preread.auto", return_value=False)  # 排程的測試不開背景的「預讀整份」（見 test_page_cap.py 的說明）
+        auto.start()
+        self.addCleanup(auto.stop)
 
     def drain(self, small=False):
         queue = self.jobs.small if small else self.jobs.bulk
