@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .chat_models import DEFAULT_CHAT
 from .presets import PRESET_GROUPS, PRESETS  # noqa: F401
-from .store import read_json, write_json_atomic
+from .store import read_json_lenient, write_json_atomic
 
 PACKAGE = Path(__file__).resolve().parent
 WEB = PACKAGE / "web"
@@ -57,7 +57,9 @@ def is_first_run() -> bool:
 
 
 def _saved() -> dict:
-    raw = read_json(CONFIG_PATH, {}) or {}
+    raw = read_json_lenient(CONFIG_PATH, {}) or {}  # 壞了就救、救不回來用預設值（原檔會另存一份），不能讓每個請求都報錯
+    if not isinstance(raw, dict):
+        raw = {}
     if raw.get("concurrency_v") != 2 and raw.get("concurrency") == 1:
         # 以前默认 1，而且切到本机 CLI 时设置页会强制改回 1，旧配置里的 1 多半不是自己选的：当成自动。
         # 存过一次之后带上 concurrency_v，再选 1 就是真的要一段一段译

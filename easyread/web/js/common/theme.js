@@ -12,15 +12,7 @@ window.PR = window.PR || {};
   }
 
   PR.toggleTheme = function () {
-    const next = dark() ? "light" : "dark";
-    if (PR.setPref && PR.prefs) PR.setPref("theme", next);  // 閱讀頁：和 Aa 面板裡的主題是同一個設定
-    else {
-      const p = PR.ls.get("easyread-prefs", {});
-      p.theme = next;
-      PR.ls.set("easyread-prefs", p);
-      PR.applyTheme(next);
-      if (PR.savePrefs) PR.savePrefs("reader", { theme: next });
-    }
+    PR.setTheme(dark() ? "light" : "dark");  // 寫進共用的那一份、存檔、套用都在 util.js 的 PR.setTheme
     PR.$$(".theme-btn").forEach(paint);
   };
 

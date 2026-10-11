@@ -104,27 +104,34 @@ window.PR = window.PR || {};
 
   /* 偏好存到本机数据目录的 prefs.json（换浏览器、清缓存都还在）；localStorage 只当缓存。离线单文件版没有服务，只用缓存。 */
   let prefQueue = {}, prefT = null;
-  PR.savePrefs = function (section, obj) {
+  /* now：不等那 0.7 秒，馬上送（換主題這種一下就定的；拉滑桿那種連續的還是等一下） */
+  PR.savePrefs = function (section, obj, now) {
     prefQueue[section] = Object.assign(prefQueue[section] || {}, obj);
     clearTimeout(prefT);
-    prefT = setTimeout(flushPrefs, 700);
+    if (now) flushPrefs(); else prefT = setTimeout(flushPrefs, 700);
   };
   function flushPrefs(leaving) {
     clearTimeout(prefT);
     if (!PR.token || location.protocol === "file:" || !Object.keys(prefQueue).length) return;
     const body = prefQueue; prefQueue = {};
+    // 主題、外觀是整個 App 共用的：這一格排著要存的可能是舊的（排進去之後別格才改的），送出去之前對到最新，舊的才不會蓋掉新的
+    if (body.reader && PR.sharedPrefs) { const cur = PR.sharedPrefs(); for (const k in cur) if (k in body.reader) body.reader[k] = cur[k]; }
     if (leaving) {  // 关页面、刷新时：keepalive 让请求在页面走掉后也能发完
       fetch("/api/prefs", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-Token": PR.token }, body: JSON.stringify(body) }).catch(() => {});
     } else PR.api("/api/prefs", { method: "POST", body }).catch(() => { /* 下次改动再存 */ });
   }
   window.addEventListener("pagehide", () => flushPrefs(true));
+  PR.flushPrefs = () => flushPrefs();
   PR.loadPrefs = async function () {
     if (location.protocol === "file:") return {};
     try {
       const p = await PR.api("/api/prefs");
       if (p.reader) {
         PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), p.reader));
-        PR.applyLook && PR.applyLook();     // 伺服器存的和這台瀏覽器快取的不一樣時（換了瀏覽器、清過快取）：外觀馬上跟上
+        // 伺服器存的和這台瀏覽器快取的不一樣時（換了瀏覽器、清過快取）：主題、外觀馬上跟上，記憶裡的那份也對過去
+        PR.pullShared && PR.pullShared();
+        PR.applyTheme && PR.sharedPrefs && PR.applyTheme(PR.sharedPrefs().theme);
+        PR.applyLook && PR.applyLook();
         PR.glassSync && PR.glassSync();
       }
       if (p.keys) PR.ls.set("easyread-keys", Object.fromEntries(Object.entries(p.keys).filter(([, v]) => v !== null)));
@@ -249,7 +256,7 @@ window.PR = window.PR || {};
     p[key] = v;
     PR.ls.set("easyread-prefs", p);
     if (PR.prefs) PR.prefs[key] = v;
-    if (PR.savePrefs) PR.savePrefs("reader", { [key]: v });
+    if (PR.savePrefs) PR.savePrefs("reader", { [key]: v }, key !== "tint" && key !== "hl");  // 滑桿（染色、濃度）拉的時候一直在變：等停了再存
     PR.applyLook();
   };
   PR.setAccent = (a) => PR.setLook("accent", a);
@@ -270,7 +277,7 @@ window.PR = window.PR || {};
     PR.setLook("backdropV", r.v);
     PR.setLook("backdrop", "image");
   };
-  /* 主題也是點了就換、馬上存（設定 → 外觀、文獻庫的「⋯」、閱讀頁的 Aa 都走這裡） */
+  /* 主題也是點了就換、馬上存（設定 → 外觀、文獻庫的「⋯」、閱讀頁的 Aa 都走這裡）。先寫 localStorage 再套：那是共用的那一份 */
   PR.setTheme = function (theme) {
     theme = theme === "dark" || theme === "light" ? theme : "auto";
     if (PR.setPref && PR.prefs) return PR.setPref("theme", theme);  // 閱讀頁：和 Aa 面板裡的主題是同一個設定，走它那條路
@@ -278,7 +285,7 @@ window.PR = window.PR || {};
     p.theme = theme;
     PR.ls.set("easyread-prefs", p);
     if (PR.prefs) PR.prefs.theme = theme;
-    if (PR.savePrefs) PR.savePrefs("reader", { theme });
+    if (PR.savePrefs) PR.savePrefs("reader", { theme }, true);
     PR.applyTheme(theme);
   };
   /* 標誌：一張文件加一道勾（單色線條，顏色由 CSS 的 .mark / .hero 給，預設是強調色） */
@@ -315,14 +322,57 @@ window.PR = window.PR || {};
     return data;
   };
 
-  /* 主题：文献库和阅读页共用 */
+  /* ---------- 主題和外觀：整個 App 共用，以 localStorage 的 easyread-prefs 為準 ----------
+     外殼裡的每一格（iframe）、每個視窗各有自己的記憶（閱讀頁的 PR.prefs）。以前各套各的：別格換了主題，這一格的記憶沒跟上，
+     之後它一「重新套用設定」就把舊的主題套回去、還存起來，另一格發現又套回來——兩格記的不一樣就互相蓋個沒完，
+     整個視窗一秒閃幾千次（2.1.0-tw.5）。規矩：
+     - 只有使用者改了才寫（PR.setTheme／PR.setLook／閱讀頁的 PR.setPref），而且先寫 localStorage 再套；
+     - 別格改了（storage 事件）：跟上、把記憶對過去，不寫任何東西；
+     - 系統外觀變了：主題是「跟隨系統」才重算，一樣不寫；明確選了淺色／深色的不理它；
+     - 閱讀頁重新套用設定（applyPrefs）之前先 PR.pullShared()，記憶裡過期的值套不回去。
+     scripts/theme_loop_check.cjs 會開外殼＋兩份文件實際換一遍，數有沒有在閃。 */
+  PR.SHARED_PREFS = ["theme", "accent", "paper", "backdrop", "backdropV", "tint", "hl", "glass", "clear"];
+  PR.sharedPrefs = function () {
+    const s = PR.ls.get("easyread-prefs", {}) || {}, o = {};
+    for (const k of PR.SHARED_PREFS) if (s[k] !== undefined) o[k] = s[k];
+    return o;
+  };
+  PR.pullShared = function () { if (PR.prefs) Object.assign(PR.prefs, PR.sharedPrefs()); };
+
+  let sentSource = null, flipTimes = [], frozenUntil = 0;
   PR.applyTheme = function (theme) {
     const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    // 桌面版：視窗的半透明材質要跟著亮暗（只有最外層那一頁拿得到橋；iframe 裡改了主題，外殼靠下面的 storage 事件跟上）
-    try { const d = window.easyreadDesktop; if (d && d.setTheme) d.setTheme(theme === "dark" || theme === "light" ? theme : "system"); } catch (e) { /* 不是桌面版 */ }
+    const next = dark ? "dark" : "light", root = document.documentElement;
+    if (root.dataset.theme !== next) {
+      // 保險絲：正常用不可能兩秒內換十幾次。真的發生就是哪裡又在互相蓋：停三秒不跟，畫面不會一直閃
+      const now = Date.now();
+      if (now < frozenUntil) return;
+      flipTimes = flipTimes.filter((t) => now - t < 2000);
+      flipTimes.push(now);
+      if (flipTimes.length > 16) { frozenUntil = now + 3000; flipTimes = []; console.warn("theme is flipping back and forth; pausing"); return; }
+      root.dataset.theme = next;
+    }
+    // 桌面版：視窗的材質、系統畫的東西要跟著亮暗（只有最外層那一頁拿得到橋；iframe 裡改了主題，外殼靠 storage 事件跟上）。同一個值只送一次
+    try {
+      const d = window.easyreadDesktop, src = theme === "dark" || theme === "light" ? theme : "system";
+      if (d && d.setTheme && src !== sentSource) { sentSource = src; d.setTheme(src); }
+    } catch (e) { /* 不是桌面版 */ }
   };
-  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") { PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); PR.applyLook && PR.applyLook(); } });
+  addEventListener("storage", (e) => {
+    if (e.key !== "easyread-prefs") return;
+    const s = PR.sharedPrefs();
+    PR.pullShared();
+    PR.applyTheme(s.theme);
+    PR.applyLook && PR.applyLook();
+    PR.emit && PR.emit("shared-prefs", s);  // 閱讀頁的 Aa 開著的話，選中的那一格跟上
+  });
+  if (typeof matchMedia === "function") {
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      const t = (PR.ls.get("easyread-prefs", {}) || {}).theme;
+      if (t !== "dark" && t !== "light") PR.applyTheme("auto");
+    });
+    PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme);  // 一載入就對一次：最外層那一頁順便告訴桌面版現在是亮是暗（視窗材質要一致）
+  }
 
   /* 简单事件总线 */
   const subs = {};

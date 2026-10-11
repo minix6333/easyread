@@ -6,7 +6,13 @@
   /* ---------- 阅读 ---------- */
   /* 排版：和阅读页 Aa 面板是同一份设置，这里多一个“恢复默认” */
   function typeHtml(s) {
-    if (!s.type) s.type = Object.assign({}, PR.TYPE_DEFAULTS, PR.ls.get("easyread-prefs", {}));
+    if (!s.type) {
+      // 只拿這一頁會改的那幾樣（排版＋打開時顯示什麼）。以前是把整份偏好都複製下來，按儲存時整份寫回去：
+      // 對話框開著的時候在「外觀」換了主題，一按完成就被這份舊的蓋回去（還連帶把縮放、版面這些也倒回去）
+      const cur = PR.ls.get("easyread-prefs", {}) || {};
+      s.type = Object.assign({}, PR.TYPE_DEFAULTS);
+      for (const k of Object.keys(PR.TYPE_DEFAULTS).concat(["mode", "lead"])) if (cur[k] !== undefined) s.type[k] = cur[k];
+    }
     const t = Object.assign({ view: s.type.mode === "bi" ? "both" : s.type.lead === "original" ? "original" : "translation" }, s.type), range = (a, b, step) => { const out = []; for (let v = a; v <= b + 1e-9; v += step) out.push([+v.toFixed(2), +v.toFixed(2)]); return out; };
     const sel = (key, label, list) => '<label class="field"><span>' + label + '</span><select class="input" data-type="' + key + '">' + PR.opt(list, t[key]) + "</select></label>";
     return '<h4 class="set-h">' + PR.t("排版") + '</h4><div class="settings-sec grid3">' +
@@ -26,7 +32,7 @@
   }
   T.look = {
     render(s) {
-      const k = PR.look(), theme = s.theme === "dark" || s.theme === "light" ? s.theme : "auto";
+      const now = PR.sharedPrefs().theme, k = PR.look(), theme = now === "dark" || now === "light" ? now : "auto";  // 現在實際的主題（不是開對話框時記下的）
       const row = (label, body, cls) => '<div class="look-row' + (cls ? " " + cls : "") + '"><span>' + label + "</span>" + body + "</div>";
       return '<div class="look">' +
         '<div class="look-prev" aria-hidden="true"><div class="lp-canvas"><div class="lp-sheet"><div class="lp-top"><b>Finetuning with Sampling</b><i class="lp-ai">' + PR.icon("sparkle", "sm") + PR.t("問 AI") + "</i></div><p>" +

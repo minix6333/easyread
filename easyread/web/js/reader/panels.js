@@ -19,6 +19,7 @@
   };
   PR.prefs = Object.assign({}, DEF, PR.migratePrefs(PR.ls.get("easyread-prefs", {})));
   PR.applyPrefs = function () {
+    PR.pullShared();  // 主題、外觀以 localStorage 為準（別格可能剛改過）：這一格記憶裡過期的值不能套回去、更不能存回去（util.js 的說明）
     const p = PR.prefs, root = document.documentElement;
     root.style.setProperty("--fs", p.fs + "px");
     root.style.setProperty("--lh", p.lh);
@@ -42,14 +43,18 @@
     PR.ls.set("easyread-prefs", Object.assign(PR.migratePrefs(PR.ls.get("easyread-prefs", {})), p));
     if (PR.store.mode === "server") PR.savePrefs("reader", p);
   };
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => PR.applyPrefs());
+  // 系統外觀變了由 util.js 處理（只有「跟隨系統」時重算主題）。以前這裡整個 applyPrefs 一次——連存檔一起，是換主題會閃個不停的一環
+  PR.on("shared-prefs", () => { if (PR.$("#settings").classList.contains("open")) PR.renderSettings(); });
   const relayout = PR.debounce(() => { PR.fitWide(); PR.renderMargin(); PR.syncPage && PR.syncPage(true); }, 60);
   PR.setPref = function (k, v, quiet) {
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;
+    const shared = PR.SHARED_PREFS.includes(k);
+    if (shared) { const s = PR.ls.get("easyread-prefs", {}) || {}; s[k] = v; PR.ls.set("easyread-prefs", s); }  // 共用的先寫進 localStorage（applyPrefs 會從那裡拿回來）
     PR.prefs[k] = v;
     PR.applyPrefs();
+    if (shared) PR.flushPrefs();  // 換主題馬上存，別等 0.7 秒
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 调字号时阅读位置不跳
     if (!quiet) PR.renderSettings();
     else syncSettings();
@@ -188,13 +193,15 @@
   let pinned = !!PR.ls.get("easyread-nav", false), over = false;
   const inspW = () => { const p = PR.$("#notespanel"); return body.classList.contains("side-open") && body.classList.contains("insp-col") && p ? p.offsetWidth : 0; };
   // 釘成一欄之後，文件那一格至少還要有 640（開著譯文時 PDF＋譯文要 800）
-  const navCol = () => !!(PR.pdfMain && PR.pdfMain()) && !PR.chatOnly && !PR.notesOnly && innerWidth - inspW() - NAV_W >= (body.classList.contains("art-open") ? 800 : 640);
+  // 文件還沒載進來（剛開頁面的那一下）不算：那時候沒有目錄可以畫
+  const navCol = () => !!S.paper && !!(PR.pdfMain && PR.pdfMain()) && !PR.chatOnly && !PR.notesOnly && innerWidth - inspW() - NAV_W >= (body.classList.contains("art-open") ? 800 : 640);
   const navShown = () => body.classList.contains("nav-open") || body.classList.contains("drawer-open");
   PR.navWidth = () => (body.classList.contains("nav-open") ? NAV_W : 0);
   let navT = 0;
   /* redraw：內容要重畫（自己按了開關、換了分頁）。別的原因叫進來的（版面的 class 變了、視窗大小變了）只在「剛出現」時畫一次——
      不然每次開關右側面板都把整欄重畫一遍：縮圖閃一下、術語表打到一半的字也沒了 */
   function syncNav(redraw) {
+    if (!S.paper) return;  // 文件載好才動（開頁面時 body 的 class 就在變，那時候來叫的先不理；載好之後 rendered／pages-built 會再叫）
     const col = navCol(), was = body.classList.contains("nav-open"), shown = navShown(), now = col && pinned;
     body.classList.toggle("nav-col", col);
     body.classList.toggle("nav-open", now);
@@ -229,9 +236,13 @@
   // 版面變了（開關右側面板、譯文、換版面）、視窗大小變了：放不放得下重新算
   new MutationObserver(() => syncNav(false)).observe(body, { attributes: true, attributeFilter: ["class"] });
   addEventListener("resize", PR.debounce(() => syncNav(false), 120));
-  PR.on("pages-built", () => setTimeout(() => syncNav(false), 0));  // PDF 那一格準備好了：上次釘著的欄這時候才出來
+  // 文件載好、畫好了：上次釘著的欄這時候才出來，內容照現在的文件畫。
+  // 2.1.0-tw.5 沒等：釘著欄再開文件，文件還沒載進來就去畫（出錯），之後又以為「已經出現過」不再畫，欄是空的
+  PR.on("pages-built", () => setTimeout(() => syncNav(true), 0));
+  PR.on("rendered", () => syncNav(true));
 
   PR.renderDrawer = function () {
+    if (!S.paper) return;
     const m = S.paper.meta || {}, n = (m.pages || []).length, first = (m.pages || [])[0];
     // 「頁面」：還沒有頁面圖時不出現；文章優先時點縮圖開的是右邊的原頁面板，那個功能關了也不出現
     const pg = PR.$('.drawer-tabs [data-tab="pages"]');

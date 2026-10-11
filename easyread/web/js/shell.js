@@ -224,14 +224,8 @@
       for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
       render();
     }
-    else if (d.type === "theme" && from && d.theme && document.documentElement.dataset.theme !== d.theme) {
-      document.documentElement.dataset.theme = d.theme;
-      for (const t of st.tabs) {  // 其他格先把顏色換過去（它們自己的設定下一次讀到時會再對一次）
-        const f = frames[t.id];
-        if (!f || t.id === from.id) continue;
-        try { f.contentDocument.documentElement.dataset.theme = d.theme; } catch (e) { /* 還沒載好 */ }
-      }
-    }
+    // 主題不靠這裡傳了：每一格、外殼自己都收得到 localStorage 的 storage 事件（util.js）。以前某一格主題一變就通知外殼、
+    // 外殼再套到其他格——有一格記著舊主題時兩邊互相蓋，是 2.1.0-tw.5 換主題閃個不停的那條路
   });
   function key(k, shift) {
     if (k === "\\") { if (M.split(st)) { render(); focusFrame(M.focused(st).tab); } return; }

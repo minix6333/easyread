@@ -89,9 +89,7 @@
     if (st.chat) st.chat = await PR.api("/api/chat/models", { method: "POST", body: { models: st.chat.models, default: st.chat.default, keys: st.chatKeys || {} } });
     PR.applyUi(st.ui, true);
     PR.ls.set("easyread-auto-translate", !!st.cfg.auto_translate);
-    const prefs = PR.ls.get("easyread-prefs", {});
-    if (prefs.theme !== st.theme) { prefs.theme = st.theme; PR.ls.set("easyread-prefs", prefs); PR.savePrefs("reader", { theme: st.theme }); if (PR.prefs) PR.prefs.theme = st.theme; }
-    PR.applyTheme(st.theme);
+    // 主題不在這裡存：「外觀」那一頁點了就已經換好、存好了（PR.setTheme）。以前這裡會把開對話框時記下的主題再寫一次——可能已經是舊的
     if (st.type) {  // 排版：阅读页里立刻生效；文献库页只存起来
       PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), st.type));
       if (PR.resetAllType) PR.resetAllType(st.type); else PR.savePrefs("reader", st.type);

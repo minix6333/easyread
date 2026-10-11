@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import prefs
 from .i18n import tr
+from .store import write_bytes_atomic
 
 MAX_FULL = 12 * 1024 * 1024
 MAX_SMALL = 512 * 1024
@@ -51,7 +52,5 @@ def save(body: dict) -> dict:
     d = _dir()
     d.mkdir(parents=True, exist_ok=True)
     for name, raw in ((NAMES["full"], full), (NAMES["small"], small)):
-        tmp = d / (name + ".tmp")
-        tmp.write_bytes(raw)
-        tmp.replace(d / name)
+        write_bytes_atomic(d / name, raw)
     return {"ok": True, "v": int(time.time())}

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import threading
 import time
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,21 +35,82 @@ def read_json(path: Path, default=None):
         return default
 
 
+def read_json_lenient(path: Path, default=None):
+    """設定檔用（prefs.json、config.json）：檔案壞了也要讀得出東西，不能讓整個程式打不開。
+
+    先救第一個完整的 JSON 值（「Extra data」那種：前面是好的、後面多了一截）；救不回來就用 default。
+    壞掉的原檔另存一份 <名字>.broken-<時間>，再把救回來的寫回去，下次讀就是好的。
+    論文、筆記那些資料檔不要用這個：那些壞了要讓人知道，不能默默當成空的再存回去。"""
+    path = Path(path)
+    try:
+        return read_json(path, default)
+    except (ValueError, UnicodeDecodeError) as err:
+        saved = None
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace").lstrip("\ufeff \t\r\n")
+            value, _ = json.JSONDecoder().raw_decode(text)
+            if default is None or isinstance(value, type(default)):
+                saved = value
+        except (ValueError, OSError):
+            saved = None
+        result = default if saved is None else saved
+        try:
+            shutil.copy2(path, path.with_name(f"{path.name}.broken-{time.strftime('%Y%m%d-%H%M%S')}"))
+            write_json_atomic(path, result if result is not None else {})
+        except OSError:
+            pass
+        try:
+            from .log import log  # 這裡才引入：log 要先知道資料目錄在哪（config），config 又用到這個模組
+            log.warning("%s 的內容壞了（%s）：%s，原檔另存成 .broken-*", path.name, err, "救回前面完整的那一份" if saved is not None else "改用預設值")  # i18n-ok 記錄
+        except Exception:  # noqa: BLE001
+            pass
+        return result
+
+
+def _tmp_beside(path: Path) -> Path:
+    """同一個資料夾裡的暫存檔名，每次都不一樣。
+    以前是 pid + time.monotonic_ns()：Windows 上那個鐘一格 15.6 毫秒（Python 3.12 以前），同一個程序的兩條執行緒同時寫同一個檔
+    會拿到同一個名字、寫進同一個暫存檔，內容疊在一起變成壞掉的 JSON——2.1.0-tw.5 的 prefs.json 就是這樣壞的。"""
+    return path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:10]}.tmp")
+
+
+def _replace(tmp: Path, path: Path) -> None:
+    try:
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:  # Windows：别的进程正在读，稍等重试
+                time.sleep(0.05 * (attempt + 1))
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)  # 換不上去：暫存檔不要留著
+        except OSError:
+            pass
+        raise
+
+
 def write_json_atomic(path: Path, data) -> None:
     path = Path(path)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
+    tmp = _tmp_beside(path)
     with open(tmp, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
         f.write("\n")
         f.flush()
         os.fsync(f.fileno())
-    for attempt in range(20):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:  # Windows：别的进程正在读，稍等重试
-            time.sleep(0.05 * (attempt + 1))
-    os.replace(tmp, path)
+    _replace(tmp, path)
+
+
+def write_bytes_atomic(path: Path, data: bytes) -> None:
+    """整個檔一次換上去（圖片、Markdown 這類不是 JSON 的）；暫存檔名和重試同上。"""
+    path = Path(path)
+    tmp = _tmp_beside(path)
+    with open(tmp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    _replace(tmp, path)
 
 
 @contextmanager

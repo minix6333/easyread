@@ -14,7 +14,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .i18n import tr
-from .store import now_iso, read_json, write_json_atomic
+from .store import now_iso, read_json, write_bytes_atomic, write_json_atomic
 
 DIR = "_notes"
 _ID = re.compile(r"[a-z0-9]{6,24}")
@@ -97,9 +97,7 @@ def save(lib_root: Path, nid: str, title=None, body=None, papers=None) -> dict:
     if body is not None:
         body = str(body)
         if body != _body(d):
-            tmp = d / "note.md.tmp"
-            tmp.write_text(body, encoding="utf-8")
-            tmp.replace(d / "note.md")
+            write_bytes_atomic(d / "note.md", body.encode("utf-8"))  # 暫存檔名每次不同（同一份筆記同時存兩次才不會寫進同一個暫存檔）
     m["updated"] = now_iso()
     write_json_atomic(d / "note.json", m)
     return get(lib_root, nid)
