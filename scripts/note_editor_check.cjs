@@ -25,7 +25,12 @@ const BODY = [
 ].join("\n\n");
 
 let step = "start";
-process.on("unhandledRejection", (e) => { console.log("FAILED at step: " + step + " — " + String((e && e.stack) || e).slice(0, 400)); app.exit(2); });
+let cleanupOnFail = null;  // 中途丟出例外也要把暫時的筆記刪掉
+process.on("unhandledRejection", async (e) => {
+  console.log("FAILED at step: " + step + " — " + String((e && e.stack) || e).slice(0, 400));
+  if (cleanupOnFail) { const fn = cleanupOnFail; cleanupOnFail = null; await fn().catch(() => {}); }
+  app.exit(2);
+});
 setTimeout(() => { console.log("TIMEOUT at step: " + step); app.exit(3); }, 180000);
 
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
@@ -43,6 +48,13 @@ app.whenReady().then(async () => {
   await waitFor("window.PR && PR.token", "library token");
   await js('localStorage.removeItem("easyread-note-ui"); 1');  // 目錄、右邊的面板從關著開始（開著的話紙會變窄，換行的位置不一樣）
   const note = await api("/api/notes", { title: "編輯器檢查（可以刪）", body: BODY });
+  const cleanup = async () => {
+    await win.loadURL(base + "/library").catch(() => {});
+    await waitFor("window.PR && PR.token", "library token");
+    const del = await api("/api/notes/" + note.id + "/delete", {});
+    if (del && del.trash) await api("/api/trash", { action: "purge", name: del.trash });
+  };
+  if (!keep) cleanupOnFail = cleanup;
   const open = async (body) => {
     if (body != null) {  // 先離開筆記頁再重設內容：筆記頁離開時會把還沒存的送出去，晚到的話會蓋掉重設的內容
       if (/\/note\//.test(wc.getURL())) { await win.loadURL(base + "/library").catch(() => {}); await waitFor("window.PR && PR.token", "library token"); await sleep(120); }
@@ -291,12 +303,9 @@ app.whenReady().then(async () => {
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
 
   step = "cleanup";
-  if (!keep) {
-    await win.loadURL(base + "/library").catch(() => {});
-    await waitFor("window.PR && PR.token", "library token");
-    const del = await api("/api/notes/" + note.id + "/delete", {});
-    if (del && del.trash) await api("/api/trash", { action: "purge", name: del.trash });
-  } else console.log("留著這份筆記：" + base + "/note/" + note.id);
+  cleanupOnFail = null;
+  if (!keep) await cleanup();
+  else console.log("留著這份筆記：" + base + "/note/" + note.id);
   console.log(bad ? bad + " 項沒過" : "全部通過");
   app.exit(bad ? 1 : 0);
 });

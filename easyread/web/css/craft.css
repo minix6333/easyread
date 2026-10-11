@@ -575,42 +575,63 @@ mark.hl.agent { background: transparent; }
 #selbar .dots button { width: 15px; height: 15px; }
 
 /* ============ 筆記卡片（面板裡、PDF 旁、文章右邊、便利貼共用）============
-   顏色跟著螢光筆（--nc）：底是那個顏色很淡的一層、圖示是那個顏色，像 Craft 的彩色區塊；
-   畫線和筆記不再寫「我的畫線」「我的筆記」——顏色、圖示和內容已經說了，只留頁碼。 */
-.card { --nc: var(--ink-3); position: relative; padding: 10px 12px 11px; border: 0; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.65; transition: top var(--dur) var(--ease), box-shadow var(--dur-fast), background var(--dur-fast); }
-.card.mine { --nc: var(--uc, var(--ul-yellow)); background: color-mix(in srgb, var(--nc) 8%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 30%, var(--line)); }
+   2026-10 重畫。參考：Tufte 的旁註（安靜、不加框、顏色留給有意義的地方）、Refactoring UI（層次靠字重和深淺，不是每樣都上色；
+   不在有色底上放灰字）、Linear 的「不是每樣東西都該一樣重」、Rauno 的介面細則（清單不留點不到的縫、動作的回饋在手邊）。
+   - 卡片是一張安靜的紙，不再整張染色。顏色只出現在兩個小地方：引文左邊那一道（就是螢光筆的顏色）、種類的小圖示。
+   - 畫線和筆記沒有標題列：頁碼是右上角一顆小籤（float，字會繞過它），滑過去同一個位置疊出動作。
+   - 提問、AI、本頁筆記才有一行標題（要說明是誰寫的、是哪一種）。 */
+:root { --note-bg: var(--sheet); }
+:root[data-theme="dark"] { --note-bg: color-mix(in srgb, #fff 7%, var(--mat)); }  /* 深色：比底亮一階，像浮起來的一張卡（Craft 的深色卡片也是這樣） */
+.card { --nc: var(--ink-3); position: relative; display: flow-root; padding: 11px 13px 12px; border: 0; border-radius: 13px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.65; transition: top var(--dur) var(--ease), box-shadow var(--dur-fast), background var(--dur-fast); }
+.card.mine { --nc: var(--uc, var(--ul-yellow)); background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); }
 .card.mine.k-question, .card.agent { --nc: var(--accent); }
-.card.agent { background: color-mix(in srgb, var(--accent) 6%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--accent) 24%, var(--line)); }
-.card.pnote { --nc: var(--mine); background: color-mix(in srgb, var(--mine) 7%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--mine) 26%, var(--line)); }
-.card.check { --nc: var(--gold); background: color-mix(in srgb, var(--gold) 9%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--gold) 40%, var(--line)); }
-.card:hover, .card.linked { box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 48%, var(--rule-2)), 0 6px 18px -12px rgba(0, 0, 0, .35); }
-.card.editing { background: var(--sheet); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 70%, transparent), 0 0 0 4.5px color-mix(in srgb, var(--nc) 16%, transparent); }
-.card .hd, .card .rhd { min-height: 18px; gap: 5px; font: 11.5px/1 var(--ui); color: var(--ink-3); }
-.card .hd { margin: 0 0 5px; }
+.card.agent, .card.pnote, .card.check { background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); }
+.card.pnote { --nc: var(--ink-3); }
+.card.check { --nc: var(--gold); }
+.card:hover, .card.linked { box-shadow: 0 0 0 .5px var(--rule-2), 0 10px 24px -16px rgba(0, 0, 0, .45); }
+.card.editing { background: var(--note-bg); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 75%, transparent), 0 0 0 4.5px color-mix(in srgb, var(--nc) 16%, transparent); }
+/* 標題列 */
+.card .hd, .card .rhd { min-height: 20px; gap: 6px; font: 11.5px/1 var(--ui); color: var(--ink-3); }
+.card .hd { margin: 0 0 6px; }
 .card .ic, .card.mine .ic, .card .ic.ai, .card.agent > .hd .ic, .card.pnote .ic { width: 16px; height: 16px; border-radius: 0; background: none; color: var(--nc); }
 .card .ic svg { width: 14px; height: 14px; }
 .card .lbl, .card.mine .lbl { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
-.card.mine.k-highlight .lbl, .card.mine.k-note .lbl { display: none; }
-.card .where { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.card.mine.k-highlight .where::before, .card.mine.k-note .where::before { content: none; }
-.card .acts button { width: 22px; height: 22px; border-radius: 7px; }
+.card .where { flex: none; height: 18px; padding: 0 6px; border-radius: 6px; background: var(--fill); font: 600 10.5px/18px var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.card .where::before { content: none; }
+/* 頁碼的小籤只在不分頁的清單裡出現（照時間排、搜尋的結果）：分頁排好的清單、頁邊、便利貼裡，在哪一頁本來就看得出來 */
+.card .where { display: none; }
+.np-list.flat .card .where, .card.pnote .where { display: inline-block; }
+.card .acts { gap: 1px; }
+.card .acts button { width: 24px; height: 22px; border-radius: 7px; color: var(--ink-2); }
+.card .acts button:hover { background: var(--fill-2); color: var(--ink); }
 .card .acts svg { width: 13px; height: 13px; }
-.card .quote, .card.mine.c-green .quote, .card.mine.c-blue .quote, .card.mine.c-pink .quote { margin: 0 0 6px; padding: 0 0 0 8px; border-left: 2px solid color-mix(in srgb, var(--nc) 75%, transparent); border-radius: 0; font: 12.5px/1.55 var(--ui); color: var(--ink-2); }
-.card.k-question .quote, .card.agent .quote, .card.tr .quote { border-left-color: color-mix(in srgb, var(--nc) 55%, transparent); }
+/* 畫線、筆記：沒有標題列 */
+.card.mine.k-note > .hd, .card.mine.k-highlight > .hd { float: right; position: relative; min-height: 18px; margin: 1px -3px 2px 10px; gap: 0; }
+.card.mine.k-note > .hd > .ic, .card.mine.k-note > .hd > .lbl, .card.mine.k-note > .hd > .meta, .card.mine.k-note > .hd > .grow,
+.card.mine.k-highlight > .hd > .ic, .card.mine.k-highlight > .hd > .lbl, .card.mine.k-highlight > .hd > .meta, .card.mine.k-highlight > .hd > .grow { display: none; }
+.card.mine.k-note > .hd .acts, .card.mine.k-highlight > .hd .acts { position: absolute; top: -4px; right: -3px; padding: 2px; border-radius: 9px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 14px -8px rgba(0, 0, 0, .5); }
+/* 引文：左邊一道螢光筆的顏色 */
+.card .quote, .card.mine.c-green .quote, .card.mine.c-blue .quote, .card.mine.c-pink .quote { position: relative; margin: 0 0 6px; padding: 0 0 0 11px; border-left: 0; border-radius: 0; font: 12.5px/1.55 var(--ui); color: var(--ink-2); }
+.card .quote::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: var(--nc); }
+.card.k-question .quote::before, .card.agent .quote::before, .card.tr .quote::before { opacity: .5; }
 /* 只有畫線、沒寫字的：那句話就是內容 */
-.card.mine.k-highlight .quote { margin: 0; padding: 0; border-left: 0; font-size: calc(13px * var(--fs-ratio, 1)); line-height: 1.6; color: var(--ink); -webkit-line-clamp: 4; }
+.card.mine.k-highlight .quote { margin: 0; font-size: calc(13px * var(--fs-ratio, 1)); line-height: 1.6; color: var(--ink); -webkit-line-clamp: 4; }
+.card .clip { border-radius: 9px; box-shadow: 0 0 0 .5px var(--line); }
 .card .body { color: var(--ink); }
-.card .reply { margin-top: 9px; padding: 8px 10px 9px; border-top: 0; border-radius: 9px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.card .reply .rhd { margin-bottom: 3px; }
-.card .lk { border-radius: 7px; background: color-mix(in srgb, var(--nc) 14%, transparent); color: var(--ink-2); }
-.card .lk .lk-x { border-left-color: color-mix(in srgb, var(--nc) 30%, transparent); }
+.card .reply { clear: both; margin-top: 9px; padding: 9px 11px 10px; border-top: 0; border-radius: 10px; background: var(--fill); }
+.card .reply .rhd { margin-bottom: 4px; }
+.card .links, .card .kinds, .card .qchips { clear: both; }
+.card .lk { border-radius: 7px; background: var(--fill); color: var(--ink-2); }
+.card .lk .lk-x { border-left-color: var(--line); }
 .card .kseg { border-radius: 8px; background: var(--fill); }
 .card .kseg button { border-radius: 6px; }
 .card .qchips button, .card .kinds > .ask-model { border-radius: 8px; background: var(--fill); box-shadow: none; }
 .card .kinds > .send { border-radius: 8px; background: var(--ink); color: var(--on-ink); }
-.pv-margin .card.on, #margin .card.on, #margin .card.linked { box-shadow: 0 0 0 2px var(--nc); }
-.pv-sticky .card { border-radius: 14px; background: color-mix(in srgb, var(--nc) 6%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 34%, var(--line)), 0 18px 44px -14px rgba(0, 0, 0, .45); }
-.pv-sticky .card.editing { background: var(--sheet); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 70%, transparent), 0 18px 44px -14px rgba(0, 0, 0, .45); }
+.card .more { clear: both; color: var(--ink-2); font-weight: 500; }
+.card .more:hover { color: var(--ink); }
+.pv-margin .card.on, #margin .card.on, #margin .card.linked { box-shadow: 0 0 0 1.5px var(--nc), 0 10px 24px -16px rgba(0, 0, 0, .45); }
+.pv-sticky .card { border-radius: 14px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--rule-2), 0 18px 44px -14px rgba(0, 0, 0, .45); }
+.pv-sticky .card.editing { background: var(--note-bg); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 75%, transparent), 0 18px 44px -14px rgba(0, 0, 0, .45); }
 .note-pin { border-radius: 8px; }
 /* 頁邊的卡片平常安靜：時間和那排動作滑過去、點了才出現 */
 .pv-margin .card .acts, .pv-margin .card .meta { opacity: 0; transition: opacity var(--dur-fast); }
@@ -852,8 +873,8 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .ncard { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 15px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); overflow: hidden; color: var(--ink); text-decoration: none; text-align: left; transition: box-shadow var(--dur-fast), transform var(--dur) var(--spring); }
 .ncard:hover { box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 20px -8px rgba(0, 0, 0, .25); }
 .ncard:active { transform: scale(.985); }
-.ncard[data-c] { box-shadow: 0 0 0 .5px var(--line), inset 0 3px 0 var(--c); }
-.ncard[data-c]:hover { box-shadow: 0 0 0 .5px var(--rule-2), inset 0 3px 0 var(--c), 0 6px 20px -8px rgba(0, 0, 0, .25); }
+/* 有顏色的筆記：卡片上緣淡淡一層那個顏色往下化開（像 Craft 的彩色卡片，但很淡），圖示也是那個顏色 */
+.ncard[data-c] { background: linear-gradient(color-mix(in srgb, var(--c) 11%, var(--sheet)), var(--sheet) 52%); }
 .nc-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px 15px 0; aspect-ratio: 4 / 4.4; box-sizing: border-box; overflow: hidden; }
 .nc-t { display: flex; align-items: flex-start; gap: 7px; font: 700 15px/1.35 var(--ui); letter-spacing: -.01em; }
 .nc-t > span:last-child { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
@@ -878,7 +899,7 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .nc-plus { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); }
 /* 清單檢視：一列一份 */
 .list:not(.grid) .ncard { flex-direction: row; align-items: center; gap: 12px; height: 58px; padding: 0 10px 0 16px; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--line); background: transparent; }
-.list:not(.grid) .ncard[data-c] { box-shadow: inset 0 -.5px 0 var(--line), inset 3px 0 0 var(--c); }
+.list:not(.grid) .ncard[data-c] { background: transparent; }
 .list:not(.grid) .ncard:hover { background: var(--row-hover); box-shadow: inset 0 -.5px 0 var(--line); }
 .list:not(.grid) .nc-page { flex-direction: row; align-items: center; gap: 14px; padding: 0; aspect-ratio: auto; }
 .list:not(.grid) .nc-t { flex: none; max-width: 46%; font-size: 13.5px; font-weight: 600; align-items: center; }
@@ -914,3 +935,13 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .card.fold .fold-t { display: block; }
 .card.fold > .hd { margin: 0; }
 .card.fold > .quote, .card.fold > .ttl, .card.fold > .q, .card.fold > .body, .card.fold > .more, .card.fold > .hd .lbl, .card.fold > .hd .meta { display: none; }
+.np-filters .grow { flex: 1 1 0; height: auto; }
+.np-filters .dots { margin: 0 2px 0 0; gap: 8px; }
+/* 本頁筆記的那一格和下面的卡片是同一種紙 */
+.np-bk.page, .np-pview { background: var(--note-bg); }
+
+/* 側欄選中的那一列不換字重（換了字會變寬、整列跟著抖一下）：只換底色，像 Craft */
+.side .srow, .side .srow.on, .side button.on { font-weight: 500; }
+/* 原文（英文）的引文一律用襯線字：和自己寫的筆記（無襯線）一眼分得出來——哪些字是論文的、哪些是我的 */
+.card .quote[lang="en"], .card.mine .quote[lang="en"] { font-family: var(--serif-en); font-size: calc(13px * var(--fs-ratio, 1)); }
+.card.mine.k-highlight .quote[lang="en"] { font-size: calc(13.5px * var(--fs-ratio, 1)); }

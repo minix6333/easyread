@@ -174,7 +174,7 @@
     return '<div class="np-search">' + PR.icon("search", "sm") + '<input id="npSearch" placeholder="' + PR.t("搜尋筆記…") + '" value="' + PR.esc(query) + '">' +
       '<button class="btn icon sm np-sort' + (sortBy === "recent" ? " on" : "") + '" data-np-act="sort" title="' + (sortBy === "recent" ? PR.t("現在照時間排（最新的在前）；點一下改成照頁") : PR.t("現在照頁排；點一下改成照時間（最新的在前）")) + '">' + PR.icon(sortBy === "recent" ? "clock" : "sort", "sm") + "</button>" +
       (pdf() ? "" : '<button class="btn icon sm" data-np-act="add" title="' + PR.t("在現在這一段加一條筆記") + '">' + PR.icon("plus", "sm") + "</button>") + "</div>" +
-      '<div class="np-filters">' + chips + '<span class="grow"></span>' + dots + '</div><div class="np-list">' + listHtml() + "</div>";
+      '<div class="np-filters">' + chips + '<span class="grow"></span>' + dots + '</div><div class="np-list' + (sortBy === "recent" ? " flat" : "") + '">' + listHtml() + "</div>";
   }
 
   /* editId：undefined＝只是資料變了重畫（正在打字就不打斷）；null＝收起編輯重畫；id＝編輯這一條 */

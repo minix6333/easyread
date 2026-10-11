@@ -10,9 +10,12 @@
   "use strict";
   const N = PR.note, $ = PR.$;
   if (!N) return;
-  const ui = Object.assign({ outline: false, insp: "" }, PR.ls.get("easyread-note-ui", {}) || {});
-  if (!["", "insert", "format", "style", "info"].includes(ui.insp)) ui.insp = "";
-  const saveUi = () => PR.ls.set("easyread-note-ui", ui);
+  /* 兩欄開不開：視窗夠寬時照上次的（記在本機）；視窗窄時兩欄是蓋在紙上面的，一開始都收著、一次只開一欄、點紙就收起來，而且不改寬視窗記的狀態 */
+  const narrow = matchMedia("(max-width: 1020px)");
+  const saved = Object.assign({ outline: false, insp: "", last: "format" }, PR.ls.get("easyread-note-ui", {}) || {});
+  if (!["", "insert", "format", "style", "info"].includes(saved.insp)) saved.insp = "";
+  const ui = narrow.matches ? { outline: false, insp: "", last: saved.last } : Object.assign({}, saved);
+  const saveUi = () => { if (narrow.matches) { saved.last = ui.last || saved.last; } else Object.assign(saved, ui); PR.ls.set("easyread-note-ui", saved); };
   const note = () => N.st.note;
   const has = (n) => PR.hasIcon(n);
   const ic = (n, alt) => PR.icon(has(n) ? n : alt || n, "sm");
@@ -45,7 +48,11 @@
     rows.forEach((r) => r.classList.toggle("on", r === cur));
   }
   $("#noteOutline").addEventListener("click", (e) => { const b = e.target.closest(".no-i"); if (b && N.ed) N.ed.reveal(b.dataset.id); });
-  $("#outlineBtn").addEventListener("click", () => { ui.outline = !ui.outline; saveUi(); $("#noteOutline").dataset.key = ""; paintOutline(); });
+  $("#outlineBtn").addEventListener("click", () => {
+    ui.outline = !ui.outline;
+    if (ui.outline && narrow.matches && ui.insp) { ui.insp = ""; $("#noteInsp").innerHTML = ""; paintInsp(); }
+    saveUi(); $("#noteOutline").dataset.key = ""; paintOutline();
+  });
   let scrollQueued = false;
   addEventListener("scroll", () => { if (scrollQueued) return; scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; markCurrent(); }); }, { passive: true });
 
@@ -119,7 +126,25 @@
     el.innerHTML = '<div class="ni-top"><div class="seg ni-tabs" id="niTabs">' + TABS().map(([k, l]) => '<button type="button" data-ni-tab="' + k + '" class="' + (ui.insp === k ? "on" : "") + '">' + l + "</button>").join("") +
       '</div></div><div class="ni-body" data-tab="' + ui.insp + '">' + body + "</div>";
   }
-  function setInsp(tab) { const was = ui.insp; ui.insp = tab; saveUi(); if (!!was !== !!tab || !tab) $("#noteInsp").innerHTML = ""; paintInsp(); }
+  function setInsp(tab) {
+    const was = ui.insp;
+    ui.insp = tab;
+    if (tab && narrow.matches && ui.outline) { ui.outline = false; paintOutline(); }
+    saveUi();
+    if (!!was !== !!tab || !tab) $("#noteInsp").innerHTML = "";
+    paintInsp();
+  }
+  narrow.addEventListener("change", () => {  // 視窗拉過寬窄的分界：窄了就都收起來，寬了回到上次的樣子
+    Object.assign(ui, narrow.matches ? { outline: false, insp: "" } : { outline: saved.outline, insp: saved.insp });
+    $("#noteInsp").innerHTML = ""; $("#noteOutline").dataset.key = "";
+    paintOutline(); paintInsp();
+  });
+  $("#noteMain").addEventListener("mousedown", () => {
+    if (!narrow.matches || (!ui.outline && !ui.insp)) return;
+    ui.outline = false; ui.insp = "";
+    $("#noteInsp").innerHTML = "";
+    paintOutline(); paintInsp();
+  });
   $("#inspBtn").addEventListener("click", () => setInsp(ui.insp ? "" : ui.last || "format"));
   const insp = $("#noteInsp");
   insp.addEventListener("mousedown", (e) => { if (!e.target.closest("input, a")) e.preventDefault(); });

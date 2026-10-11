@@ -77,7 +77,7 @@ def _preview(md: str) -> str:
     text = re.sub(r"^\s*(?:>\s?)*\s*(?:#+\s+|(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?", "", text, flags=re.M)  # 行首的記號
     text = re.sub(r"^\s*\[!\w+[^\]]*\]\s*", "", text, flags=re.M)                   # 說明框的 [!note]
     text = re.sub(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$|^\s*([-*_])(\s*\2){2,}\s*$", " ", text, flags=re.M)  # 表格的分隔列、分隔線
-    text = re.sub(r"\*\*|==|~~|\+\+|`|\*|\|", " ", text)
+    text = re.sub(r"\*\*|==|~~|\+\+|`|\*", "", text).replace("|", " ")  # 粗體之類的記號直接拿掉（中文字之間不要多出空白），表格的直線換成空白
     return " ".join(text.split())[:200]
 
 

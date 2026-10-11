@@ -93,7 +93,7 @@
     const askBtn = !canAsk || d.kind === "highlight" || !d.body || asking ? ""
       : isQ ? (answered ? act("followup", "message", PR.t("追问 AI")) : act("ask", "sparkle", PR.t("让 AI 回答"))) : act("ask", "sparkle", PR.t("让 AI 点评"));
     const head = '<div class="hd"><span class="ic">' + PR.icon(isQ ? "help" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
-      (page ? '<span class="where">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
+      (page ? '<span class="where" title="' + PR.esc(PR.shortTime(d.updated || d.created)) + '">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
       (editing ? "" : '<span class="acts">' + askBtn + act("edit", "edit", PR.t("编辑")) + act("menu", "more", PR.t("更多")) + "</span>") + "</div>";
     // 關聯的筆記：一排小標籤，點了跳過去，× 取消關聯
     const links = (d.links || []).map((id) => noteById(id)).filter((x) => x && !x.deleted);

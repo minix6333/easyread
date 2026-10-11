@@ -11,7 +11,7 @@
   const id = decodeURIComponent((location.pathname.match(/\/note\/([^/?#]+)/) || [])[1] || "");
   const url = "/api/notes/" + encodeURIComponent(id);
   PR.imageUrl = (src) => "/n/" + encodeURIComponent(id) + "/" + src;  // markup.js 畫 ![](clips/…) 時用
-  const st = { note: null, ed: null, models: [], model: "", streaming: null, draft: "" };
+  const st = { note: null, ed: null, models: [], model: "", streaming: null, draft: "", aiOpen: false };
   const $ = PR.$;
   const subs = {};
   const fire = (ev, d) => (subs[ev] || []).forEach((fn) => { try { fn(d); } catch (e) { console.error(e); } });
@@ -118,18 +118,41 @@
   }
   const modelLabel = () => (st.models.find((m) => m.id === st.model) || {}).label || PR.t("模型");
 
-  /* ---------- 筆記 AI ---------- */
+  /* ---------- 筆記 AI ----------
+     平常收成右下角一顆「問 AI」（像 Craft 的助理鈕，不佔版面）；點它、按 ⌘↩、區塊選單的「問 AI 改這裡」、「/」選單的「AI 寫」才展開成輸入列。
+     輸入框空著又離開（或按 Esc）就收回去；正在寫、有草稿時不收。 */
   function paintAi() {
     const busy = !!st.streaming;
     const ta = $("#noteAi .nai-in");
     const focused = ta && document.activeElement === ta;
     if (ta) st.draft = ta.value;
+    const open = st.aiOpen || busy || !!st.draft.trim();
+    $("#noteAi").classList.toggle("open", open);
+    if (!open) {
+      $("#noteAi").innerHTML = '<button type="button" class="nai-pill" data-nai="open" title="' + PR.t("問 AI 寫或改（⌘↩）") + '">' + PR.icon("sparkle", "sm") + "<span>" + PR.t("問 AI") + "</span></button>";
+      return;
+    }
     $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q]) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.esc(l) + "</button>").join("") + "</div>" +
       '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
       '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc(modelLabel()) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
       (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
     if (focused && !busy) { const t2 = $("#noteAi .nai-in"); t2.focus(); t2.setSelectionRange(t2.value.length, t2.value.length); }
   }
+  function openAi() {
+    st.aiOpen = true;
+    paintAi();
+    const ta = $("#noteAi .nai-in");
+    if (ta) { ta.focus(); PR.autosize(ta); }
+  }
+  function closeAi() {
+    if (st.streaming || st.draft.trim()) return;
+    st.aiOpen = false;
+    paintAi();
+  }
+  document.addEventListener("focusout", (e) => {
+    if (!e.target.closest || !e.target.closest("#noteAi")) return;
+    setTimeout(() => { const a = document.activeElement; if (!(a && a.closest && a.closest("#noteAi")) && !(PR.menuOpen && PR.menuOpen())) closeAi(); }, 180);
+  });
   function clean(md) {
     let s = md.replace(/^\s*(?:以下是|這是|改好的版本|修改後)[^\n]*[:：]\s*\n/, "");
     const m = /^\s*\x60\x60\x60(?:markdown|md)?\s*\n([\s\S]*?)\n\x60\x60\x60\s*$/.exec(s);
@@ -184,6 +207,7 @@
     const b = e.target.closest("#noteAi [data-nai]");
     if (!b) return;
     const a = b.dataset.nai, ta = $("#noteAi .nai-in");
+    if (a === "open") return openAi();
     if (a === "send") return send(ta.value);
     if (a === "quick") return send(b.dataset.q);
     if (a === "stop") { if (st.streaming) st.streaming.ctrl.abort(); return; }
@@ -192,7 +216,7 @@
   document.addEventListener("keydown", (e) => {
     const ta = e.target.closest && e.target.closest("#noteAi .nai-in");
     if (ta && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(ta.value); return; }
-    if (ta && e.key === "Escape") { e.preventDefault(); ta.blur(); return; }
+    if (ta && e.key === "Escape") { e.preventDefault(); if (!ta.value.trim()) { st.draft = ""; st.aiOpen = false; paintAi(); } else ta.blur(); return; }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); if (st.ed) queue({ body: st.ed.getValue() }); flushSoon.flush(); }  // ⌘S：本來就會自己存，按了就馬上存
   });
   document.addEventListener("input", (e) => { const ta = e.target.closest && e.target.closest("#noteAi .nai-in"); if (ta) { st.draft = ta.value; PR.autosize(ta); } });
@@ -212,7 +236,7 @@
     paintHead();
     st.ed = PR.blockEditor($("#noteEd"), { value: st.note.body || "", placeholder: PR.t("寫點什麼，或按「/」選區塊…"), onChange: (md) => { st.note.body = md; queue({ body: md }); }, upload, moveOut });
     PR.note.ed = PR.noteEd = st.ed;  // scripts/note_editor_check.cjs 也從 PR.noteEd 拿
-    st.ed.on("ai", () => { const ta = $("#noteAi .nai-in"); if (ta) ta.focus(); });
+    st.ed.on("ai", () => openAi());
     setState("saved");
     loadModels();
     if (!(st.note.title || "").trim() && !(st.note.body || "").trim()) title.focus();

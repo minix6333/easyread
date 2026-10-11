@@ -31,7 +31,7 @@ class StandaloneNotesTest(unittest.TestCase):
     def test_preview_keeps_only_readable_text(self):
         md = "# 梯度下降\n\n有**粗體**、*斜體*、`碼`和 $\\nabla f$，[連結](https://e.com)在這。\n\n> [!note] 重點\n> 會發散。\n\n```python\nprint(1)\n```\n\n$$\nE=mc^2\n$$\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n1. 一\n- [x] 做完\n![](clips/a.png)"
         n = notes.create(self.root, "t", md)
-        self.assertEqual(notes.listing(self.root)[0]["preview"], "梯度下降 有 粗體 、 斜體 、 碼 和 ，連結在這。 重點 會發散。 a b 1 2 一 做完")
+        self.assertEqual(notes.listing(self.root)[0]["preview"], "梯度下降 有粗體、斜體、碼和 ，連結在這。 重點 會發散。 a b 1 2 一 做完")
         self.assertEqual(n["body"], md)
 
     def test_style_only_save_keeps_updated_time(self):

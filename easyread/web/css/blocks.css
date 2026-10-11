@@ -151,3 +151,10 @@ mark.md-hl { background: var(--hl-yellow); color: inherit; border-radius: 3px; p
 .bk-pv-body { padding: 10px 14px; }
 .bk-pv-body > :first-child { margin-top: 0; }
 .bk-pv-body > :last-child { margin-bottom: 0; }
+/* 表格（筆記裡、AI 的建議裡、卡片裡）：圓角的一張表，細線分格，表頭淡淡一層底 */
+.bk .tbl-wrap, .card .tbl-wrap, .np-pview .tbl-wrap { max-width: 100%; overflow-x: auto; margin: 2px 0; border-radius: 10px; box-shadow: inset 0 0 0 .5px var(--rule-2); }
+.bk table.tbl, .card table.tbl, .np-pview table.tbl { border-collapse: collapse; width: 100%; margin: 0; font: .93em/1.55 var(--ui); }
+.bk table.tbl th, .card table.tbl th, .np-pview table.tbl th { padding: 7px 12px; text-align: left; font-weight: 600; color: var(--ink); background: var(--fill, var(--surface-2)); border-bottom: .5px solid var(--rule-2); }
+.bk table.tbl td, .card table.tbl td, .np-pview table.tbl td { padding: 7px 12px; border-bottom: .5px solid var(--rule); vertical-align: top; }
+.bk table.tbl tr:last-child td, .card table.tbl tr:last-child td, .np-pview table.tbl tr:last-child td { border-bottom: 0; }
+.bk table.tbl th + th, .bk table.tbl td + td, .card table.tbl th + th, .card table.tbl td + td, .np-pview table.tbl th + th, .np-pview table.tbl td + td { border-left: .5px solid var(--rule); }

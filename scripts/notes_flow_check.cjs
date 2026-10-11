@@ -10,7 +10,12 @@ const base = opt("--base", "http://localhost:8765");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let step = "start";
-process.on("unhandledRejection", (e) => { console.log("FAILED at step: " + step + " — " + String((e && e.stack) || e).slice(0, 400)); app.exit(2); });
+let cleanupOnFail = null;  // 中途丟出例外也要把暫時的筆記、分類清掉（第一次寫這支時漏了，在開發的文獻庫留下一份「流程檢查的筆記」）
+process.on("unhandledRejection", async (e) => {
+  console.log("FAILED at step: " + step + " — " + String((e && e.stack) || e).slice(0, 400));
+  if (cleanupOnFail) { const fn = cleanupOnFail; cleanupOnFail = null; await fn().catch(() => {}); }
+  app.exit(2);
+});
 setTimeout(() => { console.log("TIMEOUT at step: " + step); app.exit(3); }, 120000);
 
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
@@ -44,6 +49,8 @@ app.whenReady().then(async () => {
     }
     await lib.executeJavaScript('PR.api("/api/notes-folder", { method: "POST", body: { from: ' + JSON.stringify(folder) + ', to: "" } }).catch(() => null)');
   };
+
+  cleanupOnFail = cleanup;
 
   step = "new note";
   await lib.executeJavaScript('document.querySelector("#side [data-newnote]").click(); 1');

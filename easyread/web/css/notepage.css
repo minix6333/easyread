@@ -9,10 +9,19 @@ body.note-page.in-open { --in-w: 300px; }
 .note-page .topbar { left: calc(var(--nav-now) + var(--pad)); right: calc(var(--insp-now) + var(--pad)); }
 .note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); transition: padding .34s var(--ease); }
 /* 紙：左邊的留白裡有一道 44px 是區塊的槽（「＋」和把手），所以左邊的內距少 44px，字的左右留白才一樣寬 */
-.note-page .note-main { max-width: 820px; padding-left: 12px; transition: max-width .34s var(--ease); }
+.note-page .note-main { max-width: 820px; padding-left: 12px; margin-bottom: 26px; transition: max-width .34s var(--ease); }
 @media (max-width: 900px) { .note-page .note-main { padding-left: 0; padding-right: 22px; } }
 body.note-page.wide .note-main { max-width: 1240px; }
 .note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); transition: left .34s var(--ease), width .34s var(--ease); }
+/* 筆記 AI：平常是右下角一顆鈕（和閱讀頁的「問 AI」同一個樣子），展開才是整條輸入列 */
+.note-page .note-ai:not(.open) { left: auto; right: calc(var(--insp-now) + var(--pad) + 16px); bottom: 16px; width: auto; transform: none; }
+.nai-pill { height: 40px; padding: 0 15px 0 12px; border-radius: 13px; display: inline-flex; align-items: center; gap: 7px; font: 600 13.5px var(--ui); color: var(--ink); background: var(--ctl-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7); backdrop-filter: blur(24px) saturate(1.7); box-shadow: inset 0 0 0 .5px var(--ctl-line), 0 8px 24px -10px rgba(0, 0, 0, .35); transition: background var(--dur-fast), transform .12s ease-out; }
+.nai-pill svg.i { width: 16px; height: 16px; color: var(--accent); }
+.nai-pill:hover { background: var(--ctl-hover); }
+.nai-pill:active { transform: scale(.96); }
+.note-ai.open .nai { animation: nai-rise .22s var(--ease); transform-origin: 100% 100%; }
+@keyframes nai-rise { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 .note-missing { padding: 40px 0; }
 body.note-gone #outlineBtn, body.note-gone #starBtn, body.note-gone #inspBtn, body.note-gone #noteMore, body.note-gone .note-ai, body.note-gone #noteState { display: none; }
 
