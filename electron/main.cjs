@@ -234,6 +234,7 @@ function windowOpenHandler({ url: target }) {
         action: "allow",
         overrideBrowserWindowOptions: {
           width: 480, height: 800, minWidth: 360, minHeight: 420, autoHideMenuBar: true,
+          titleBarStyle: "default",  // 主視窗把標題列藏了；獨立視窗照一般的來，紅黃綠才不會壓到面板頂上的按鈕
           icon: path.join(__dirname, "assets", "icon.ico"),
           webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.cjs") },
         },
