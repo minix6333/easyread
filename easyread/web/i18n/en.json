@@ -1694,5 +1694,6 @@
  "已存成獨立筆記": "Saved as a note",
  "現在照時間排（最新的在前）；點一下改成照頁": "Sorted by time (newest first); click to sort by page",
  "現在照頁排；點一下改成照時間（最新的在前）": "Sorted by page; click to sort by time (newest first)",
- "複製文字": "Copy text"
+ "複製文字": "Copy text",
+ "問 AI 寫或改（⌘↩）": "Ask AI to write or edit (⌘↩)"
 }

@@ -9,7 +9,7 @@ body.note-page.in-open { --in-w: 300px; }
 .note-page .topbar { left: calc(var(--nav-now) + var(--pad)); right: calc(var(--insp-now) + var(--pad)); }
 .note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); transition: padding .34s var(--ease); }
 /* 紙：左邊的留白裡有一道 44px 是區塊的槽（「＋」和把手），所以左邊的內距少 44px，字的左右留白才一樣寬 */
-.note-page .note-main { max-width: 820px; padding-left: 12px; margin-bottom: 26px; transition: max-width .34s var(--ease); }
+.note-page .note-main { max-width: 820px; padding-left: 12px; margin-bottom: 26px; min-height: calc(100vh - var(--bar-h) - 38px); box-sizing: border-box; transition: max-width .34s var(--ease); }
 @media (max-width: 900px) { .note-page .note-main { padding-left: 0; padding-right: 22px; } }
 body.note-page.wide .note-main { max-width: 1240px; }
 .note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); transition: left .34s var(--ease), width .34s var(--ease); }
