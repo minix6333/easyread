@@ -12,11 +12,15 @@
   const titleOf = (n) => n.title || PR.t("未命名筆記");
   const has = (n) => PR.hasIcon(n);
 
-  L.loadNotes = async function () {
+  let lastKey = "";
+  L.loadNotes = async function (force) {
     try {
       const d = await PR.api("/api/notes");
+      const key = JSON.stringify([d.items, d.folders]);
       L.notes = d.items || [];
       L.catStyle = d.folders || {};
+      if (key === lastKey && !force) return;  // 文獻庫每 15 秒輪詢一次：筆記沒變就不重畫（重畫會把正在滑過、正在拖的卡片換掉）
+      lastKey = key;
       L.render();
     } catch (e) { /* 取不到就留著上一次的 */ }
   };
@@ -24,7 +28,7 @@
   L.setCatStyle = async function (name, style) {
     L.catStyle[name] = Object.assign({ icon: "", color: "" }, L.catStyle[name], style);
     L.render();
-    try { const r = await PR.api("/api/notes-folder", { method: "POST", body: Object.assign({ name }, style) }); L.catStyle = r.folders || {}; } catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); }
+    try { const r = await PR.api("/api/notes-folder", { method: "POST", body: Object.assign({ name }, style) }); L.catStyle = r.folders || {}; } catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); L.loadNotes(true); }
   };
 
   /* ---------- 改一份筆記的欄位：先改畫面再存 ---------- */
@@ -32,7 +36,7 @@
     const n = byId(id);
     if (n) { Object.assign(n, fields); L.render(); }
     try { await PR.api("/api/notes/" + encodeURIComponent(id), { method: "POST", body: fields }); }
-    catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); L.loadNotes(); }
+    catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); L.loadNotes(true); }  // 沒存成：畫面退回伺服器上的樣子
   }
   L.noteSave = save;
   async function create(extra) {
