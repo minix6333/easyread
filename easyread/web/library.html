@@ -16,43 +16,44 @@
 <link rel="stylesheet" href="/web/css/usage.css">
 <link rel="stylesheet" href="/web/css/apple.css">
 <link rel="stylesheet" href="/web/css/craft.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/Electron/i.test(navigator.userAgent))document.documentElement.classList.add("desktop")</script>
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear)}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){}</script>
 </head>
 <body>
-<header class="topbar">
-  <button class="btn icon" id="sideBtn" title="側欄"></button>
-  <span class="grow"></span>
-  <label class="search">
-    <span class="si"></span>
-    <input id="q" type="search" placeholder="搜尋" autocomplete="off">
-  </label>
-  <span class="grow"></span>
-  <button class="engine-chip" id="engineChip" hidden></button>
-  <button class="btn icon sync-btn" id="syncBtn" hidden></button>
-  <button class="btn icon lang-btn" id="langBtn" hidden></button>
-  <button class="btn icon" id="importBtn"></button>
-  <button class="btn icon" id="settingsBtn" title="设置"></button>
-</header>
-
 <div class="lib">
-  <nav class="side" id="side"></nav>
-  <main class="main">
+  <header class="topbar">
+    <span class="bar-side"><button class="btn icon" id="sideBtn" title="側欄"></button></span>
+    <button class="btn icon" id="importBtn"></button>
     <div class="list-head">
       <h1 id="viewTitle">全部论文</h1>
       <span class="count" id="count"></span>
       <span class="grow"></span>
       <button class="btn sm line" id="pickBtn" disabled></button>
       <div class="batch-bar" id="batchBar"></div>
-      <div class="seg lib-view" id="libView" role="group" aria-label="檢視"><button data-lv="list" title="清單"></button><button data-lv="grid" title="格子"></button></div>
-      <label class="sort">排序
-        <select id="sort" class="input">
+      <div class="seg lib-view" id="libView" role="group" aria-label="檢視"><button data-lv="grid" title="格子"></button><button data-lv="list" title="清單"></button></div>
+      <label class="btn icon sort" id="sortBtn" title="排序">
+        <select id="sort" aria-label="排序">
           <option value="opened">最近打开</option>
           <option value="added">最近添加</option>
           <option value="year">发表年份</option>
           <option value="title">标题</option>
         </select>
       </label>
+      <button class="btn icon" id="moreBtn" title="更多"></button>
     </div>
+    <label class="search">
+      <span class="si"></span>
+      <input id="q" type="search" placeholder="搜尋" autocomplete="off">
+    </label>
+    <button class="engine-chip" id="engineChip" hidden></button>
+  </header>
+  <nav class="side" id="side">
+    <div class="side-foot" id="sideFoot">
+      <button class="btn icon sync-btn" id="syncBtn" hidden></button>
+      <button class="btn icon lang-btn" id="langBtn" hidden></button>
+      <button class="btn icon" id="settingsBtn" title="设置"></button>
+    </div>
+  </nav>
+  <main class="main">
     <div id="list" class="list" role="listbox" tabindex="0"></div>
   </main>
   <aside class="detail" id="detail"></aside>

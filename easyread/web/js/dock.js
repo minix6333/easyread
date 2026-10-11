@@ -179,8 +179,10 @@
     const box = PR.$(".dock-state", dock), cur = active();
     if (!cur || cur.kind === "app") {
       box.hidden = false;
-      box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("把外部工具嵌在這裡") + "</h3><p>" + PR.t("把網址或連結從瀏覽器拖進來，或從下面挑一個。它有自己的登入，讀不到 FOLI 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 FOLI 右邊。") : "") + "</p>" +
-        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '">' + PR.esc(p.name) + "</button>").join("") +
+      // 說明收成一句；「它有自己的登入、讀不到 FOLI 的內容」「可以拖 App 進來」放在滑鼠提示裡
+      const more = PR.t("它有自己的登入，讀不到 FOLI 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 FOLI 右邊。") : "");
+      box.innerHTML = '<div class="dock-empty" title="' + PR.esc(more) + '"><h3>' + PR.t("外部工具") + "</h3><p>" + PR.t("拖一個網址進來，或從下面挑一個") + "</p>" +
+        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '"><i class="ltr">' + PR.esc((p.name || "?").slice(0, 1)) + "</i>" + PR.esc(p.name) + "</button>").join("") +
         '<button data-d="url">' + PR.icon("link", "sm") + PR.t("輸入網址…") + "</button>" + (native ? '<button data-d="pickapp">' + PR.icon("panel", "sm") + PR.t("貼齊一個 App…") + "</button>" : "") + "</div>" +
         (cur && cur.kind === "app" ? '<p class="again">' + PR.t("要再把「{name}」貼在旁邊：點上面它的圖示。", { name: PR.esc(cur.name) }) + "</p>" : "") + "</div>";
     } else if (cur && cur.failed) {

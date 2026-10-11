@@ -9,12 +9,29 @@
   PR.$("#importBtn").innerHTML = PR.icon("plus");
   PR.$("#importBtn").title = PR.t("导入论文");
   PR.$("#settingsBtn").innerHTML = PR.icon("gear");
+  /* 排序：一顆圖示鈕，底下疊一個看不見的 <select>（點了就是系統的選單） */
+  PR.$("#sortBtn").insertAdjacentHTML("afterbegin", PR.icon("sort"));
+  /* 「更多」：批次操作、深淺色、設定（頂欄只留常用的） */
+  PR.$("#moreBtn").innerHTML = PR.icon("more");
+  PR.$("#moreBtn").onclick = (e) => {
+    const dark = document.documentElement.dataset.theme === "dark";
+    PR.menu(e.currentTarget, [
+      { label: PR.t("批量操作"), icon: "check", disabled: !L.items.length, fn: () => L.startPick() },
+      "-",
+      { label: dark ? PR.t("换成浅色") : PR.t("换成深色"), icon: dark ? "sun" : "moon", fn: () => PR.toggleTheme() },
+      { label: PR.t("设置"), icon: "gear", kbd: "⌘,", fn: () => PR.openSettings() },
+    ]);
+  };
   PR.$(".search .si").outerHTML = PR.icon("search", "sm");
   PR.$("#sort").value = L.sort;
   /* 清單／格子（像 Craft 的檢視切換）：只是換個樣子，列還是同一批 */
   (function libView() {
     const seg = PR.$("#libView"); if (!seg) return;
-    const paint = () => { const v = PR.ls.get("easyread-lib-view", "list"); PR.$("#list").classList.toggle("grid", v === "grid"); PR.$$("button", seg).forEach((b) => b.classList.toggle("on", b.dataset.lv === v)); };
+    const paint = () => {
+      const v = PR.ls.get("easyread-lib-view", "grid");  // 預設格子（像 Craft）
+      PR.$("#list").classList.toggle("grid", v === "grid");
+      PR.$$("button", seg).forEach((b) => b.classList.toggle("on", b.dataset.lv === v));
+    };
     PR.$$("button", seg).forEach((b) => { b.innerHTML = PR.icon(b.dataset.lv === "grid" ? "grid" : "list", "sm"); b.title = b.dataset.lv === "grid" ? PR.t("格子") : PR.t("清單"); });
     seg.addEventListener("click", (e) => { const b = e.target.closest("[data-lv]"); if (!b) return; PR.ls.set("easyread-lib-view", b.dataset.lv); paint(); });
     paint();
@@ -194,7 +211,7 @@
       main.scrollTop = state.scroll;
       if (!row) return;
       if (state.offset !== null) main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top - state.offset;
-      const rect = row.getBoundingClientRect(), bounds = main.getBoundingClientRect(), head = PR.$(".list-head");
+      const rect = row.getBoundingClientRect(), bounds = main.getBoundingClientRect(), head = PR.$(".topbar");  // 清單從浮著的頂欄底下捲過去
       if (rect.top < bounds.top + head.offsetHeight || rect.bottom > bounds.bottom) row.scrollIntoView({ block: "center" });
       PR.$("#list").focus({ preventScroll: true });
     });

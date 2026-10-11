@@ -182,7 +182,8 @@
       if (PR.reloadPages && nodes().length) PR.reloadPages();  // 頁面變寬變窄：換合適清晰度的圖
       if (PR.renderSticky) PR.renderSticky();
     }
-    if (!on) { PR.$$(".pv-margin").forEach((c) => (c.innerHTML = "")); return; }
+    // 擺不下時清掉；「內容沒變就不重畫」的記號也要一起清，不然等一下擺得下了（縮放縮回來、側面板關掉）會以為沒變、整欄空著
+    if (!on) { PR.$$(".pv-margin").forEach((c) => { c.innerHTML = ""; c.dataset.sig = ""; }); return; }
     nodes().forEach((entry, i) => { if (!page || page === i + 1) renderPage(entry, i + 1, editingId); });
   };
   PR.layoutPvMargin = function () { if (PR.pvMarginOn()) nodes().forEach(layoutPage); };

@@ -18,8 +18,9 @@ function page(url = "http://127.0.0.1:8765/", storage = new Map(), state = null,
   let rows = [], items = [], categories = [], prefsResult = null;
   const node = selector => {
     if (!nodes.has(selector)) nodes.set(selector, {
-      value: "", style: {}, dataset: {}, scrollTop: 0, offsetHeight: selector === ".list-head" ? 60 : 0,
+      value: "", style: {}, dataset: {}, scrollTop: 0, offsetHeight: selector === ".topbar" ? 60 : 0,  // 清單從浮著的頂欄底下捲過去（以前是黏在清單上面的表頭）
       classList: { toggle() {}, add() {}, remove() {} },
+      insertAdjacentHTML() {},
       addEventListener(name, fn) { this[name] = fn; },
       focus(options) { this.focused = options || true; },
       getBoundingClientRect() { return { top: 50, bottom: 650, height: 600 }; },

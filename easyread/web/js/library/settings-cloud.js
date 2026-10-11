@@ -167,7 +167,7 @@
     if (!restart && (!host || host === dismissedHost)) { if (node) node.remove(); return; }
     if (!node) {
       node = PR.el("div", { id: "cloudNotice", class: "cloud-notice", role: "status" });
-      PR.$(".main").insertBefore(node, PR.$(".list-head"));
+      PR.$(".main").insertBefore(node, PR.$("#list"));
     }
     node.innerHTML = '<span>' + PR.esc(restart ? PR.t("文献库位置已更改，请先重启再继续阅读。") :
       PR.t("文献库正在另一台电脑（{host}）上打开。笔记会自动合并；别在两台同时翻译同一篇。", { host })) + "</span>" +

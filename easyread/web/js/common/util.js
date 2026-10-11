@@ -151,6 +151,7 @@ window.PR = window.PR || {};
     book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
     panel: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>',
     sidebar: '<rect width="18" height="18" x="3" y="3" rx="4"/><path d="M9 3v18"/><path d="M5.5 8h1.5M5.5 11h1.5"/>',
+    sort: '<path d="M7 4v16"/><path d="m3 8 4-4 4 4"/><path d="M17 20V4"/><path d="m21 16-4 4-4-4"/>',
     panelright: '<rect width="18" height="18" x="3" y="3" rx="4"/><path d="M15 3v18"/>',
     strike: '<path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><path d="M4 12h16"/>',
     code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
@@ -201,7 +202,22 @@ window.PR = window.PR || {};
     cursor: '<path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1"/><path d="M7 22h1a4 4 0 0 0 4-4v-1"/><path d="M7 2h1a4 4 0 0 1 4 4v1"/>',
     quote: '<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>',
   };
-  PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
+  /* 螢光筆的顏色（八種；前四種是原本的，順序不能動——數字鍵 1–8 照這個順序）。顏色本身在 css/craft.css 的 .c-<名字> */
+  PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")],
+    ["orange", PR.t("橙")], ["purple", PR.t("紫")], ["teal", PR.t("青")], ["gray", PR.t("灰")]];  // pink 历史上叫粉，现在画成红
+  /* 強調色（設定 → 閱讀）：掛在 <html data-accent>，顏色在 css/craft.css */
+  PR.ACCENTS = [["violet", PR.t("紫")], ["blue", PR.t("蓝")], ["teal", PR.t("青")], ["green", PR.t("绿")], ["orange", PR.t("橙")], ["pink", PR.t("粉")], ["red", PR.t("红")], ["graphite", PR.t("石墨")]];
+  PR.accent = () => (PR.ls.get("easyread-prefs", {}) || {}).accent || "violet";
+  PR.applyAccent = () => { const a = PR.accent(); if (a === "violet") delete document.documentElement.dataset.accent; else document.documentElement.dataset.accent = a; };
+  PR.setAccent = function (a) {
+    if (!PR.ACCENTS.some(([k]) => k === a)) return;
+    const p = PR.ls.get("easyread-prefs", {});
+    p.accent = a;
+    PR.ls.set("easyread-prefs", p);
+    if (PR.prefs) PR.prefs.accent = a;
+    if (PR.savePrefs) PR.savePrefs("reader", { accent: a });
+    PR.applyAccent();
+  };
   /* 標誌：一張文件加一道勾（單色線條，顏色由 CSS 的 .mark / .hero 給，預設是強調色） */
   /* FOLI 的標誌：藍色的方塊、白色的折紙（顏色由 CSS 的 .lg-tile/.lg-s/.lg-a/.lg-b 決定）。和 web/logo.svg、electron/assets/icon.svg 是同一個形狀 */
   PR.LOGO = '<rect class="lg-tile" width="64" height="64" rx="14"/><g transform="translate(32 32) scale(1.5) translate(-33.7 -32.9)"><path class="lg-s" d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z"/><path class="lg-b" d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z"/><path class="lg-a" d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z"/></g>';
@@ -243,7 +259,7 @@ window.PR = window.PR || {};
     // 桌面版：視窗的半透明材質要跟著亮暗（只有最外層那一頁拿得到橋；iframe 裡改了主題，外殼靠下面的 storage 事件跟上）
     try { const d = window.easyreadDesktop; if (d && d.setTheme) d.setTheme(theme === "dark" || theme === "light" ? theme : "system"); } catch (e) { /* 不是桌面版 */ }
   };
-  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); });
+  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") { PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); PR.applyAccent && PR.applyAccent(); } });
 
   /* 简单事件总线 */
   const subs = {};

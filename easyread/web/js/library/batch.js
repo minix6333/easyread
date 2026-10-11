@@ -31,6 +31,7 @@
   /* ---------- 表头 ---------- */
   const head = PR.$(".list-head"), bar = PR.$("#batchBar"), pickBtn = PR.$("#pickBtn");
   pickBtn.innerHTML = PR.icon("check", "sm") + PR.t("批量操作");
+  pickBtn.hidden = true;  // 入口搬到頂欄的「更多」選單（app.js），這顆留著給快捷鍵和舊的呼叫
   pickBtn.title = PR.t("勾选几篇论文，一起放进分类、翻译、导出引用（Ctrl/⌘ + 点论文也行）");
   const tool = (act, label, icon, title) => '<button class="btn sm line" data-b="' + act + '"' + (title ? ' title="' + PR.esc(title) + '"' : "") + ">" + (icon ? PR.icon(icon, "sm") : "") + label + "</button>";
 

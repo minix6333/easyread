@@ -206,7 +206,7 @@ svg.i.sm { width: 15px; height: 15px; }
 /* 玻璃鈕（頂欄、浮動工具列上的）：滑過去玻璃亮一階，按下去暗一階；圖示鈕是圓的 */
 .btn.lg:hover { background: var(--lg-hover); color: var(--ink); }
 .btn.lg:active { background: var(--lg-press); }
-.btn.icon.lg { border-radius: 50%; color: var(--ink); }
+.btn.icon.lg { border-radius: var(--r-ctl, 11px); color: var(--ink); }
 .btn.icon.lg.on { background: var(--ink); color: var(--bg); }
 .btn.icon.lg.on:hover { background: var(--ink); color: var(--bg); }
 

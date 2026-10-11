@@ -21,8 +21,10 @@
         PR.FEATURES.map(([id, name, , desc]) => '<label class="switch-row"><span><b>' + name + "</b><small>" + desc + '</small></span><input type="checkbox" class="switch" data-feat="' + id + '"' + (s.ui.features[id] !== false ? " checked" : "") + "></label>").join("") +
         "</div>" + '<div class="settings-sec grid2"><label class="field"><span>' + PR.t("界面主题") + '</span><select class="input" id="themeSel">' +
         PR.opt([["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]], s.theme) + "</select></label>" +
+        (PR.ACCENTS ? '<div class="field accent-field"><span>' + PR.t("強調色") + '</span><div class="swatches">' + PR.ACCENTS.map(([k, name]) => '<button type="button" class="sw sw-' + k + (PR.accent() === k ? " on" : "") + '" data-accent-pick="' + k + '" title="' + name + '"></button>').join("") + "</div></div>" : "") +
         // 玻璃折射：拉的時候就套到畫面上（settings.js 的 input 事件 → PR.setGlass），不用按保存
-        (PR.setGlass ? '<label class="field glass-field"><span>' + PR.t("玻璃折射") + '<small>' + PR.t("左邊是只有毛玻璃") + '</small></span><input type="range" class="glass-range" data-glass-level min="0" max="100" step="5" value="' + PR.glassLevel() + '"></label>' : "") +
+        (PR.setGlass ? '<label class="field glass-field"><span>' + PR.t("玻璃折射") + '<small>' + PR.t("左邊是只有毛玻璃") + '</small></span><input type="range" class="glass-range" data-glass-level min="0" max="100" step="5" value="' + PR.glassLevel() + '"></label>' +
+          '<label class="field glass-field clear-field"><span>' + PR.t("視窗透明") + '<small>' + PR.t("左邊是不透明") + '</small></span><input type="range" class="glass-range" data-clear-level min="0" max="100" step="5" value="' + PR.clearLevel() + '"></label>' : "") +
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("界面语言") + '</span><select class="input" id="langSel">' +
           PR.opt([["auto", PR.t("跟随系统")], ["zh-TW", "繁體中文"], ["zh", "简体中文"], ["en", "English"]], s.lang || PR.langChoice) + "</select></label>") +  // i18n-ok 語言名用各自的寫法
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("论文译成") + '</span><select class="input" id="targetSel">' +
@@ -60,7 +62,7 @@
         h += "<span>" + label + (off ? ' <small class="hint">' + PR.t("（功能已关）") + "</small>" : "") + '</span><button class="kcap' + (s.recording === id ? " rec" : k ? "" : " off") + '" data-krec="' + id + '">' +
           (s.recording === id ? PR.t("按一个键…") : k ? PR.esc(PR.keyName(k)) : PR.t("未设置")) + '</button><button class="kx" data-koff="' + id + '" title="' + PR.t("不用这个快捷键") + '">' + PR.t("清除") + "</button>";
       }
-      return h + '</div><div class="keys-foot"><span class="hint">' + PR.t("选中文字后 1–4 四色划线、N 笔记、Q 提问，跟着总开关。") + '</span><button class="btn sm" data-kreset>' + PR.t("恢复默认键位") + "</button></div>";
+      return h + '</div><div class="keys-foot"><span class="hint">' + PR.t("選字之後 1–8 是八種顏色的畫線、N 筆記、Q 提問，跟著總開關。") + '</span><button class="btn sm" data-kreset>' + PR.t("恢复默认键位") + "</button></div>";
     },
     click(e, s) {
       const r = e.target.closest("[data-krec]"), off = e.target.closest("[data-koff]");
@@ -74,7 +76,7 @@
       if (e.key === "Escape") { s.recording = null; return true; }
       if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return false;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (/^[1-4]$/.test(k)) { PR.toast(PR.t("1–4 留给选中文字后的划线")); return false; }
+      if (/^[1-8]$/.test(k)) { PR.toast(PR.t("1–8 留給選字之後的畫線")); return false; }
       const taken = Object.keys(s.ui.keys).find((id) => s.ui.keys[id] === k && id !== s.recording);
       if (taken) { s.ui.keys[taken] = ""; PR.toast(PR.t("「{name}」原来的键让给了这个操作", { name: PR.KEY_ACTIONS.find((a) => a[0] === taken)[1] })); }
       s.ui.keys[s.recording] = k;

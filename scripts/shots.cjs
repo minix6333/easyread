@@ -12,6 +12,11 @@ const out = opt("--out", "/tmp/shots");
 const base = opt("--base", "http://localhost:8765");
 const wait = Number(opt("--wait", "1800"));
 const js = opt("--js", "");
+// --wall：在最底下墊一張假的「桌面」（彩色漸層＋材質的灰），看透明的地方大概長什麼樣（真的毛玻璃是系統畫的，截不到）
+const wall = argv.includes("--wall");
+const WALL = (theme) => "html{background:" + (theme === "dark"
+  ? "linear-gradient(rgba(40,40,42,.62),rgba(40,40,42,.62)),linear-gradient(125deg,#3b4a6b 0%,#7a5a8c 38%,#b0785a 68%,#2f5a52 100%)"
+  : "linear-gradient(rgba(240,240,242,.66),rgba(240,240,242,.66)),linear-gradient(125deg,#7fa0d8 0%,#c79bd6 38%,#f0b48a 68%,#7fc2b0 100%)") + " fixed !important}";
 const specs = argv.filter((a) => a.includes("|")).map((a) => {
   const [name, url, size, theme] = a.split("|");
   const [w, h] = (size || "1280x800").split("x").map(Number);
@@ -35,6 +40,7 @@ app.whenReady().then(async () => {
       // 伺服器存的偏好會蓋掉 localStorage 的主題：載完再直接把主題掛到 <html> 上
       if (js) { await win.webContents.executeJavaScript(js).catch((e) => console.log("js fail", s.name, String(e))); await new Promise((r) => setTimeout(r, 900)); }  // --js：載完要跑的（開面板之類）
       await win.webContents.executeJavaScript('document.documentElement.dataset.theme=' + JSON.stringify(s.theme)).catch(() => {});  // 放在 --js 後面：改偏好會把主題套回去
+      if (wall) { await win.webContents.insertCSS(WALL(s.theme)).catch(() => {}); await win.webContents.executeJavaScript('document.documentElement.classList.add("framed")').catch(() => {}); }  // 像在外殼裡：頁面自己不上底色
       await new Promise((r) => setTimeout(r, 500));
       const img = await win.webContents.capturePage();
       fs.writeFileSync(path.join(out, s.name + ".png"), img.toPNG());

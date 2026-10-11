@@ -120,6 +120,8 @@
     if (e.target === dlg() || e.target.closest("#setCancel")) { st.recording = null; return dlg().classList.remove("open"); }
     const tb = e.target.closest("[data-set-tab]");
     if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
+    const sw = e.target.closest("[data-accent-pick]");  // 強調色：點了就換，不用按保存
+    if (sw && PR.setAccent) { PR.setAccent(sw.dataset.accentPick); PR.$$("[data-accent-pick]", dlg()).forEach((b) => b.classList.toggle("on", b === sw)); return; }
     if (e.target.closest("#setLang")) { PR.$("#langBtn").click(); return; }  // 介面語言：還是頂欄那顆（藏著的）按鈕在做
     if (e.target.closest("#showLog")) { const r = await PR.api("/api/log"); PR.showText(PR.t("运行日志"), r.text + "\n\n" + PR.t("（完整日志：{path}）", { path: r.path })); return; }
     if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(err.message) })); } return; }
@@ -129,6 +131,8 @@
   dlg().addEventListener("input", (e) => {  // 玻璃折射：拉著就看得到，不用按保存
     const g = e.target.closest("[data-glass-level]");  // 不能用 data-glass：那是玻璃元素自己的記號
     if (g && PR.setGlass) PR.setGlass(+g.value);
+    const c = e.target.closest("[data-clear-level]");
+    if (c && PR.setClear) PR.setClear(+c.value);
   });
   dlg().addEventListener("change", (e) => {
     const t = PR.settingsTabs[st.tab];

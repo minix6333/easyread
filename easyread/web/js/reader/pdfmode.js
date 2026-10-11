@@ -48,13 +48,11 @@
     const [, fits] = clampW();
     body.classList.toggle("pdf-main", pdf);
     body.classList.toggle("art-open", pdf && artOpen && fits && hasArticle());
-    root.style.setProperty("--pv-zoom", String((PR.prefs || {}).pdfZoom || 1));
-    // 頁碼和縮放：PDF 優先時搬到頂欄正中間；文章優先（或視窗很窄）留在原頁面板頂上
-    const head = PR.$(".pv-head"), bar = PR.$("#bar"), pv = PR.$("#pageview");
-    if (head && bar && pv) {
-      const host = pdf && innerWidth >= 900 ? bar : pv;
-      if (head.parentNode !== host) host === bar ? bar.append(head) : pv.prepend(head);
-    }
+    const zsc = PR.$(".pv-scroll");  // 縮放的變數掛在捲動區上，不掛 <html>：改它的時候只有 PDF 那幾頁重算
+    if (zsc) zsc.style.setProperty("--pv-zoom", String((PR.prefs || {}).pdfZoom || 1));
+    // 頁碼和縮放：一直留在 PDF 這一格裡，是底部正中的一顆膠囊（頂欄只放少數幾顆鈕，像 Craft 那樣空）
+    const head = PR.$(".pv-head"), pv = PR.$("#pageview");
+    if (head && pv && head.parentNode !== pv) pv.prepend(head);
     const btn = PR.$('[data-act="pages"]');
     if (btn) {
       btn.innerHTML = PR.icon(pdf ? "book" : "page");
@@ -176,37 +174,32 @@
   PR.on("ui-changed", () => PR.applyLayout());
 
   /* ---------- 縮放 ---------- */
-  /* 縮放要順：寬度一改整份文件都要重排，所以（1）看不到的頁不排（pdfview.css 的 content-visibility），
-     （2）換清晰的圖等手停下來再換（連按、捏合時不會每一步都重抓圖），（3）捏合（trackpad 的 ctrl+wheel）一格一格跟著手走。 */
-  let reloadT = null;
-  PR.setPdfZoom = function (z) {
+  /* 縮放要順。以前每一步都跑整套 applyPrefs：在 <html> 上改五六個 CSS 變數（整份文件——含開著的譯文——全部重算樣式）、
+     寫 localStorage、存偏好、重排版面、重抓每一頁的圖，連按或捏合時一格要上百毫秒。現在分兩段：
+     （1）手在動的時候只改捲動區自己的 --pv-zoom（只有 PDF 那幾頁重排）和縮放的數字，游標底下那一點不動；
+     （2）手停 220 毫秒才收尾：存偏好、重算筆記欄放不放得下、換清晰度合適的圖。 */
+  let zoomT = null;
+  const zoomLabel = (z) => PR.$$(".pv-zoom-lbl").forEach((b) => (b.textContent = Math.round(z * 100) + "%"));
+  PR.setPdfZoom = function (z, at) {
     z = Math.round(Math.max(0.5, Math.min(4, z)) * 100) / 100;
-    if (z === ((PR.prefs || {}).pdfZoom || 1)) return;
-    const scroller = PR.$(".pv-scroll");
-    const yr = scroller.scrollTop / Math.max(1, scroller.scrollHeight), xr = scroller.scrollLeft / Math.max(1, scroller.scrollWidth);
+    const z0 = (PR.prefs || {}).pdfZoom || 1;
+    if (z === z0) return;
+    const sc = PR.$(".pv-scroll");
+    // 定住的那一點：游標所在（捏合），沒有就用畫面上三分之一處
+    const box = sc.getBoundingClientRect();
+    const cx = at ? at.x - box.left : sc.clientWidth / 2, cy = at ? at.y - box.top : sc.clientHeight / 3;
+    const first = sc.querySelector(".pv-page");
+    const pad = first ? first.offsetTop : 0, x0 = first ? first.offsetLeft : 0, w0 = first ? first.offsetWidth : 1;
+    const fy = (sc.scrollTop + cy - pad) / Math.max(1, sc.scrollHeight - pad), fx = (sc.scrollLeft + cx - x0) / Math.max(1, w0);
     PR.prefs.pdfZoom = z;
-    PR.applyPrefs();  // 會存偏好並呼叫 applyLayout（更新 --pv-zoom 和縮放標籤）
-    scroller.scrollTop = yr * scroller.scrollHeight; scroller.scrollLeft = xr * scroller.scrollWidth;
-    clearTimeout(reloadT);
-    reloadT = setTimeout(() => PR.reloadPages && PR.reloadPages(), 260);
+    sc.style.setProperty("--pv-zoom", String(z));
+    zoomLabel(z);
+    const x1 = first ? first.offsetLeft : 0, w1 = first ? first.offsetWidth : 1;  // 讀一次版面（只有捲動區裡面重排）
+    sc.scrollTop = Math.max(0, fy * (sc.scrollHeight - pad) + pad - cy);
+    if (sc.scrollWidth > sc.clientWidth + 1) sc.scrollLeft = Math.max(0, x1 + fx * w1 - cx);
+    clearTimeout(zoomT);
+    zoomT = setTimeout(() => { zoomT = null; PR.applyPrefs(); PR.reloadPages && PR.reloadPages(); }, 220);
   };
-  (function pinch() {
-    const scroller = PR.$(".pv-scroll");
-    if (!scroller) return;
-    let pending = 0, raf = 0;
-    scroller.addEventListener("wheel", (e) => {
-      if (!e.ctrlKey) return;  // 捏合在 Chromium 裡是帶 ctrlKey 的 wheel；一般捲動不管
-      e.preventDefault();
-      pending += e.deltaY;
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const d = pending; pending = 0;
-        const z = (PR.prefs || {}).pdfZoom || 1;
-        PR.setPdfZoom(z * Math.exp(-d * 0.01));
-      });
-    }, { passive: false });
-  })();
   /* 工具列和浮動按鈕的圖示（reader.html 裡只留空按鈕） */
   [["[data-pv='prev']", "back"], ["[data-pv='next']", "next"], ["[data-pv='zoom-out']", "zoomOut"], ["[data-pv='zoom-in']", "zoomIn"], ["[data-pv='pdf']", "download"], ["[data-pv='close']", "x"],
     ["[data-fab='region']", "region"], ["[data-fab='notes']", "notebook"], ["[data-fab='chat']", "sparkle"]].forEach(([sel, name]) => {
@@ -252,13 +245,20 @@
     else if (e.key === "-" || e.key === "_") { e.preventDefault(); PR.setPdfZoom(z - (z > 2 ? 0.5 : 0.25)); }
     else if (e.key === "0") { e.preventDefault(); PR.setPdfZoom(1); }
   }, true);
-  let pinch = 0, pinchT = null;
+  /* 捏合：一格畫面套一次（不是 40 毫秒一次），以手指中間那一點為中心 */
+  let pinch = 0, pinchRaf = 0, pinchAt = null;
   PR.$(".pv-scroll").addEventListener("wheel", (e) => {
     if (!e.ctrlKey || !PR.pdfMain()) return;
     e.preventDefault();
     pinch += e.deltaY;
-    if (pinchT) return;
-    pinchT = setTimeout(() => { const z = (PR.prefs || {}).pdfZoom || 1; PR.setPdfZoom(z * Math.exp(-pinch * 0.012)); pinch = 0; pinchT = null; }, 40);
+    pinchAt = { x: e.clientX, y: e.clientY };
+    if (pinchRaf) return;
+    pinchRaf = requestAnimationFrame(() => {
+      pinchRaf = 0;
+      const z = (PR.prefs || {}).pdfZoom || 1, d = pinch;
+      pinch = 0;
+      PR.setPdfZoom(z * Math.exp(-d * 0.012), pinchAt);
+    });
   }, { passive: false });
 
   /* 筆記的浮動按鈕：這一頁寫過筆記就亮一個點 */

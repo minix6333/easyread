@@ -67,7 +67,7 @@
   const partner = (el) => (isEnEl(el) && !el.classList.contains("en-main") ? PR.zhOfEl(el) : el.classList.contains("zh") && !el.classList.contains("en-main") ? PR.enOfZh(el) : null);
 
   /* ---------- 标注同步到另一边 ---------- */
-  const MIR = ["mir", "mir-para", "c-yellow", "c-green", "c-blue", "c-pink", "mir-q"];
+  const MIR = ["mir", "mir-para", "c-yellow", "c-green", "c-blue", "c-pink", "c-orange", "c-purple", "c-teal", "c-gray", "mir-q"];
   PR.applyMirrors = function (scope) {
     scope = scope || PR.$("#paper");
     if (!scope) return;

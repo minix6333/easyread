@@ -17,8 +17,8 @@
   const BASE = 60;
   // 哪些東西是玻璃（JS 畫出來的也算）：選擇器 → 預設
   const AUTO = [
-    [".topbar > .btn.icon, .topbar > .brand-back, .topbar > .save-state, .topbar > .job-state, .topbar > .search, .topbar > .seg, .topbar > .pv-head, .topbar > .btn.accent, .topbar > .btn.line, #tabs .btn.icon", "soft"],
-    [".pv-fabs, .askline, .jump-back, #findbar", "soft"],
+    [".topbar > .btn.icon, .topbar > .brand-back, .topbar > .bar-group, .topbar > .job-state, .topbar > .search, .topbar .seg, .list-head > .btn.icon", "soft"],
+    ["#pageview > .pv-head, .pv-ai .fab, .askline, .jump-back, #findbar", "soft"],
     [".menu, .popover, .bk-menu, .ch-list, .ch-menu, .ch-docpop, #toast, .ch-aside, .ch-compose, .nai-box, .sync-pop, #dockDrop", "strong"],
   ];
   const live = new WeakMap();   // 元素 → 模組給的把手
@@ -80,7 +80,21 @@
     if (PR.savePrefs) PR.savePrefs("reader", { glass: v });
     reapply();
   };
-  addEventListener("storage", (e) => { if (e.key === "easyread-prefs" && level() !== cur) reapply(); });
+  /* 視窗透明度（設定 → 閱讀）：0–100，75 是預設；只是把 --clear 掛到 <html>，材質和畫布的透明度在 craft.css 裡照它算 */
+  const clearLevel = () => { const v = Number((PR.ls && PR.ls.get("easyread-prefs", {}) || {}).clear); return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 75; };
+  const applyClear = () => document.documentElement.style.setProperty("--clear", String(clearLevel()));
+  PR.clearLevel = clearLevel;
+  PR.setClear = function (v) {
+    v = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    const p = PR.ls.get("easyread-prefs", {});
+    p.clear = v;
+    PR.ls.set("easyread-prefs", p);
+    if (PR.prefs) PR.prefs.clear = v;
+    if (PR.savePrefs) PR.savePrefs("reader", { clear: v });
+    applyClear();
+  };
+  applyClear();
+  addEventListener("storage", (e) => { if (e.key !== "easyread-prefs") return; applyClear(); if (level() !== cur) reapply(); });
 
   function scan(root) {
     if (!root || root.nodeType !== 1) return;

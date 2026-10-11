@@ -1553,5 +1553,20 @@
  "連結（⌘K）": "Link (⌘K)",
  "關閉": "Close",
  "刪除線（⌘⇧-）": "Strikethrough (⌘⇧-)",
- "公式（⌘⇧E）": "Equation (⌘⇧E)"
+ "公式（⌘⇧E）": "Equation (⌘⇧E)",
+ "橙": "Orange",
+ "紫": "Purple",
+ "青": "Teal",
+ "灰": "Gray",
+ "粉": "Pink",
+ "石墨": "Graphite",
+ "強調色": "Accent colour",
+ "視窗透明": "Window transparency",
+ "左邊是不透明": "far left is opaque",
+ "外觀": "Appearance",
+ "選字之後：八種顏色的畫線": "With text selected: highlight in eight colours",
+ "1–8 留給選字之後的畫線": "1–8 are reserved for highlighting selected text",
+ "選字之後 1–8 是八種顏色的畫線、N 筆記、Q 提問，跟著總開關。": "With text selected, 1–8 highlight in eight colours, N adds a note, Q asks; they follow the master switch.",
+ "拖一個網址進來，或從下面挑一個": "Drag a link in, or pick one below",
+ "它有自己的登入，讀不到 FOLI 裡的內容。": "It has its own sign-in and cannot read anything in FOLI."
 }

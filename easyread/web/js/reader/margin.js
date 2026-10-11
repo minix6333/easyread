@@ -126,8 +126,8 @@
   }
   function colorDots(d) {
     if (!d.quote) return "";
-    return '<span class="dots">' + ["yellow", "green", "blue", "pink"].map((c) =>
-      '<button data-color="' + c + '" class="dot-' + c + ((d.color || "yellow") === c ? " on" : "") + '" title="' + PR.t("换颜色") + '"></button>').join("") + "</span>";
+    return '<span class="dots">' + PR.HL_COLORS.map(([c, name]) =>
+      '<button data-color="' + c + '" class="dot-' + c + ((d.color || "yellow") === c ? " on" : "") + '" title="' + name + '"></button>').join("") + "</span>";
   }
 
   // PDF 優先時譯文排在 PDF 旁邊，沒有空間放邊注欄（#margin 是藏著的）：卡片收成段尾角標，不然會畫進看不見的地方

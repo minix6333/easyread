@@ -82,7 +82,7 @@
     if (!want) { if (node) node.remove(); return; }
     if (!node) {
       node = PR.el("div", { id: "syncBanner", class: "sync-banner", role: "status" });
-      PR.$(".main").insertBefore(node, PR.$(".list-head"));
+      PR.$(".main").insertBefore(node, PR.$("#list"));
     }
     node.innerHTML = '<span class="ic">' + PR.icon("cloud", "sm") + "</span><span class=\"tx\">" + PR.esc(v.action.text) + "</span>" +
       '<button class="btn sm accent" data-sync="' + v.action.kind + '"' + (busy ? " disabled" : "") + ">" + (busy ? '<span class="spin"></span>' : "") + PR.esc(v.action.label) + "</button>" +
@@ -94,8 +94,17 @@
     if (!open) { if (p) p.remove(); return; }
     if (!p) { p = PR.el("div", { id: "syncPop", class: "sync-pop", role: "dialog", "aria-label": PR.t("雲端同步") }); document.body.append(p); }
     const r = btn().getBoundingClientRect();
-    p.style.top = Math.round(r.bottom + 8) + "px";
-    p.style.right = Math.max(8, Math.round(innerWidth - r.right - 4)) + "px";
+    if (r.top > innerHeight / 2) {  // 按鈕在側欄底下：往上開、靠左
+      p.style.top = "auto"; p.style.right = "auto";
+      p.style.bottom = Math.round(innerHeight - r.top + 8) + "px";
+      p.style.left = Math.max(8, Math.round(r.left - 4)) + "px";
+      p.style.transformOrigin = "bottom left";
+    } else {
+      p.style.bottom = "auto"; p.style.left = "auto";
+      p.style.top = Math.round(r.bottom + 8) + "px";
+      p.style.right = Math.max(8, Math.round(innerWidth - r.right - 4)) + "px";
+      p.style.transformOrigin = "top right";
+    }
     p.innerHTML = '<div class="sp-head"><b>' + PR.t("雲端同步") + '</b><span class="grow"></span>' +
       (data && data.enabled ? '<button class="btn sm line" data-sync="pull"' + (busy ? " disabled" : "") + ">" + PR.icon("redo", "sm") + PR.t("立即同步") + "</button>" : "") + "</div>" +
       '<div class="sp-where"><span class="tt">' + PR.esc(v.title) + '</span><button class="linkish" data-sync="reveal">' + PR.t("開啟資料夾") + "</button></div>" +

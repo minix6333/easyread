@@ -235,6 +235,7 @@ function windowOpenHandler({ url: target }) {
         overrideBrowserWindowOptions: {
           width: 480, height: 800, minWidth: 360, minHeight: 420, autoHideMenuBar: true,
           titleBarStyle: "default",  // 主視窗把標題列藏了；獨立視窗照一般的來，紅黃綠才不會壓到面板頂上的按鈕
+          ...(process.platform === "darwin" ? GLASS_WINDOW : {}),
           icon: path.join(__dirname, "assets", "icon.ico"),
           webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.cjs") },
         },
@@ -356,6 +357,10 @@ ipcMain.handle("easyread:embed-clear", async event => {
   return true;
 });
 
+// macOS 的視窗材質：側欄那種毛玻璃（比 under-window 透，桌面的顏色透得過來），視窗不在前面時也維持。
+// 網頁那邊 html.desktop 的底是透明的（css/craft.css），材質才透得出來；透明多少是設定裡的「視窗透明」。
+const GLASS_WINDOW = { vibrancy: "sidebar", visualEffectState: "active", backgroundColor: "#00000000" };
+
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
@@ -368,7 +373,7 @@ async function createWindow() {
     show: false,
     // macOS：視窗底是半透明的材質（桌面透過來、糊掉），像 Craft；標題列藏起來，紅黃綠放在分頁列左邊。
     // 網頁那邊 html.desktop 的底色是半透明的（base.css），材質才透得出來。
-    ...(process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active", backgroundColor: "#00000000", titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 13 } } : {}),
+    ...(process.platform === "darwin" ? { ...GLASS_WINDOW, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 13 } } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

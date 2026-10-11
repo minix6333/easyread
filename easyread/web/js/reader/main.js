@@ -55,7 +55,7 @@
     if (e.target.closest("textarea, input, [contenteditable]") || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (PR.hasPendingSelection() && PR.keysOn) {
-      const m = { 1: "yellow", 2: "green", 3: "blue", 4: "pink" }[k];
+      const m = /^[1-8]$/.test(k) ? (PR.HL_COLORS[+k - 1] || [])[0] : null;  // 1–8：八種顏色
       if (m) { e.preventDefault(); return PR.selectionAction("highlight", m); }
       if (k === "n" || k === "q") { e.preventDefault(); return PR.selectionAction(k === "n" ? "note" : "question"); }
       if (k === "t" && (PR.pendingSelection() || {}).side === "pdf" && PR.canChat && PR.canChat()) { e.preventDefault(); return PR.selectionAction("translate"); }

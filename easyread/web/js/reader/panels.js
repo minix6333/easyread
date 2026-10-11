@@ -70,6 +70,7 @@
       slider("fs", PR.t("字号"), 13, 28, 1, " px") + slider("measure", PR.t("版心"), 26, 50, 1, PR.t(" 字")) + slider("lh", PR.t("行距"), 1.5, 2.4, 0.05, "") +
       '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["sans", PR.t("黑体")], ["round", PR.t("圓體")], ["serif", PR.t("宋体")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("边注") + "</span>" + segHtml("margin", [[true, PR.t("显示")], [false, PR.t("收起")]]) + "</div>" +
+      '<div class="row"><span>' + PR.t("外觀") + "</span>" + segHtml("theme", [["light", PR.t("浅色")], ["dark", PR.t("深色")], ["auto", PR.t("跟随系统")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("夜間頁面") + "</span>" + segHtml("night", [["invert", PR.t("反相")], ["dim", PR.t("調暗")], ["none", PR.t("原色")]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>' + PR.t("恢复默认") + '</button><span class="grow"></span>' +
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">' + PR.t("更多设置…") + "</button>" : "") + "</div>";
@@ -251,7 +252,7 @@
       "<h3>" + PR.t("怎么用") + "</h3><p>" + PR.t("在 PDF 上選字：畫線、寫筆記、翻譯、問 AI。選不到字的圖和投影片用右下角的框選。筆記收起來是一顆小圓點，點它打開。上課時開筆記面板的「本頁」，跟著頁面邊聽邊打。") + "</p>" +
       "<h3>" + PR.t("快捷键") + "</h3>" + (PR.keysOn
         ? '<div class="keyrows">' + PR.KEY_ACTIONS.filter(([id, , , , need]) => PR.keymap[id] && (!need || PR.feature(need))).map(([id, label]) => "<kbd>" + PR.esc(PR.keyOf(id)) + "</kbd><span>" + label + "</span>").join("") +
-          "<kbd>1–4</kbd><span>" + PR.t("选中文字后：四色划线") + "</span><kbd>Esc</kbd><span>" + PR.t("关闭面板、取消选中") + "</span></div>" + PR.shortcutRows()
+          "<kbd>1–8</kbd><span>" + PR.t("選字之後：八種顏色的畫線") + "</span><kbd>Esc</kbd><span>" + PR.t("关闭面板、取消选中") + "</span></div>" + PR.shortcutRows()
         : "<p>" + PR.t("快捷键已关闭。") + "</p>") +
       '<button class="btn sm line" data-x="keys">' + PR.t("设置快捷键和功能") + "</button></div>";
   }

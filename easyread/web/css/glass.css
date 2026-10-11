@@ -2,28 +2,28 @@
    一塊玻璃 = 很淡的色（讓字有對比）＋上緣一道亮邊（光打在玻璃上）＋下緣一點內光＋一圈很細的內框＋外面一圈髮線（白底上才看得出邊）＋影。
    淺色是乳白的玻璃，深色是煙灰的玻璃；都半透明，底下的內容捲過去會隱約看見、邊緣會折射。 */
 :root {
-  --lg-tint: linear-gradient(180deg, rgba(255, 255, 255, .72), rgba(236, 236, 240, .52));   /* 白底上也看得出一顆鈕的形狀 */
-  --lg-tint-2: linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .64));   /* 大浮層（選單、提示）：厚一點，字要讀得清 */
-  --lg-spec: rgba(255, 255, 255, .95);     /* 上緣亮邊 */
-  --lg-glow: rgba(255, 255, 255, .32);     /* 下緣內光 */
-  --lg-line: rgba(255, 255, 255, .75);     /* 內框 */
-  --lg-edge: rgba(0, 0, 0, .07);           /* 外框髮線（淡，玻璃才不會像畫了框） */
-  --lg-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px -6px rgba(0, 0, 0, .14);
-  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .05), 0 24px 56px -16px rgba(0, 0, 0, .28);
-  --lg-hover: rgba(255, 255, 255, .5);     /* 滑過去：玻璃再亮一階 */
-  --lg-press: rgba(0, 0, 0, .05);
+  --lg-tint: var(--ctl-bg, rgba(255, 255, 255, .7));              /* 小控制項：和工具列鈕同一個底 */
+  --lg-tint-2: rgba(250, 250, 251, .86);                          /* 大浮層（選單、提示、輸入框）：厚一點，字要讀得清 */
+  --lg-spec: rgba(255, 255, 255, .9);      /* 上緣亮邊 */
+  --lg-glow: rgba(255, 255, 255, 0);       /* 下緣內光（Craft 沒有） */
+  --lg-line: rgba(255, 255, 255, 0);       /* 內框 */
+  --lg-edge: rgba(0, 0, 0, .085);          /* 外框髮線 */
+  --lg-shadow: 0 0 0 0 transparent;
+  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .05), 0 20px 48px -16px rgba(0, 0, 0, .26);
+  --lg-hover: rgba(0, 0, 0, .05);          /* 玻璃上的鈕滑過去 */
+  --lg-press: rgba(0, 0, 0, .09);
 }
 :root[data-theme="dark"] {
-  --lg-tint: linear-gradient(180deg, rgba(64, 64, 72, .5), rgba(34, 34, 40, .56));
-  --lg-tint-2: linear-gradient(180deg, rgba(50, 50, 57, .78), rgba(30, 30, 35, .84));
-  --lg-spec: rgba(255, 255, 255, .22);
-  --lg-glow: rgba(255, 255, 255, .04);
-  --lg-line: rgba(255, 255, 255, .12);
-  --lg-edge: rgba(0, 0, 0, .35);
-  --lg-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px -6px rgba(0, 0, 0, .6);
-  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .5), 0 24px 56px -16px rgba(0, 0, 0, .8);
+  --lg-tint: var(--ctl-bg, rgba(56, 56, 58, .78));
+  --lg-tint-2: rgba(44, 44, 46, .86);
+  --lg-spec: rgba(255, 255, 255, .08);
+  --lg-glow: rgba(255, 255, 255, 0);
+  --lg-line: rgba(255, 255, 255, .08);
+  --lg-edge: rgba(0, 0, 0, .3);
+  --lg-shadow: 0 0 0 0 transparent;
+  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .3), 0 20px 48px -16px rgba(0, 0, 0, .7);
   --lg-hover: rgba(255, 255, 255, .08);
-  --lg-press: rgba(0, 0, 0, .25);
+  --lg-press: rgba(0, 0, 0, .22);
 }
 /* 通用的一塊玻璃；各元件在 apple.css 裡再決定圓角和大小 */
 .lg {
@@ -31,10 +31,8 @@
   box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -6px 16px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow);
 }
 .lg[data-glass="strong"] { background: var(--lg-tint-2); box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -10px 24px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow-lg); }
-/* 玻璃鈕要活：滑過去微微放大、亮一階；按下去縮一下（彈簧） */
-.btn.icon.lg, .pv-fabs .fab, .bk-tools button { transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur) var(--spring-bounce), box-shadow var(--dur-fast); }
-.btn.icon.lg:hover { transform: scale(1.06); }
-.btn.icon.lg:active { transform: scale(.92); transition-duration: .08s; }
+/* 玻璃鈕：滑過去亮一階，按下去那一刻縮一下（不在滑過時放大——Craft 的鈕是穩的） */
+.btn.icon.lg:active { transform: scale(.95); transition-duration: .08s; }
 /* 退回毛玻璃（Safari）或實色（減少透明度）：少了折射也要像一塊材質 */
 .lg.lg-frost { background: var(--lg-tint-2); }
 .lg.lg-flat { background: var(--surface) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }

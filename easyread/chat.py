@@ -24,7 +24,7 @@ from .prompts import _block_text, localize
 from .store import Workspace
 
 HISTORY = 12  # 带上最近几轮对话
-COLOR_NAMES = {"yellow": "黄", "green": "绿", "blue": "蓝", "pink": "红"}  # i18n-ok
+COLOR_NAMES = {"yellow": "黄", "green": "绿", "blue": "蓝", "pink": "红", "orange": "橙", "purple": "紫", "teal": "青", "gray": "灰"}  # i18n-ok
 MARKS_BUDGET = 9000  # 标记部分最多带多少字
 PAPER_BUDGET = 30000  # STE 问答带上正文，长论文各段取节选，保留后面的结果和结论
 
@@ -147,7 +147,7 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
             line += f"\n  所在段落：{_block_text(b)[:600]}"  # i18n-ok
         groups.setdefault(color, []).append(line)
     parts, used = [], 0
-    for color in ["红", "黄", "绿", "蓝", "无颜色"]:  # i18n-ok
+    for color in ["红", "黄", "绿", "蓝", "橙", "紫", "青", "灰", "无颜色"]:  # i18n-ok
         for line in groups.get(color, []):
             if used > MARKS_BUDGET:
                 break
@@ -159,7 +159,7 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
             + "\n".join(parts) + ("\n（标记太多，只列了一部分；Claude Code 可以 Read reader.json 看全部）" if used > MARKS_BUDGET else ""))  # i18n-ok
 
 
-MARK_WORDS = re.compile(r"标[红黄绿蓝记了过的出注]|划线|划过|划的|画线|画过|画的|高亮|涂|颜色|[红黄绿蓝][色的]|笔记|批注|标记|我的问题|highlight", re.I)  # i18n-ok
+MARK_WORDS = re.compile(r"标[红黄绿蓝橙紫青灰记了过的出注]|划线|划过|划的|画线|画过|画的|高亮|涂|颜色|[红黄绿蓝橙紫青灰][色的]|笔记|批注|标记|我的问题|highlight", re.I)  # i18n-ok
 
 
 def wants_marks(text: str) -> tuple[bool, set[str] | None]:
@@ -168,7 +168,7 @@ def wants_marks(text: str) -> tuple[bool, set[str] | None]:
     text = tw.to_cn(text or "")
     if not MARK_WORDS.search(text):
         return False, None
-    colors = {c for c in "红黄绿蓝" if re.search(c + "[色的]|标" + c, text)}  # i18n-ok
+    colors = {c for c in "红黄绿蓝橙紫青灰" if re.search(c + "[色的]|标" + c, text)}  # i18n-ok
     return True, (colors | {"无颜色"} if colors and re.search(r"笔记|问题|批注", text) else colors or None)  # i18n-ok
 
 

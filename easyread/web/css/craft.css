@@ -1,89 +1,545 @@
-/* FOLI · Craft 文件視圖的那一層（排在 apple.css 後面，蓋過去）。
-   桌面版的視窗底是半透明材質（electron/main.cjs 的 vibrancy；頁面掛 html.desktop），桌面透過來、糊掉；
-   內容放在不透明的圓角卡片上——文章是一張卡、PDF 的每一頁是一張卡、筆記頁是一張卡、文獻庫的清單是一張卡。
-   右側面板像 Craft 的檢閱器：最上面一排文字分頁（原頁／譯文、筆記、問 AI）；PDF 底部正中一顆浮動膠囊放工具。 */
-:root { --insp-h: 40px; --card-pad: min(48px, var(--gutter, 48px)); --on-ink: #ffffff; }
-:root[data-theme="dark"] { --on-ink: #141418; }
+/* FOLI · Craft 的那一層（排在最後，蓋過 apple.css）。數字是對著 Craft 量的（2026-10-11）：
+   三層材質——
+   1. 材質（--mat）：視窗本身。側欄、右側檢閱器、分頁列、文獻庫的底都是它；桌面版是透明的，系統的毛玻璃（桌面）透出來，
+      瀏覽器裡用一個灰當替身。這一層上面不畫分隔線、不畫底色。
+   2. 畫布（--canvas-bg）：文件區，一塊上面兩角是大圓角的面板，比材質亮一階（Craft 深色 #2b2b2b）。
+   3. 紙（--sheet）：畫布上的卡——文章、筆記頁、清單、每一張筆記卡（Craft 的頁面底色：#FFFFFF／#222222），只有一圈細邊、沒有陰影。
+   控制項——工具列鈕是圓角方塊（Craft 39×35、圓角 11），很淡的玻璃底、沒有框；分段控制是全圓膠囊，選中的那一段是深色的墊（深色模式）；
+   側欄的列高 30、圓角 10，選中是一塊很淡的墊；標題是 13 的粗體、不是小灰字。頂欄沒有底，鈕少、間距大，直接浮在畫布上。 */
+:root {
+  --mat: #ececee; --canvas-bg: #f1f1f3; --sheet: #ffffff; --line: rgba(0, 0, 0, .085);
+  --ctl-bg: rgba(255, 255, 255, .7); --ctl-hover: rgba(255, 255, 255, .96); --ctl-press: rgba(0, 0, 0, .08); --ctl-line: rgba(0, 0, 0, .075);
+  --seg-track: rgba(0, 0, 0, .06); --seg-knob: #ffffff; --seg-knob-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1px 3px rgba(0, 0, 0, .13);
+  --row-hover: rgba(0, 0, 0, .04); --row-on: rgba(0, 0, 0, .075);
+  --seg-on: rgba(0, 0, 0, .085);         /* 頂欄那種分段控制裡選中的那一格 */
+  --ring: #8f7fe6;                       /* 選中的框：Craft 那種薰衣草紫 */
+  --on-ink: #ffffff;                     /* 印在石墨黑上的字 */
+  --pad: 6px; --r-canvas: 16px; --r-ctl: 11px; --r-row: 10px; --r-sheet: 14px; --ctl-h: 34px; --ctl-w: 38px;
+  --bar-h: 58px; --tabs-h: 40px; --insp-h: 40px;
+  --clear: 75;                           /* 視窗透明度 0–100（設定 → 閱讀；只有桌面版看得出來） */
+  /* 沿用的變數改指到新的層 */
+  --bg: var(--mat); --bg-2: var(--mat); --surface: var(--sheet); --card: var(--sheet); --canvas: transparent;
+  --ink: #1c1c1e; --ink-2: #6a6a70; --ink-3: #a1a1a7;
+  --rule: rgba(0, 0, 0, .075); --rule-2: rgba(0, 0, 0, .12);
+  --fill: rgba(0, 0, 0, .05); --fill-2: rgba(0, 0, 0, .09); --select: var(--row-on); --surface-2: var(--row-hover);
+  --glass: var(--ctl-bg); --glass-sidebar: transparent;
+  --shadow-page: 0 0 0 .5px var(--line);
+  --mat-bg: var(--mat); --canvas-c: var(--canvas-bg);
+  /* 螢光筆多四種（橙、紫、青、灰） */
+  --hl-orange: rgba(251, 146, 60, .3); --hl-purple: rgba(168, 85, 247, .2); --hl-teal: rgba(20, 184, 166, .22); --hl-gray: rgba(120, 120, 128, .24);
+  --ul-orange: #e07a16; --ul-purple: #9558e0; --ul-teal: #129a8e; --ul-gray: #8a8a92;
+  /* 強調色的衍生色：只要換 --accent（設定 → 閱讀 → 強調色），這些跟著變 */
+  --accent-soft: color-mix(in srgb, var(--accent) 11%, transparent); --accent-soft-2: color-mix(in srgb, var(--accent) 19%, transparent);
+  --hl-q: color-mix(in srgb, var(--accent) 13%, transparent); --focus: color-mix(in srgb, var(--accent) 7%, transparent);
+  --pair: color-mix(in srgb, var(--accent) 13%, transparent); --pair-ring: color-mix(in srgb, var(--accent) 56%, transparent);
+  --ring: color-mix(in srgb, var(--accent) 76%, #fff);
+}
+:root[data-theme="dark"] {
+  --mat: #262626; --canvas-bg: #2b2b2b; --sheet: #222222; --line: rgba(255, 255, 255, .09);
+  --ctl-bg: rgba(56, 56, 58, .78); --ctl-hover: rgba(82, 82, 86, .88); --ctl-press: rgba(30, 30, 32, .9); --ctl-line: rgba(255, 255, 255, .07);
+  --seg-track: rgba(255, 255, 255, .1); --seg-knob: #1b1b1c; --seg-knob-shadow: 0 0 0 .5px rgba(255, 255, 255, .05);
+  --row-hover: rgba(255, 255, 255, .05); --row-on: rgba(255, 255, 255, .09);
+  --seg-on: rgba(255, 255, 255, .15);
+  --ring: #b9a7f2; --on-ink: #161617;
+  --bg: var(--mat); --bg-2: var(--mat); --surface: var(--sheet); --card: var(--sheet); --canvas: transparent;
+  --ink: #f2f2f3; --ink-2: #a4a4a9; --ink-3: #747479;
+  --rule: rgba(255, 255, 255, .085); --rule-2: rgba(255, 255, 255, .14);
+  --fill: rgba(255, 255, 255, .07); --fill-2: rgba(255, 255, 255, .12); --select: var(--row-on); --surface-2: var(--row-hover);
+  --glass: var(--ctl-bg); --glass-sidebar: transparent;
+  --shadow-page: 0 0 0 .5px var(--line);
+  --night-page-bg: #222222;
+  --hl-orange: rgba(251, 146, 60, .26); --hl-purple: rgba(192, 132, 252, .26); --hl-teal: rgba(45, 212, 191, .22); --hl-gray: rgba(161, 161, 170, .26);
+  --ul-orange: #fb923c; --ul-purple: #c084fc; --ul-teal: #2dd4bf; --ul-gray: #a1a1aa;
+  --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent); --accent-soft-2: color-mix(in srgb, var(--accent) 25%, transparent);
+  --hl-q: color-mix(in srgb, var(--accent) 17%, transparent); --focus: color-mix(in srgb, var(--accent) 9%, transparent);
+  --pair: color-mix(in srgb, var(--accent) 15%, transparent); --pair-ring: color-mix(in srgb, var(--accent) 60%, transparent);
+  --ring: color-mix(in srgb, var(--accent) 90%, #fff);
+}
+/* 強調色的選項（預設是靛紫，在 base.css）：淺色／深色各一個 */
+html[data-accent="blue"] { --accent: #2f7ae5; }      html[data-accent="blue"][data-theme="dark"] { --accent: #6aa8ff; }
+html[data-accent="teal"] { --accent: #0f8f8a; }      html[data-accent="teal"][data-theme="dark"] { --accent: #45c7bf; }
+html[data-accent="green"] { --accent: #2f9156; }     html[data-accent="green"][data-theme="dark"] { --accent: #57cf86; }
+html[data-accent="orange"] { --accent: #d5730f; }    html[data-accent="orange"][data-theme="dark"] { --accent: #f5a54a; }
+html[data-accent="pink"] { --accent: #d6457f; }      html[data-accent="pink"][data-theme="dark"] { --accent: #f582ae; }
+html[data-accent="red"] { --accent: #d0453a; }       html[data-accent="red"][data-theme="dark"] { --accent: #ff7a6e; }
+html[data-accent="graphite"] { --accent: #55555c; }  html[data-accent="graphite"][data-theme="dark"] { --accent: #b4b4bc; }
+::selection, :root[data-theme="dark"] ::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.cm.ai .av { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, #fff), var(--accent) 72%); }
+/* 桌面版（macOS）：材質是透明的（視窗的毛玻璃透出來），畫布留一點點透。--clear 越大越透 */
+html.desktop {
+  --mat-bg: color-mix(in srgb, var(--mat) calc((100 - var(--clear)) * 1%), transparent);
+  --canvas-c: color-mix(in srgb, var(--canvas-bg) calc(100% - var(--clear) * .3%), transparent);
+}
+body { background: var(--mat-bg); }
+html.desktop.framed body { background: transparent; }   /* 外殼已經上過一層底色，裡面的頁不再疊 */
+html.desktop #frames iframe, #frames iframe { background: transparent; }
 
-/* ---------------- 桌面版：底是透的，材質從底下透出來 ---------------- */
-html.desktop { --bg: rgba(247, 247, 248, .6); --bg-2: rgba(240, 240, 242, .5); --glass-sidebar: rgba(246, 246, 247, .55); --canvas: transparent; }
-html.desktop[data-theme="dark"] { --bg: rgba(20, 20, 23, .62); --bg-2: rgba(26, 26, 29, .55); --glass-sidebar: rgba(22, 22, 25, .62); --canvas: transparent; }
-html.desktop body { background: var(--bg); }
-/* 外殼本身全透明（底色由裡面的 iframe 各自上），分頁列留紅黃綠的位置、可以拖視窗 */
-html.desktop body:has(> #frames) { background: transparent; }
-html.desktop #frames iframe { background: transparent; }
+/* ============ 控制項 ============ */
+/* 工具列鈕：圓角方塊 */
+.topbar > .btn.icon, .topbar > .brand-back, .bar-side > .btn.icon, .list-head > .btn.icon, .bar-group, .topbar > .job-state {
+  height: var(--ctl-h); border-radius: var(--r-ctl); color: var(--ink);
+  background: var(--ctl-bg); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: inset 0 0 0 .5px var(--ctl-line);
+  transition: background var(--dur-fast), color var(--dur-fast), transform .12s ease-out;
+}
+.topbar > .btn.icon, .topbar > .brand-back, .bar-side > .btn.icon, .list-head > .btn.icon { width: var(--ctl-w); padding: 0; justify-content: center; flex: none; }
+.topbar > .btn.icon:hover, .topbar > .brand-back:hover, .bar-side > .btn.icon:hover, .list-head > .btn.icon:hover { background: var(--ctl-hover); color: var(--ink); transform: none; }
+.topbar > .btn.icon:active, .topbar > .brand-back:active, .bar-side > .btn.icon:active, .list-head > .btn.icon:active { background: var(--ctl-press); transform: scale(.95); }
+.topbar > .btn.icon.on, .bar-side > .btn.icon.on, .list-head > .btn.icon.on { background: var(--ink); color: var(--on-ink); }
+.topbar > .btn.icon.on:hover, .bar-side > .btn.icon.on:hover { background: var(--ink); color: var(--on-ink); opacity: .9; }
+.topbar .btn.icon svg.i { width: 17px; height: 17px; }
+/* 一組的（搜尋、譯文、Aa）：一塊玻璃裡放幾顆沒有底的鈕，像 Craft 的檢視切換 */
+.bar-group { display: inline-flex; align-items: center; gap: 2px; padding: 0 3px; flex: none; }
+.bar-group:empty { display: none; }
+.bar-group > .btn.icon { width: 32px; height: 28px; padding: 0; border-radius: 8px; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ink); }
+.bar-group > .btn.icon:hover { background: var(--row-hover); transform: none; }
+.bar-group > .btn.icon:active { background: var(--row-on); transform: scale(.94); }
+.bar-group > .btn.icon.on { background: var(--row-on); color: var(--ink); }
+#bar .theme-btn { display: none !important; }   /* 深淺色在 Aa 裡 */
+/* 分段控制：全圓的槽，選中的那一段是一塊墊（深色模式是深的，像 Craft） */
+.seg { height: 30px; padding: 2px; gap: 0; border-radius: 999px; background: var(--seg-track); }
+.seg > button { height: 26px; padding: 0 13px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--ink); opacity: .78; }
+.seg > button:hover { opacity: 1; }
+.seg > button.on { opacity: 1; font-weight: 700; background: var(--seg-knob); box-shadow: var(--seg-knob-shadow); }
+.seg:has(> .seg-knob) > button.on { background: transparent; box-shadow: none; }
+.seg-knob, :root[data-theme="dark"] .seg-knob { border-radius: 999px; background: var(--seg-knob); box-shadow: var(--seg-knob-shadow); }
+:root[data-theme="dark"] .seg > button.on { background: var(--seg-knob); }
+:root[data-theme="dark"] .seg:has(> .seg-knob) > button.on { background: transparent; }
+/* 頂欄上的分段控制：和旁邊的鈕同一個形狀（圓角方塊） */
+.topbar .seg { height: var(--ctl-h); padding: 3px; border-radius: var(--r-ctl); background: var(--ctl-bg); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); box-shadow: inset 0 0 0 .5px var(--ctl-line); flex: none; }
+.topbar .seg > button { height: 28px; padding: 0 11px; border-radius: 8px; font-weight: 500; }
+.topbar .seg > button.on { font-weight: 600; background: var(--seg-on); box-shadow: none; }
+.topbar .seg .seg-knob, :root[data-theme="dark"] .topbar .seg .seg-knob { border-radius: 8px; background: var(--seg-on); box-shadow: none; }
+:root[data-theme="dark"] .topbar .seg > button.on { background: var(--seg-on); }
+:root[data-theme="dark"] .topbar .seg:has(> .seg-knob) > button.on { background: transparent; }
+.topbar .seg:has(> .seg-knob) > button.on { background: transparent; }
+.topbar .seg .order-caret { padding: 0 5px; }
+/* 一般的按鈕、輸入框 */
+.btn { border-radius: 10px; }
+.btn.sm { border-radius: 8px; }
+.btn.line, .btn.line:hover { background: var(--fill); box-shadow: none; }
+.btn.line:hover { background: var(--fill-2); }
+.input, select.input, textarea.input { border-radius: 10px; background: var(--fill); box-shadow: inset 0 0 0 .5px var(--line); }
+.chip { border-radius: 7px; }
+/* 字印在石墨黑上的地方 */
+.btn.icon.lg.on, #tabs .btn.icon.on, #selbar > button.primary, .np-filters > button.on, .ch-pill.on, .ch-send, .nai-send,
+.cm.user .bubble, .editor-bar button.primary, #askline, .askline, .bk-mi.on svg, .bk-mi:hover svg { color: var(--on-ink); }
+.ch-send.stop, .nai-send.stop { color: #fff; }
+/* 浮層：厚玻璃，圓角 14 */
+.menu, .popover { border-radius: 14px; }
+.menu-list button, .menu-list a { height: 30px; border-radius: 8px; }
+.dialog { background: var(--canvas-bg); border-radius: 18px; box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); }
+#toast { border-radius: 12px; }
+
+/* ============ 頂欄：沒有底，浮在內容上；上緣一段漸淡的模糊 ============ */
+.topbar { height: var(--bar-h); padding: 0 14px; gap: 10px; left: var(--pad); right: calc(var(--insp-now, 0px) + var(--pad)); }
+.topbar::before { --edge: var(--canvas-c); border-radius: var(--r-canvas) var(--r-canvas) 0 0; height: calc(100% + 18px);
+  background: linear-gradient(var(--edge) 20%, color-mix(in srgb, var(--edge) 55%, transparent) 64%, transparent); }
+/* 閱讀頁的頂欄不寫標題（分頁上已經有了，Craft 也不寫）：只有幾顆鈕浮在內容上，內容從底下捲過去，不加底、不加漸層 */
+#bar::before, .note-page .topbar::before { display: none; }
+.bar-titles { align-items: center; margin-left: 2px; min-width: 0; }
+.bar-title, .bar-section { display: none !important; }
+/* 存檔狀態：平常不出現（每次存檔閃一下很吵）；離線、出錯時才是一顆小小的玻璃片 */
+.save-state, .save-state:hover { display: none; height: 26px; padding: 0 9px; border-radius: 9px; align-items: center; gap: 6px; flex: none; font-size: 12px; color: var(--ink-2);
+  background: var(--ctl-bg); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: inset 0 0 0 .5px var(--ctl-line); }
+.save-state[data-s="offline"], .save-state[data-s="error"] { display: inline-flex; }
+.save-state i { width: 6px; height: 6px; }
+.save-state[data-s="offline"], .save-state[data-s="error"] { color: var(--danger); }
+.topbar > .job-state { padding: 0 12px; font-size: 12.5px; }
+
+/* ============ 外殼：分頁列就是視窗材質 ============ */
+#tabs { height: var(--tabs-h); gap: 4px; padding: 0 10px; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop #tabs { padding-left: 84px; -webkit-app-region: drag; }
 html.desktop #tabs .tab, html.desktop #tabs .btn, html.desktop #tabs .dock-rail, html.desktop #tabs .dock-app { -webkit-app-region: no-drag; }
-/* 字印在石墨黑上的地方：底色透了，字不能跟著透 */
-.btn.icon.lg.on, .btn.icon.lg.on:hover, #tabs .btn.icon.on, .pv-fabs .fab.primary, .pv-fabs .fab.primary:hover, #selbar > button.primary, .np-filters > button.on, .ch-pill.on, .ch-send, .nai-send,
-.cm.user .bubble, .editor-bar button.primary, #askline, .askline { color: var(--on-ink); }
-.ch-send.stop, .nai-send.stop { color: #fff; }
+.tab { height: 28px; border-radius: 9px; background: transparent; box-shadow: none; color: var(--ink-2); font-weight: 500; }
+.tab:hover { background: var(--row-hover); color: var(--ink); }
+.tab.on { background: var(--row-on); color: var(--ink); box-shadow: none; font-weight: 600; }
+#tabs .btn.icon { width: 32px; height: 28px; border-radius: 9px; background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: var(--ink-2); }
+#tabs .btn.icon:hover { background: var(--row-hover) !important; color: var(--ink); }
+#tabs .btn.icon.on { background: var(--row-on) !important; color: var(--ink); }
+.gap { background: transparent; }
+.gap:hover, body.sizing .gap { background: var(--accent); }
+/* 外部工具欄（右邊嵌的網頁）：欄本身是材質；上面一排是工具的圖示和幾顆小鈕，下面嵌的網頁是一張圓角的卡 */
+#dock { background: transparent; border-left: 0; }
+.dock-head { height: var(--tabs-h); padding: 0 8px 0 6px; gap: 2px; background: transparent; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.dock-apps { gap: 3px; padding: 2px 0; }
+.dock-app { width: 30px; height: 30px; border-radius: 9px; transition: background var(--dur-fast), transform .1s ease-out; }
+.dock-app:hover { background: var(--row-hover); }
+.dock-app:active { transform: scale(.94); }
+.dock-app.on { background: var(--row-on); }
+.dock-app.on::after { display: none; }
+.dock-app img { width: 18px; height: 18px; border-radius: 5px; }
+.dock-app .ltr { width: 20px; height: 20px; border-radius: 6px; color: var(--on-ink); background: var(--ink); }
+.dock-app .x { right: -4px; top: -4px; width: 15px; height: 15px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 3px rgba(0, 0, 0, .2); }
+.dock-head .btn.icon { width: 28px; height: 28px; border-radius: 8px; color: var(--ink-2); background: transparent; }
+.dock-head .btn.icon:hover { background: var(--row-hover); color: var(--ink); }
+.dock-head .btn.icon[disabled] { opacity: .3; }
+.dock-body { margin: 0 var(--pad) var(--pad) 2px; border-radius: 14px; overflow: hidden; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+.dock-view { border-radius: 14px; }
+.dock-state { background: var(--canvas-bg); border-radius: 14px; }
+/* 空的時候：一個標題、一排可以挑的工具（卡片），其他說明收進提示 */
+.dock-empty { max-width: 340px; font: 13px/1.6 var(--ui); color: var(--ink-2); }
+.dock-empty h3 { margin: 0 0 4px; font: 700 17px/1.3 var(--ui); letter-spacing: -.012em; color: var(--ink); }
+.dock-empty p { margin: 0 0 16px; color: var(--ink-3); font-size: 12.5px; }
+.dock-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dock-presets button { height: 40px; padding: 0 12px; gap: 8px; justify-content: flex-start; border-radius: 11px; font: 600 13px var(--ui); color: var(--ink); background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); transition: box-shadow var(--dur-fast), transform .1s ease-out, background var(--dur-fast); }
+.dock-presets button:hover { box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 16px -10px rgba(0, 0, 0, .3); color: var(--ink); }
+.dock-presets button:active { transform: scale(.97); }
+.dock-presets button[data-d] { color: var(--ink-2); font-weight: 500; background: var(--fill); box-shadow: none; }
+.dock-presets button svg.i { color: var(--accent); }
+.dock-presets .ltr { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font: 700 11.5px/1 var(--ui); font-style: normal; color: var(--on-ink); background: var(--ink); }
+.dock-empty .again { margin: 14px 0 0; font-size: 12px; color: var(--ink-3); }
+#dock.drop-on .dock-head { background: transparent; }
+#dock.drop-on .dock-body { box-shadow: 0 0 0 2px var(--ring); }
+#dockGrip:hover, body.sizing #dockGrip { background: linear-gradient(90deg, transparent 2px, var(--ring) 2px, var(--ring) 4px, transparent 4px); }
+#dockDrop { top: calc(var(--tabs-h) + 6px); right: var(--pad); bottom: var(--pad); width: 150px; border-radius: 16px; color: var(--ink); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ring) 60%, transparent), var(--lg-shadow-lg); }
+#dockDrop.over { box-shadow: 0 0 0 2.5px var(--ring), var(--lg-shadow-lg); }
+#dockDrop b { font-weight: 600; }
 
-/* ---------------- 閱讀頁：文章是一張卡 ---------------- */
-:root { --gap: 60px; }
-#paper { background: var(--surface); border-radius: 20px; padding: 40px var(--card-pad) 60px; margin: 0 calc(-1 * var(--card-pad)); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
-body.side-open:not(.pdf-main) { --card-pad: 28px; }  /* 右邊開著面板時版心被擠窄：卡片少往外撐一點，左邊才留得出呼吸的空 */
+/* ============ 文獻庫：整頁都是材質，卡片浮在上面 ============ */
+.lib { padding-top: 0; }
+.lib > .topbar { left: 0; right: 0; padding: 0 16px 0 14px; }
+.lib.has-detail > .topbar { right: 380px; }
+.lib > .topbar::before { --edge: var(--mat-bg); left: var(--side-w, 248px); border-radius: 0; }
+html.desktop .lib > .topbar::before { background: none; }
+.bar-side { display: flex; justify-content: flex-end; flex: none; width: calc(var(--side-w, 248px) - 20px); min-width: var(--ctl-w); transition: width var(--dur) var(--spring); }
+body.side-collapsed .lib { --side-w: 0px !important; }
+/* 側欄頂上那顆（開合側欄）沒有底，像 Craft 的 */
+.bar-side > .btn.icon { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ink-2); }
+.bar-side > .btn.icon:hover { background: var(--row-hover); color: var(--ink); }
+body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.icon { background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); }
+.list-head { position: static; display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 0; background: none; box-shadow: none; }
+.list-head h1 { font: 600 16px/1.2 var(--ui); letter-spacing: -.01em; margin: 0 0 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-head .count { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.lib-view { margin: 0; }
+.lib-view > button { width: 32px; padding: 0; justify-content: center; display: inline-flex; align-items: center; }
+/* 排序：一顆圖示鈕，底下疊一個看不見的 select */
+.sort.btn.icon { position: relative; overflow: hidden; }
+.sort.btn.icon select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: default; font-size: 13px; }
+.topbar > .search { flex: 0 1 210px; width: auto; min-width: 120px; height: var(--ctl-h); margin: 0; padding: 0 11px; border-radius: var(--r-ctl); background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink-3); transition: flex-basis var(--dur) var(--spring), box-shadow var(--dur-fast), background var(--dur-fast); }
+.topbar > .search:focus-within { flex-basis: 300px; background: var(--ctl-hover); box-shadow: inset 0 0 0 .5px var(--ring), 0 0 0 3.5px var(--accent-soft-2); }
+.batch-bar .btn.sm.line { background: var(--ctl-bg); }
+/* 側欄：材質本身，沒有底、沒有線 */
+.side { display: flex; flex-direction: column; background: transparent; border-right: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.side-in { order: 1; flex: none; padding: var(--bar-h) 12px 16px; }
+.side h3 { font: 700 13px/1.3 var(--ui); letter-spacing: 0; color: var(--ink); opacity: .9; margin: 20px 10px 6px; }
+.side h3:first-child { margin-top: 2px; }
+.side .srow, .side button, .side a.recent { height: 30px; border-radius: var(--r-row); font-size: 13.5px; padding: 0 8px 0 10px; }
+.side .srow:hover, .side button:hover, .side a.recent:hover { background: var(--row-hover); }
+.side .srow.on, .side button.on { background: var(--row-on); font-weight: 600; }
+.side-knob { border-radius: var(--r-row); background: var(--row-on); }
+.side .srow svg.i, .side button svg.i, .side a.recent svg.i { width: 16px; height: 16px; color: var(--ink-2); }
+.side .h-add { width: 24px; height: 24px; border-radius: 7px; }
+.side-trash { border-top: 0; margin-top: 14px; padding-top: 0; }
+/* 側欄底下：同步、深淺色、設定（Craft 也是放這裡）；清單從它底下捲過去，一段漸淡的模糊 */
+.side-foot { order: 2; position: sticky; bottom: 0; z-index: 2; margin-top: auto; display: flex; align-items: center; gap: 2px; padding: 10px 14px 12px; }
+.side-foot::before { content: ""; position: absolute; inset: -14px 0 0; z-index: -1; pointer-events: none; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-mask-image: linear-gradient(transparent, #000 55%); mask-image: linear-gradient(transparent, #000 55%); }
+.side .side-foot .btn.icon { width: 30px; height: 28px; padding: 0; justify-content: center; border-radius: 8px; color: var(--ink-2); background: transparent; }
+.side .side-foot .btn.icon:hover { background: var(--row-hover); color: var(--ink); }
+.side .side-foot .btn.icon.bad::after { content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+.side .side-foot .btn.icon { position: relative; }
+.main { background: transparent; padding-top: var(--bar-h); }
+/* 清單檢視：一張紙 */
+.list { margin: 6px 20px 60px; background: var(--sheet); border-radius: var(--r-sheet); box-shadow: 0 0 0 .5px var(--line); }
+.row:hover { background: var(--row-hover); }
+.row.on { background: var(--row-on); }
+.thumb { border-radius: 5px; box-shadow: 0 0 0 .5px var(--line); }
+/* 格子檢視（預設，像 Craft）：一張張直的卡，上面是第一頁，下面是標題 */
+.list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 16px; padding: 2px; margin: 6px 22px 60px; background: transparent; box-shadow: none; overflow: visible; }
+.list.grid .row { display: flex; flex-direction: column; gap: 6px; padding: 0 0 13px; border-radius: 15px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); overflow: hidden; transform: none !important; transition: box-shadow var(--dur-fast), transform var(--dur) var(--spring); }
+.list.grid .row:hover { background: var(--sheet); box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 20px -8px rgba(0, 0, 0, .25); }
+.list.grid .row:active { transform: scale(.985) !important; }
+.list.grid .row.on { background: var(--sheet); box-shadow: 0 0 0 3px var(--ring); }
+.list.grid .row.picked { box-shadow: 0 0 0 3px var(--accent); }
+.list.grid .row::before { display: none; }
+.list.grid .thumb { width: 100%; height: auto; aspect-ratio: 4 / 4.4; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--line); background-size: cover; background-position: center top; }
+.list.grid .row > :not(.thumb):not(.pick) { padding: 0 14px; }
+.list.grid .row > div:nth-of-type(2) { margin-top: 6px; }
+.list.grid .row .t1 { font: 600 13.5px/1.35 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.list.grid .row .t2 { display: none; }
+.list.grid .row .t3 { margin-top: 4px; font-size: 11.5px; gap: 4px 6px; }
+.list.grid .row .side-info { flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; padding-top: 0; margin-top: auto; }
+.list.grid .row .pick { left: 8px; top: 8px; }
+/* 右邊的詳情：也是材質 */
+.detail { background: transparent; border-left: 0; }
+.detail-head { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; height: var(--bar-h); }
+.detail-close { background: transparent; box-shadow: none; border-radius: 8px; }
+.detail-close:hover { background: var(--row-hover); }
+.abstract:not(.open)::after { background: linear-gradient(transparent, var(--mat-bg)); }
+.jobbox { background: var(--fill); }
+#syncBanner, .sync-banner, .cloud-notice { margin: 6px 22px 10px; border-radius: var(--r-sheet); background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+@media (min-width: 1100px) {
+  .lib { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 0; }
+  .lib.has-detail { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 380px; }
+}
+@media (max-width: 1099px) {
+  .lib > .topbar::before { left: 0; }
+  .lib.has-detail > .topbar { right: 0; }
+  .bar-side { width: auto; }
+  .bar-side > .btn.icon { background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); }
+  /* 側欄是從左邊滑出來的一塊厚玻璃 */
+  .side { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); border-right: 0; box-shadow: none; }
+  body.side-drawer .side { box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); }
+  .lib.has-detail .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
+}
+@media (max-width: 760px) {
+  .list-head .count, .lib-view { display: none; }
+  .topbar > .search { min-width: 0; flex: 0 1 140px; }
+  .list, .list.grid { margin-left: 12px; margin-right: 12px; }
+  .list.grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+}
+
+/* ============ 閱讀頁：畫布 ============ */
+:root { --gap: 60px; --card-pad: min(48px, var(--gutter, 48px)); }
+#canvas { position: fixed; z-index: -1; top: 0; bottom: 0; left: var(--pad); right: calc(var(--insp-now, 0px) + var(--pad)); border-radius: var(--r-canvas) var(--r-canvas) 0 0; background: var(--canvas-c); box-shadow: inset 0 0 0 .5px var(--line); }
+#progress { top: auto; bottom: 0; left: var(--pad); right: calc(var(--insp-now, 0px) + var(--pad)); }   /* 閱讀進度：畫布最底下一條細線（頂上是圓角，放不了） */
+/* 文章：一張紙 */
+#paper { background: var(--sheet); border-radius: var(--r-sheet); padding: 40px var(--card-pad) 60px; margin: 0 calc(-1 * var(--card-pad)); box-shadow: 0 0 0 .5px var(--line); }
+body.side-open:not(.pdf-main) { --card-pad: 28px; }
+body.margin-fit:not(.pdf-main) { --card-pad: 18px; }   /* 版心被擠窄、右邊還要放一欄筆記時（margin.js 的 fitMargin）：紙少往外撐一點，兩邊才有空 */
 #paper .blk::before { left: -14px; }
 #paper .edited-dot { left: -22px; }
-.pv-page { border-radius: 10px; }
-.pv-page > img { border-radius: 10px; }
-body.pdf-main .pv-scroll { padding-top: 18px; }
-/* 頂欄：三顆面板鈕收起來，只留一顆「右側面板」；PDF 優先時「譯文」那顆留著 */
-#bar [data-act="pages"], #bar [data-act="notes"], #bar [data-act="chat"] { display: none !important; }
-body.pdf-main #bar [data-act="pages"] { display: inline-flex !important; }
-/* 右側面板的分頁列（檢閱器） */
-#inspTabs { display: none; position: fixed; top: var(--bar-h); right: 0; z-index: 41; width: var(--side-w-live, var(--side-w)); height: var(--insp-h); align-items: center; gap: 2px; padding: 0 6px 0 10px; background: var(--bg); border-left: .5px solid var(--rule-2); }
-body.side-open #inspTabs { display: flex; }
-html.chat-only #inspTabs, html.notes-only #inspTabs { display: none !important; }
-#inspTabs > button[role="tab"] { height: 28px; padding: 0 10px; border-radius: 8px; font: 500 13.5px var(--ui); color: var(--ink-3); transition: color var(--dur-fast), background var(--dur-fast), transform .1s ease-out; }
-#inspTabs > button[role="tab"]:hover { color: var(--ink); background: var(--surface-2); }
-#inspTabs > button[role="tab"]:active { transform: scale(.96); }
-#inspTabs > button[role="tab"].on { color: var(--ink); font-weight: 700; }
-#inspTabs .grow { flex: 1; }
-#inspTabs .insp-x { width: 26px; height: 26px; border-radius: 50%; color: var(--ink-3); }
-body.side-open #notespanel, body.side-open #chatpanel, body.side-open:not(.pdf-main) #pageview { top: calc(var(--bar-h) + var(--insp-h)); }
-body.side-open .panel-grip { top: calc(var(--bar-h) + var(--insp-h)); }
-/* 分頁列右邊已經有一顆 ×：面板自己的關閉鈕不用再出現 */
-body.side-open .np-head [data-np-act="close"], body.side-open .ch-head [data-c="close"], body.side-open:not(.pdf-main) .pv-head [data-pv="close"] { display: none !important; }
-.side-panel, #inspTabs { background: var(--bg); }
-@media (max-width: 1179px) { #inspTabs { width: min(600px, 100vw); } }
-@media (max-width: 760px) { #inspTabs { width: 100vw; } }
-/* 底部正中的膠囊：框選、筆記、問 AI */
-.pv-fabs { right: auto; left: 50%; bottom: 18px; transform: translateX(-50%); flex-direction: row; gap: 2px; padding: 4px; border-radius: 999px; }
-.pv-fabs .fab { width: 38px; height: 38px; background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-.pv-fabs .fab:hover { background: var(--lg-hover) !important; }
-.pv-fabs .fab.on { color: var(--accent); }
-.pv-fabs .fab.primary { background: var(--ink) !important; color: var(--on-ink); }
-.pv-fabs .fab svg.i { width: 18px; height: 18px; }
-/* 右下角的「問 AI」：像 Craft 的「助理」，一顆有字的膠囊 */
-.pv-ai { position: absolute; right: 22px; bottom: 18px; z-index: 6; display: none; }
-body.pdf-main .pv-ai { display: block; }
-.pv-ai .fab.primary { position: relative; width: auto; height: 40px; padding: 0 16px 0 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; background: var(--ink); color: var(--on-ink); border: 0; box-shadow: var(--shadow); font: 600 13px var(--ui); transition: transform var(--dur) var(--spring-bounce), opacity var(--dur-fast); }
+/* PDF：每一頁一張紙；從頂欄底下捲過去 */
+.pv-page, .pv-page > img { border-radius: 8px; }
+.pv-page { box-shadow: 0 0 0 .5px var(--line); }
+body.pdf-main #pageview { top: 0; left: var(--pad); background: transparent; border: 0; }
+body.pdf-main #pageview { width: calc(var(--pdf-w) - var(--pad)); }
+body.pdf-main:not(.art-open) #pageview { width: calc(100vw - 2 * var(--pad)); }
+body.pdf-main.side-open:not(.art-open) #pageview { width: calc(100vw - var(--side-w) - var(--pad)); }
+body.pdf-main .pv-scroll { padding-top: calc(var(--bar-h) + 6px); border-radius: var(--r-canvas) var(--r-canvas) 0 0; }
+.pv-scroll { background: transparent; }
+#findbar { top: calc(var(--bar-h) + 4px); border-radius: var(--r-ctl); }
+.split-grip::after { background: var(--line); }
+/* 頁碼和縮放：PDF 底部正中的一顆膠囊 */
+#pageview > .pv-head { position: absolute; left: 50%; bottom: 16px; top: auto; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 2px; width: auto; max-width: calc(100% - 24px); height: 40px; padding: 0 5px; border: 0; border-radius: 13px;
+  background: var(--lg-tint-2); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); box-shadow: inset 0 0 0 .5px var(--ctl-line), 0 8px 28px -10px rgba(0, 0, 0, .35); color: var(--ink); }
+#pageview > .pv-head .pv-l, #pageview > .pv-head .pv-c, #pageview > .pv-head .pv-r { display: flex; align-items: center; gap: 1px; min-width: 0; }
+#pageview > .pv-head .pv-l:has(> [hidden]:only-child) { display: none; }
+#pageview > .pv-head .btn.icon { width: 30px; height: 30px; border-radius: 8px; color: var(--ink); background: transparent; }
+#pageview > .pv-head .btn.icon:hover { background: var(--row-hover); }
+#pageview > .pv-head .btn.icon:active { transform: scale(.92); }
+#pageview > .pv-head .btn.icon.on { background: var(--row-on); color: var(--accent); }
+#pageview > .pv-head .pv-label { min-width: 58px; font: 500 12.5px var(--ui); font-variant-numeric: tabular-nums; color: var(--ink); }
+#pageview > .pv-head .pv-zoom-lbl { min-width: 46px; height: 30px; padding: 0 4px; border-radius: 8px; font: 500 12.5px var(--ui); font-variant-numeric: tabular-nums; }
+#pageview > .pv-head .pv-zoom-lbl:hover { background: var(--row-hover); }
+#pageview > .pv-head .pv-sep { width: 1px; height: 16px; margin: 0 5px; background: var(--rule-2); }
+#pageview > .pv-head .pv-r::before { content: ""; width: 1px; height: 16px; margin: 0 5px; background: var(--rule-2); }
+#pageview > .pv-head [data-pv="close"] { display: none !important; }
+.pv-follow:has(input:checked) { color: var(--accent); background: var(--row-on); }
+/* 右下角的「問 AI」：像 Craft 的「助理」 */
+.pv-ai { position: fixed; right: calc(var(--insp-now, 0px) + var(--pad) + 16px); bottom: 16px; z-index: 31; }
+body.ch-open .pv-ai, html.chat-only .pv-ai, html.notes-only .pv-ai { display: none; }
+.pv-ai .fab.primary { position: relative; width: auto; height: 40px; padding: 0 15px 0 12px; border-radius: 13px; display: inline-flex; align-items: center; gap: 7px; border: 0;
+  background: var(--lg-tint-2); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); color: var(--ink); box-shadow: inset 0 0 0 .5px var(--ctl-line), 0 8px 28px -10px rgba(0, 0, 0, .35); font: 600 13px var(--ui); transition: transform .12s ease-out, background var(--dur-fast); }
 .pv-ai .fab.primary::after { content: "問 AI"; }
 html[lang="zh-CN"] .pv-ai .fab.primary::after { content: "问 AI"; }
 html[lang="en"] .pv-ai .fab.primary::after { content: "Ask AI"; }
-.pv-ai .fab.primary svg.i { width: 17px; height: 17px; }
-.pv-ai .fab.primary:hover { transform: scale(1.04); filter: none; opacity: .94; }
+.pv-ai .fab.primary svg.i { width: 16px; height: 16px; color: var(--accent); }
+.pv-ai .fab.primary:hover { background: var(--ctl-hover); filter: none; transform: none; }
 .pv-ai .fab.primary:active { transform: scale(.96); }
-.pv-ai .fab.primary.on { background: var(--accent); color: #fff; }
-/* 跳回剛才讀的地方：膠囊放左下 */
-body.pdf-main .jump-back { left: 20px; }
+body.pdf-main .jump-back, .jump-back { left: calc(var(--pad) + 16px); bottom: 16px; height: 40px; border-radius: 13px; }
+/* 頂欄：三顆面板鈕收起來，只留一顆「右側面板」；PDF 優先時「譯文」那顆留著 */
+#bar [data-act="pages"], #bar [data-act="notes"], #bar [data-act="chat"], #bar [data-act="layout"] { display: none !important; }
+body.pdf-main #bar [data-act="pages"] { display: inline-flex !important; }
+#settings.menu { top: calc(var(--bar-h) + 2px); right: calc(var(--insp-now, 0px) + var(--pad) + 14px); }
 
-/* ---------------- 文獻庫：清單／格子 ---------------- */
-.lib-view { margin-right: 4px; }
-.lib-view > button { width: 30px; padding: 0; justify-content: center; }
-.list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; padding: 2px; background: transparent; box-shadow: none; overflow: visible; }
-.list.grid .row { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow-page); overflow: hidden; transform: none !important; transition: box-shadow var(--dur-fast), background var(--dur-fast); }
-.list.grid .row:hover { box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
-.list.grid .row::before { display: none; }
-.list.grid .thumb { width: 100%; height: 150px; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--rule); background-size: cover; background-position: center top; }
-.list.grid .row > :not(.thumb):not(.pick) { padding: 0 14px; }
-.list.grid .row .t1 { font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.list.grid .row .t2 { display: none; }
-.list.grid .row .t3 { margin-top: 4px; }
-.list.grid .row .side-info { flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; padding-top: 0; }
-.list.grid .row .pick { left: 8px; top: 8px; }
+/* ============ 右側檢閱器：就是材質，最上面一排文字分頁 ============ */
+#inspTabs { display: none; position: fixed; right: 0; z-index: 41; align-items: center; gap: 2px; background: transparent; border: 0; }
+body.side-open #inspTabs { display: flex; }
+html.chat-only #inspTabs, html.notes-only #inspTabs { display: none !important; }
+#inspTabs > button[role="tab"] { height: 28px; padding: 0 9px; border-radius: 8px; font: 600 13.5px var(--ui); color: var(--ink); opacity: .45; transition: opacity var(--dur-fast), background var(--dur-fast), transform .1s ease-out; }
+#inspTabs > button[role="tab"]:hover { opacity: .8; }
+#inspTabs > button[role="tab"]:active { transform: scale(.96); }
+#inspTabs > button[role="tab"].on { opacity: 1; font-weight: 700; }
+#inspTabs .grow { flex: 1; }
+#inspTabs .insp-x { width: 28px; height: 28px; border-radius: 8px; color: var(--ink-2); }
+#inspTabs .insp-x:hover { background: var(--row-hover); color: var(--ink); }
+.side-panel { background: transparent; border-left: 0; box-shadow: none; }
+.np-head, .ch-head, #pageview:not(.x) > .np-head { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; height: 44px; }
+.np-head { padding: 0 14px 0 16px; }
+.ch-head { padding: 0 10px 0 14px; }
+body.side-open .np-head [data-np-act="close"], body.side-open .ch-head [data-c="close"] { display: none !important; }
+#notespanel, #chatpanel { background: transparent; }
+.panel-grip::after { background: transparent; }
+/* 「一整欄」模式（body.insp-col，inspector.js 判斷：視窗夠寬，或 PDF 優先——PDF 會讓出位置）：
+   檢閱器從視窗頂到底，頂欄和畫布只到它的左緣（像 Craft）。其餘情況面板是蓋在內容上的一塊厚玻璃。 */
+body.side-open.insp-col { --insp-now: var(--side-w-live, var(--side-w)); }
+body.insp-col #notespanel, body.insp-col #chatpanel { width: var(--side-w-live, var(--side-w)); }
+body.insp-col #inspTabs { top: 0; width: var(--insp-now); height: var(--bar-h); padding: 0 12px 0 18px; }
+body.insp-col #inspTabs::after { content: ""; position: absolute; left: 18px; right: 18px; bottom: 6px; border-top: .5px solid var(--line); }
+body.side-open.insp-col #notespanel, body.side-open.insp-col #chatpanel, body.side-open.insp-col:not(.pdf-main) #pageview { top: calc(var(--bar-h) - 4px); }
+body.side-open.insp-col .panel-grip { top: 0; }
+body.side-open.insp-col #canvas { right: var(--insp-now); }
+body.side-open.insp-col .topbar { right: var(--insp-now); padding-right: 12px; }
+body.side-open.insp-col .pv-ai { right: calc(var(--insp-now) + 16px); }
+body.side-open.insp-col #settings.menu { right: calc(var(--insp-now) + 14px); }
+body:not(.insp-col) #inspTabs { top: var(--bar-h); width: min(600px, 100vw); height: var(--insp-h); padding: 0 8px 0 14px; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); border-radius: var(--r-canvas) 0 0 0; }
+body.side-open:not(.insp-col) #notespanel, body.side-open:not(.insp-col) #chatpanel, body.side-open:not(.insp-col):not(.pdf-main) #pageview { top: calc(var(--bar-h) + var(--insp-h)); background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: -18px 0 40px -24px rgba(0, 0, 0, .4); }
+body.side-open:not(.insp-col):not(.pdf-main) #pageview { width: min(600px, 100vw); }
+body.side-open:not(.insp-col) .panel-grip { top: var(--bar-h); }
+@media (max-width: 760px) { body:not(.insp-col) #inspTabs { width: 100vw; border-radius: 0; } }
+/* ============ 螢光筆的顏色（八種）：每個 c-<名字> 只定三個變數，標記、小圓點、連線、卡片都照變數畫 ============ */
+.c-yellow, .dot-yellow { --hc: var(--hl-yellow); --uc: var(--ul-yellow); --hs: #57480a; }
+.c-green, .dot-green { --hc: var(--hl-green); --uc: var(--ul-green); --hs: #184f30; }
+.c-blue, .dot-blue { --hc: var(--hl-blue); --uc: var(--ul-blue); --hs: #1e4078; }
+.c-pink, .dot-pink { --hc: var(--hl-pink); --uc: var(--ul-pink); --hs: #672840; }
+.c-orange, .dot-orange { --hc: var(--hl-orange); --uc: var(--ul-orange); --hs: #6a3a0c; }
+.c-purple, .dot-purple { --hc: var(--hl-purple); --uc: var(--ul-purple); --hs: #44307a; }
+.c-teal, .dot-teal { --hc: var(--hl-teal); --uc: var(--ul-teal); --hs: #124f55; }
+.c-gray, .dot-gray { --hc: var(--hl-gray); --uc: var(--ul-gray); --hs: #46464c; }
+mark.hl { background: var(--hc, var(--hl-yellow)); }
+mark.hl.s-ul { --u: var(--uc, var(--ul-yellow)); background: transparent; }
+mark.hl.agent { background: transparent; }
+.pv-mark { background: var(--hc, var(--hl-yellow)); }
+.pv-mark.s-ul { --u: var(--uc, var(--ul-yellow)); }
+:root[data-theme="dark"] body:not(.night-dim):not(.night-none) .pv-mark:not(.s-ul):not(.q) { background: var(--hs, #57480a); }
+.pv-badge { background: var(--uc, var(--ul-yellow)); }
+.pv-wire path { stroke: var(--uc, var(--ul-yellow)); }
+.dots [class*="dot-"], .dots.pen-underline [class*="dot-"] { background: var(--uc); }
+#paper .mir, #paper .mir-para { --mc: var(--uc, var(--ul-yellow)); }
+.dots { gap: 6px; }
+.dots button { width: 15px; height: 15px; border-radius: 50%; box-shadow: none; transition: transform .12s ease-out, box-shadow var(--dur-fast); }
+.dots button:hover { transform: scale(1.18); }
+.dots button.on { box-shadow: 0 0 0 2px var(--sheet), 0 0 0 3.5px var(--uc); }
+.dots.pen-underline button { height: 4px; margin-top: 0; border-radius: 2px; }
+#selbar .dots { gap: 5px; padding: 0 8px 0 6px; }
+#selbar .dots button { width: 15px; height: 15px; }
 
-/* ---------------- 獨立筆記：一張卡 ---------------- */
-.note-page .note-main { max-width: 860px; margin: calc(var(--bar-h) + 10px) auto 170px; padding: 44px 56px 80px; background: var(--surface); border-radius: 20px; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
-@media (max-width: 600px) { .note-page .note-main { margin: calc(var(--bar-h) + 6px) 8px 170px; padding: 24px 16px 60px; border-radius: 14px; } }
+/* ============ 筆記卡片（面板裡、PDF 旁、文章右邊、便利貼共用）============
+   顏色跟著螢光筆（--nc）：底是那個顏色很淡的一層、圖示是那個顏色，像 Craft 的彩色區塊；
+   畫線和筆記不再寫「我的畫線」「我的筆記」——顏色、圖示和內容已經說了，只留頁碼。 */
+.card { --nc: var(--ink-3); position: relative; padding: 10px 12px 11px; border: 0; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.65; transition: top var(--dur) var(--ease), box-shadow var(--dur-fast), background var(--dur-fast); }
+.card.mine { --nc: var(--uc, var(--ul-yellow)); background: color-mix(in srgb, var(--nc) 8%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 30%, var(--line)); }
+.card.mine.k-question, .card.agent { --nc: var(--accent); }
+.card.agent { background: color-mix(in srgb, var(--accent) 6%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--accent) 24%, var(--line)); }
+.card.pnote { --nc: var(--mine); background: color-mix(in srgb, var(--mine) 7%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--mine) 26%, var(--line)); }
+.card.check { --nc: var(--gold); background: color-mix(in srgb, var(--gold) 9%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--gold) 40%, var(--line)); }
+.card:hover, .card.linked { box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 48%, var(--rule-2)), 0 6px 18px -12px rgba(0, 0, 0, .35); }
+.card.editing { background: var(--sheet); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 70%, transparent), 0 0 0 4.5px color-mix(in srgb, var(--nc) 16%, transparent); }
+.card .hd, .card .rhd { min-height: 18px; gap: 5px; font: 11.5px/1 var(--ui); color: var(--ink-3); }
+.card .hd { margin: 0 0 5px; }
+.card .ic, .card.mine .ic, .card .ic.ai, .card.agent > .hd .ic, .card.pnote .ic { width: 16px; height: 16px; border-radius: 0; background: none; color: var(--nc); }
+.card .ic svg { width: 14px; height: 14px; }
+.card .lbl, .card.mine .lbl { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+.card.mine.k-highlight .lbl, .card.mine.k-note .lbl { display: none; }
+.card .where { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.card.mine.k-highlight .where::before, .card.mine.k-note .where::before { content: none; }
+.card .acts button { width: 22px; height: 22px; border-radius: 7px; }
+.card .acts svg { width: 13px; height: 13px; }
+.card .quote, .card.mine.c-green .quote, .card.mine.c-blue .quote, .card.mine.c-pink .quote { margin: 0 0 6px; padding: 0 0 0 8px; border-left: 2px solid color-mix(in srgb, var(--nc) 75%, transparent); border-radius: 0; font: 12.5px/1.55 var(--ui); color: var(--ink-2); }
+.card.k-question .quote, .card.agent .quote, .card.tr .quote { border-left-color: color-mix(in srgb, var(--nc) 55%, transparent); }
+/* 只有畫線、沒寫字的：那句話就是內容 */
+.card.mine.k-highlight .quote { margin: 0; padding: 0; border-left: 0; font-size: calc(13px * var(--fs-ratio, 1)); line-height: 1.6; color: var(--ink); -webkit-line-clamp: 4; }
+.card .body { color: var(--ink); }
+.card .reply { margin-top: 9px; padding: 8px 10px 9px; border-top: 0; border-radius: 9px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.card .reply .rhd { margin-bottom: 3px; }
+.card .lk { border-radius: 7px; background: color-mix(in srgb, var(--nc) 14%, transparent); color: var(--ink-2); }
+.card .lk .lk-x { border-left-color: color-mix(in srgb, var(--nc) 30%, transparent); }
+.card .kseg { border-radius: 8px; background: var(--fill); }
+.card .kseg button { border-radius: 6px; }
+.card .qchips button, .card .kinds > .ask-model { border-radius: 8px; background: var(--fill); box-shadow: none; }
+.card .kinds > .send { border-radius: 8px; background: var(--ink); color: var(--on-ink); }
+.pv-margin .card.on, #margin .card.on, #margin .card.linked { box-shadow: 0 0 0 2px var(--nc); }
+.pv-sticky .card { border-radius: 14px; background: color-mix(in srgb, var(--nc) 6%, var(--sheet)); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--nc) 34%, var(--line)), 0 18px 44px -14px rgba(0, 0, 0, .45); }
+.pv-sticky .card.editing { background: var(--sheet); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--nc) 70%, transparent), 0 18px 44px -14px rgba(0, 0, 0, .45); }
+.note-pin { border-radius: 8px; }
+/* 頁邊的卡片平常安靜：時間和那排動作滑過去、點了才出現 */
+.pv-margin .card .acts, .pv-margin .card .meta { opacity: 0; transition: opacity var(--dur-fast); }
+.pv-margin .card:hover .acts, .pv-margin .card:hover .meta, .pv-margin .card.on .acts, .pv-margin .card.editing .acts, .pv-margin .card:focus-within .acts { opacity: 1; }
+@media (hover: none) { .pv-margin .card .acts { opacity: 1; } }
+
+/* ============ 筆記面板（本頁／全部／總結）============ */
+.np-head { gap: 4px; height: 46px; padding: 6px 12px 0 16px; }
+.np-head .seg { flex: 1; min-width: 0; }
+.np-head .seg > button { flex: 1; justify-content: center; display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; }
+.np-head .grow { display: none; }
+.np-head .btn.icon { width: 30px; height: 28px; border-radius: 8px; color: var(--ink-2); }
+.np-head .seg button .n { margin: 0; font-size: 11px; font-weight: 600; opacity: .55; }
+/* 本頁：頁碼是標題，翻頁的箭頭收在右邊 */
+.np-phead { padding: 12px 12px 8px 18px; gap: 2px; }
+.np-pnum { order: -1; min-width: 0; margin-right: 4px; text-align: left; font: 700 15px/1.2 var(--ui); letter-spacing: -.01em; }
+.np-phead .btn.icon { width: 26px; height: 26px; border-radius: 8px; color: var(--ink-2); }
+.np-phead .btn.icon[disabled] { opacity: .28; }
+.np-star.on { color: var(--gold); }
+.np-chip { border-radius: 8px; background: var(--fill); color: var(--ink-2); font-weight: 600; }
+.np-bk.page { margin: 0 14px; min-height: 76px; padding: 9px 10px 9px 2px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); transition: box-shadow var(--dur-fast); }
+.np-bk.page:focus-within { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--mine) 60%, transparent), 0 0 0 4.5px var(--mine-soft); }
+.np-pview { margin: 0 14px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+/* AI 的兩三顆動作：等寬的一排（像 Craft 的「操作」） */
+.np-ptools { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; padding: 8px 14px 0; }
+.np-ptools .btn.line { width: 100%; height: 32px; justify-content: center; border-radius: 10px; background: var(--fill); font-size: 12.5px; }
+.np-ptools .btn.line:hover { background: var(--fill-2); }
+.np-ptools .btn.line svg.i { color: var(--accent); }
+.np-sub { padding: 16px 18px 7px; font: 600 12px/1.3 var(--ui); color: var(--ink-2); letter-spacing: 0; }
+.np-list { padding: 2px 14px 130px; }
+.np-list .card { margin: 0 0 8px; }
+.np-empty { padding: 22px 6px; color: var(--ink-3); }
+/* 全部：搜尋、一排類型、一排顏色 */
+.np-search { height: 32px; margin: 10px 14px 0; padding: 0 6px 0 10px; border-radius: 10px; background: var(--fill); box-shadow: none; }
+.np-search:focus-within { background: var(--sheet); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 0 4.5px var(--accent-soft); }
+.np-filters { flex-wrap: wrap; gap: 5px; padding: 10px 14px 4px; }
+.np-filters > button { height: 26px; padding: 0 10px; border-radius: 8px; background: var(--fill); color: var(--ink-2); font: 500 12px var(--ui); box-shadow: none; transition: background var(--dur-fast), color var(--dur-fast), transform .1s ease-out; }
+.np-filters > button:hover { background: var(--fill-2); color: var(--ink); }
+.np-filters > button:active { transform: scale(.96); }
+.np-filters > button.on { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.np-filters .grow { flex-basis: 100%; height: 0; }
+.np-filters .dots { margin: 2px 0 0 2px; gap: 9px; }
+.np-filters .dots button { width: 14px; height: 14px; }
+.np-sec { margin: 18px 4px 8px; padding: 0; border: 0; font: 700 12.5px/1.3 var(--ui); color: var(--ink-2); }
+.np-sec:first-child { margin-top: 10px; }
+/* 其餘面板裡的小東西 */
+.ch-empty .chips button { background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); border-radius: 12px; }
+.ch-empty .chips button:hover { background: var(--sheet); box-shadow: 0 0 0 .5px var(--rule-2); transform: none; }
+.ch-title { border-radius: 9px; }
+.ch-model, .ch-pill { border-radius: 9px; }
+.ch-compose { border-radius: 16px; }
+.nai-box { border-radius: 14px; }
+.nai-quick button { border-radius: 9px; background: var(--lg-tint-2); box-shadow: inset 0 0 0 .5px var(--ctl-line); }
+.ch-send, .nai-send { border-radius: 10px; }
+/* 浮動的工具列、標籤、待辦：圓角方塊，不是全圓 */
+#selbar, #blockbar { border-radius: 13px; padding: 4px; gap: 1px; }
+#selbar > button, #blockbar > button { border-radius: 9px; }
+#selbar > button.primary { border-radius: 9px; }
+#selbar .pens, #selbar .pens button { border-radius: 9px; }
+.bk-tools { border-radius: 13px; padding: 4px; }
+.bk-tools button { border-radius: 9px; }
+.pill { border-radius: 7px; }
+.bk-mark.todo, li.todo > i { border-radius: 5px; }
+.bk-mark.todo.on::after { left: 5.5px; top: 2.5px; }
+.np-chip, .cm-ctx, .chip-ctx, .chip-marks { border-radius: 8px; }
+.cm.user .bubble { border-radius: 16px 16px 5px 16px; }
+/* 左邊的目錄抽屜：一塊厚玻璃 */
+#drawer { top: var(--pad); bottom: var(--pad); left: var(--pad); border-radius: var(--r-canvas); background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); border-right: 0; box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); transform: translateX(calc(-100% - 12px)); }
+#scrim { background: rgba(0, 0, 0, .12); }
+.drawer-tabs { border-bottom: 0; padding: 12px 12px 0; gap: 2px; }
+.drawer-tabs button { height: 28px; padding: 0 10px; margin: 0; border: 0; border-radius: 8px; font: 600 13.5px var(--ui); color: var(--ink); opacity: .45; }
+.drawer-tabs button.on { opacity: 1; font-weight: 700; border: 0; }
+.toc a { border-radius: var(--r-row); padding: 5px 10px; margin: 0 -6px; }
+.toc a:hover { background: var(--row-hover); }
+.toc a.on { background: var(--row-on); }
+
+/* ============ 獨立筆記：畫布上的一張紙 ============ */
+.note-page .topbar { left: var(--pad); right: var(--pad); }
+.note-page .note-main { max-width: 860px; margin: calc(var(--bar-h) + 6px) auto 170px; padding: 44px 56px 80px; background: var(--sheet); border-radius: var(--r-sheet); box-shadow: 0 0 0 .5px var(--line); }
+.note-page .note-state { width: 18px; justify-content: center; }
+@media (max-width: 900px) { .note-page .note-main { margin: calc(var(--bar-h) + 6px) 18px 170px; padding: 28px 22px 60px; } }
+
+/* ============ 問 AI／筆記的獨立視窗：只有面板，鋪滿，底是材質 ============ */
+html.chat-only #canvas, html.notes-only #canvas, html.chat-only .pv-ai, html.notes-only .pv-ai { display: none !important; }
+html.chat-only #chatpanel, html.notes-only #notespanel { top: 0 !important; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
+
+/* ============ 設定裡的滑桿 ============ */
+.glass-field > span { display: flex; justify-content: space-between; align-items: baseline; }
+.glass-field > span small { font-size: 11px; color: var(--ink-3); }
+html:not(.desktop) .clear-field { display: none; }   /* 視窗透明只有桌面版有 */
+.swatches { display: flex; align-items: center; gap: 9px; height: var(--ctl); }
+.sw { width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .18); transition: transform .12s ease-out, box-shadow var(--dur-fast); }
+.sw:hover { transform: scale(1.12); }
+.sw.on { box-shadow: 0 0 0 2px var(--canvas-bg), 0 0 0 4px var(--sw); }
+.sw-violet { --sw: #6f6ce0; } .sw-blue { --sw: #3d8bf0; } .sw-teal { --sw: #19a59f; } .sw-green { --sw: #3aa868; }
+.sw-orange { --sw: #e88a22; } .sw-pink { --sw: #e25c93; } .sw-red { --sw: #e0574c; } .sw-graphite { --sw: #77777f; }
+
+@media (prefers-reduced-transparency: reduce) {
+  html.desktop { --mat-bg: var(--mat); --canvas-c: var(--canvas-bg); }
+  .topbar > .btn.icon, .topbar > .brand-back, .bar-group, .topbar .seg, .topbar > .search, #pageview > .pv-head, .pv-ai .fab.primary { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
