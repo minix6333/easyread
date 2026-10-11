@@ -1193,7 +1193,7 @@
  "想問什麼？": "Ask anything…",
  "我的想法／可以用在哪": "My thoughts / where to use it",
  "打開譯文": "Open translation",
- "找不到": "Not found",
+ "找不到": "No matches",
  "找不到原 PDF": "The source PDF is missing",
  "把這個區域裡的文字翻譯出來。": "Translate the text in this region.",
  "拖曳框選　Esc 取消": "Drag to select a region · Esc to cancel",
@@ -1695,5 +1695,8 @@
  "現在照時間排（最新的在前）；點一下改成照頁": "Sorted by time (newest first); click to sort by page",
  "現在照頁排；點一下改成照時間（最新的在前）": "Sorted by page; click to sort by time (newest first)",
  "複製文字": "Copy text",
- "問 AI 寫或改（⌘↩）": "Ask AI to write or edit (⌘↩)"
+ "問 AI 寫或改（⌘↩）": "Ask AI to write or edit (⌘↩)",
+ "在這份筆記裡找": "Find in this note",
+ "上一處（⇧Enter）": "Previous (⇧Enter)",
+ "下一處（Enter）": "Next (Enter)"
 }

@@ -95,6 +95,11 @@ app.whenReady().then(async () => {
   step = "library menu";
   const menu = await lib.executeJavaScript('(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); PR.lib.view = "notes"; PR.lib.tag = null; PR.lib.render(); await w(100); const card = document.querySelector(\'#list .ncard[data-note="' + id + '"]\'); const more = card && card.querySelector("[data-more]"); if (!more) return { card: !!card }; more.click(); await w(150); const labels = Array.from(document.querySelectorAll("#ctxmenu button.mi")).map((b) => b.textContent.trim()); PR.closeMenu(); return { card: true, cards: document.querySelectorAll("#list .ncard[data-note]").length, labels }; })()');
   check("「全部筆記」的卡片：有這份筆記，「⋯」選單裡有改名、圖示、收藏、移到分類、複製、刪除", menu.card && menu.labels && menu.labels.length >= 7, menu);
+  // 在外殼裡點「⋯」只能開選單，不能順便把那份筆記開成分頁（連結的點擊是外殼攔的，比列上自己的處理早）
+  const side = await lib.executeJavaScript('(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); const row = document.querySelector(\'#side .srow.note[data-note="' + id + '"]\'); const more = row && row.querySelector("[data-more]"); if (!more) return { row: !!row }; more.click(); await w(200); const open = !!document.querySelector("#ctxmenu.open"); PR.closeMenu(); return { row: true, open }; })()');
+  await sleep(500);
+  const opened = await wc.executeJavaScript("Array.from(document.querySelectorAll('iframe')).filter((f) => /\\/note\\//.test(f.src)).length");
+  check("在外殼裡點筆記列的「⋯」：開的是選單，沒有順便把筆記開成分頁", side.row && side.open && opened === 0, { side, opened });
 
   step = "trash dialog";
   await lib.executeJavaScript('PR.lib.noteMenu && 1');

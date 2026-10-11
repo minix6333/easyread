@@ -74,14 +74,14 @@
     const t = (k, label) => '<button type="button" class="ni-tbtn' + (cur.kind === k ? " on" : "") + '" data-fmt="' + k + '"' + none + ">" + PR.esc(label) + "</button>";
     const b = (attr, k, icon, alt, title, on) => '<button type="button" class="ni-ibtn' + (on ? " on" : "") + '" ' + attr + '="' + k + '" title="' + PR.esc(title) + '"' + none + ">" + ic(icon, alt) + "</button>";
     const edit = cur.editing ? "" : " disabled";
-    const inl = (k, icon, title) => '<button type="button" class="ni-ibtn" data-inl="' + PR.esc(k) + '" title="' + PR.esc(title) + '"' + edit + ">" + PR.icon(icon, "sm") + "</button>";
+    const inl = (k, icon, title) => '<button type="button" class="ni-ibtn" data-inl="' + PR.esc(k) + '" title="' + PR.esc(PR.kbd(title)) + '"' + edit + ">" + PR.icon(icon, "sm") + "</button>";
     return sec(PR.t("主標題")) + '<div class="ni-row3">' + t("h1", PR.t("大標題")) + t("h2", PR.t("副標題")) + t("h3", PR.t("標題")) + "</div>" +
       sec(PR.t("內容")) + '<div class="ni-row3">' + t("p", PR.t("內文")) + t("quote", PR.t("引用")) + t("code", PR.t("程式碼")) + "</div>" +
       sec(PR.t("文字")) + '<div class="ni-icons">' + inl("**", "bold", PR.t("粗體（⌘B）")) + inl("*", "italic", PR.t("斜體（⌘I）")) + inl("++", "underline", PR.t("底線（⌘U）")) + inl("~~", "strike", PR.t("刪除線（⌘⇧-）")) +
       inl("\x60", "code", PR.t("程式碼（⌘⇧C）")) + inl("==", "marker", PR.t("螢光（⌘⇧B）")) + inl("$", "sigma", PR.t("公式（⌘⇧E）")) + inl("link", "link", PR.t("連結（⌘K）")) + "</div>" +
       sec(PR.t("清單")) + '<div class="ni-icons">' + b("data-fmt", "todo", "todo", "check", PR.t("待辦"), cur.kind === "todo") + b("data-fmt", "toggle", "caret", "chevron", PR.t("收合"), cur.kind === "toggle") +
       b("data-fmt", "bullet", "bullets", "log", PR.t("項目清單"), cur.kind === "bullet") + b("data-fmt", "number", "numbers", "list", PR.t("編號清單"), cur.kind === "number") + '<i class="ni-gap"></i>' +
-      '<button type="button" class="ni-ibtn" data-ind="-1" title="' + PR.t("減少縮排（⇧Tab）") + '"' + (cur.list ? "" : " disabled") + ">" + ic("outdent", "back") + "</button>" +
+      '<button type="button" class="ni-ibtn" data-ind="-1" title="' + PR.kbd(PR.t("減少縮排（⇧Tab）")) + '"' + (cur.list ? "" : " disabled") + ">" + ic("outdent", "back") + "</button>" +
       '<button type="button" class="ni-ibtn" data-ind="1" title="' + PR.t("增加縮排（Tab）") + '"' + (cur.list ? "" : " disabled") + ">" + ic("indent", "next") + "</button></div>" +
       sec(PR.t("裝飾")) + '<div class="ni-row3 deco">' + ["note", "tip", "warn"].map((k) => '<button type="button" class="ni-tbtn k-' + k + (cur.kind === k ? " on" : "") + '" data-fmt="' + k + '"' + none + ">" +
         PR.esc({ note: PR.t("說明框"), tip: PR.t("訣竅框"), warn: PR.t("警示框") }[k]) + "</button>").join("") + "</div>";
@@ -153,7 +153,7 @@
     if (!b || !N.ed) return;
     if (b.dataset.niTab) { ui.last = b.dataset.niTab; ui.insp = b.dataset.niTab; saveUi(); return paintInsp(); }
     if (b.dataset.ins) return N.ed.insertBlock(b.dataset.ins);
-    if (b.dataset.fmt) return N.ed.convert(b.dataset.fmt);
+    if (b.dataset.fmt) return N.ed.convert(N.ed.current().kind === b.dataset.fmt ? "p" : b.dataset.fmt);  // 已經是這一種：再按一次變回內文
     if (b.dataset.inl) return void N.ed.inline(b.dataset.inl);
     if (b.dataset.ind) return N.ed.indent(+b.dataset.ind);
     if (b.dataset.tint !== undefined) { N.patch({ color: b.dataset.tint }); return paintInsp(); }
@@ -227,6 +227,7 @@
       { label: n.star ? PR.t("取消收藏") : PR.t("收藏"), icon: "star", fn: () => act("star") },
       { label: PR.t("移到分類"), icon: has("movefolder") ? "movefolder" : "folder", fn: () => setTimeout(() => folderMenu(at), 0) },
       "-",
+      PR.noteFind ? { label: PR.t("在這份筆記裡找"), icon: "search", kbd: "⌘F", fn: () => setTimeout(() => PR.noteFind(), 0) } : null,
       { label: PR.t("寬頁"), icon: has("wide") ? "wide" : "panel", checked: !!n.wide, fn: () => act("wide") },
       { label: PR.t("目錄"), icon: has("outline") ? "outline" : "list", checked: !!ui.outline, fn: () => $("#outlineBtn").click() },
       "-",

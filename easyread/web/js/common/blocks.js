@@ -220,7 +220,7 @@
     tools.className = "bk-tools";
     const TOOLS = [["ai", "sparkle", PR.t("問 AI 改這段（⌘↩）")], ["**", "bold", PR.t("粗體（⌘B）")], ["*", "italic", PR.t("斜體（⌘I）")], ["++", "underline", PR.t("底線（⌘U）")],
       ["~~", "strike", PR.t("刪除線（⌘⇧-）")], ["\x60", "code", PR.t("程式碼（⌘⇧C）")], ["==", "marker", PR.t("螢光（⌘⇧B）")], ["$", "sigma", PR.t("公式（⌘⇧E）")], ["link", "link", PR.t("連結（⌘K）")]];
-    tools.innerHTML = TOOLS.map(([k, ic, tip]) => '<button type="button" data-t="' + k + '" title="' + tip + '">' + (PR.icon ? PR.icon(ic, "sm") : k) + "</button>").join("");
+    tools.innerHTML = TOOLS.map(([k, ic, tip]) => '<button type="button" data-t="' + k + '" title="' + (PR.kbd ? PR.kbd(tip) : tip) + '">' + (PR.icon ? PR.icon(ic, "sm") : k) + "</button>").join("");
     root.append(tools);
     tools.addEventListener("mousedown", (e) => e.preventDefault());  // 別把輸入框的焦點搶走
     tools.addEventListener("click", (e) => {
@@ -672,6 +672,8 @@
         return;
       }
       if (e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === 0 && i > 0) { e.preventDefault(); const col = ta.selectionStart; stopEdit(); moveTo(i - 1, { line: "last", col }, -1); return; }
+      // 第一塊的第一行再往上、或在最前面按 Backspace：告訴外面（筆記頁會把游標送回標題）
+      if (i === 0 && listeners.edge && ((e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === 0) || (e.key === "Backspace" && ta.selectionStart === 0 && ta.selectionEnd === 0 && b.type === "p"))) { e.preventDefault(); emit("edge", "top"); return; }
       if (e.key === "ArrowDown" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === lineCount(ta) - 1 && i < state.blocks.length - 1) { e.preventDefault(); const col = ta.selectionStart - (ta.value.lastIndexOf("\n") + 1); stopEdit(); moveTo(i + 1, col, 1); return; }
       // ← 在最前面、→ 在最後面：走到上一塊／下一塊
       if (e.key === "ArrowLeft" && !e.shiftKey && !mod && !e.altKey && ta.selectionStart === 0 && ta.selectionEnd === 0 && i > 0) { e.preventDefault(); stopEdit(); moveTo(i - 1, "end", -1); return; }

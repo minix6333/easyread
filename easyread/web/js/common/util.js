@@ -381,6 +381,9 @@ window.PR = window.PR || {};
   PR.on = (ev, fn) => (subs[ev] = subs[ev] || []).push(fn);
   PR.emit = (ev, data) => (subs[ev] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } });
 
+  /* 快捷鍵的寫法：程式裡一律寫 Mac 的符號（⌘⌥⇧↩⌫），不是 Mac 的電腦顯示成 Ctrl+、Alt+、Shift+、Enter、Backspace */
+  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || "");
+  PR.kbd = (s) => (IS_MAC ? s : String(s).replace(/⌃/g, "Ctrl+").replace(/⌥/g, "Alt+").replace(/⇧/g, "Shift+").replace(/⌘/g, "Ctrl+").replace(/↩/g, "Enter").replace(/⌫/g, "Backspace").replace(/Ctrl\+Ctrl\+/g, "Ctrl+"));
   /* 通用下拉選單。items 裡可以放：
        "-"                                       分隔線
        { label, icon, kbd, fn, disabled, danger, checked }   一般的一列（checked：右邊打勾）
@@ -400,7 +403,7 @@ window.PR = window.PR || {};
       if (it.row) return '<div class="menu-row">' + it.row.map((b, k) => '<button data-i="' + i + '" data-k="' + k + '" title="' + PR.esc(b.title || "") + '" class="' + (b.on ? "on" : "") + '"' + (b.disabled ? " disabled" : "") + ">" + PR.icon(b.icon, "sm") + "</button>").join("") + "</div>";
       if (it.dots) return '<div class="menu-dots">' + it.dots.map((d, k) => '<button data-i="' + i + '" data-k="' + k + '" title="' + PR.esc(d.title || "") + '" class="' + (d.on ? "on" : "") + (d.color ? "" : " none") + '"' + (d.color ? ' style="--dot:' + PR.esc(d.color) + '"' : "") + "></button>").join("") + "</div>";
       return '<button data-i="' + i + '" class="mi' + (it.danger ? " danger" : "") + '"' + (it.disabled ? " disabled" : "") + ">" + (it.icon ? PR.icon(it.icon, "sm") : "") + "<span>" + PR.esc(it.label) + "</span>" +
-        (it.kbd ? '<span class="kbd">' + PR.esc(it.kbd) + "</span>" : "") + (it.checked ? '<span class="tick">' + PR.icon("check", "sm") + "</span>" : "") + (it.sub ? '<span class="tick sub">' + PR.icon("next", "sm") + "</span>" : "") + "</button>";
+        (it.kbd ? '<span class="kbd">' + PR.esc(PR.kbd(it.kbd)) + "</span>" : "") + (it.checked ? '<span class="tick">' + PR.icon("check", "sm") + "</span>" : "") + (it.sub ? '<span class="tick sub">' + PR.icon("next", "sm") + "</span>" : "") + "</button>";
     };
     const paint = () => {
       m.innerHTML = '<div class="menu-list">' + (stack.length ? '<button class="mi back" data-back>' + PR.icon("back", "sm") + "<span>" + PR.esc(stack[stack.length - 1].label) + "</span></button><hr>" : "") + cur.map(rowHtml).join("") + "</div>";

@@ -129,7 +129,7 @@
     const open = st.aiOpen || busy || !!st.draft.trim();
     $("#noteAi").classList.toggle("open", open);
     if (!open) {
-      $("#noteAi").innerHTML = '<button type="button" class="nai-pill" data-nai="open" title="' + PR.t("問 AI 寫或改（⌘↩）") + '">' + PR.icon("sparkle", "sm") + "<span>" + PR.t("問 AI") + "</span></button>";
+      $("#noteAi").innerHTML = '<button type="button" class="nai-pill" data-nai="open" title="' + PR.kbd(PR.t("問 AI 寫或改（⌘↩）")) + '">' + PR.icon("sparkle", "sm") + "<span>" + PR.t("問 AI") + "</span></button>";
       return;
     }
     $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q]) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.esc(l) + "</button>").join("") + "</div>" +
@@ -237,6 +237,7 @@
     st.ed = PR.blockEditor($("#noteEd"), { value: st.note.body || "", placeholder: PR.t("寫點什麼，或按「/」選區塊…"), onChange: (md) => { st.note.body = md; queue({ body: md }); }, upload, moveOut });
     PR.note.ed = PR.noteEd = st.ed;  // scripts/note_editor_check.cjs 也從 PR.noteEd 拿
     st.ed.on("ai", () => openAi());
+    st.ed.on("edge", () => { title.focus(); title.setSelectionRange(title.value.length, title.value.length); });  // 正文最上面再往上：回到標題
     setState("saved");
     loadModels();
     if (!(st.note.title || "").trim() && !(st.note.body || "").trim()) title.focus();

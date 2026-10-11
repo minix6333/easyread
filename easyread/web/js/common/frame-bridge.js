@@ -23,6 +23,7 @@
   document.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest("a[href]");
     if (!a || e.defaultPrevented || e.button !== 0 || a.target === "_blank" || a.hasAttribute("download")) return;
+    if (e.target.closest("[data-more]")) return;  // 連結裡的「⋯」是開選單，不是開那份文件（這個監聽在捕獲階段，比列上自己的處理早）
     let u;
     try { u = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
     if (u.origin !== location.origin || !(/^\/(read|note)\//.test(u.pathname) || u.pathname === "/" || u.pathname === "/library")) return;

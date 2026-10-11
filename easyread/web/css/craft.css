@@ -945,3 +945,8 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 /* 原文（英文）的引文一律用襯線字：和自己寫的筆記（無襯線）一眼分得出來——哪些字是論文的、哪些是我的 */
 .card .quote[lang="en"], .card.mine .quote[lang="en"] { font-family: var(--serif-en); font-size: calc(13px * var(--fs-ratio, 1)); }
 .card.mine.k-highlight .quote[lang="en"] { font-size: calc(13.5px * var(--fs-ratio, 1)); }
+/* 筆記卡最下面那一行：窄的時候時間不折行，分類的小籤放不下就截掉 */
+.nc-foot { white-space: nowrap; min-width: 0; }
+.nc-time { flex: none; }
+.nc-foot .chip.cat { display: inline-block; flex: 0 1 auto; min-width: 0; max-width: none; line-height: 20px; overflow: hidden; text-overflow: ellipsis; }
+.nc-foot .chip.cat .ti { display: inline-grid; vertical-align: -2px; margin-right: 3px; }

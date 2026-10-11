@@ -163,3 +163,21 @@ body.in-open .note-insp { opacity: 1; visibility: visible; transform: none; tran
   .note-page .note-main { margin: 0; max-width: none; box-shadow: none; background: #fff; color: #000; }
   .note-shell { padding: 0; }
 }
+
+/* 在這一頁搜尋（js/note/find.js）：頂欄下面右邊一條小玻璃；找到的字用 CSS Custom Highlight 標，不動 DOM */
+.note-find { position: fixed; z-index: 45; top: calc(var(--bar-h) + 2px); right: calc(var(--insp-now) + var(--pad) + 14px); display: flex; align-items: center; gap: 2px; height: 38px; padding: 0 5px 0 11px; border-radius: 12px; color: var(--ink-2);
+  background: var(--lg-tint-2, var(--ctl-bg)); -webkit-backdrop-filter: blur(26px) saturate(1.7); backdrop-filter: blur(26px) saturate(1.7); box-shadow: inset 0 0 0 .5px var(--ctl-line), 0 10px 30px -12px rgba(0, 0, 0, .4);
+  opacity: 0; pointer-events: none; transform: translateY(-6px) scale(.98); transform-origin: 100% 0; transition: opacity .14s ease-out, transform .2s var(--ease); }
+.note-find.open { opacity: 1; pointer-events: auto; transform: none; }
+.note-find > svg.i { flex: none; width: 15px; height: 15px; color: var(--ink-3); }
+.note-find input { width: 190px; max-width: 42vw; height: 28px; margin: 0 2px 0 6px; padding: 0; border: 0; outline: 0; background: transparent; font: 13.5px var(--ui); color: var(--ink); }
+.note-find input::-webkit-search-cancel-button { display: none; }
+.note-find .nf-n { flex: none; min-width: 44px; padding: 0 6px; text-align: right; font: 12px var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note-find.none .nf-n { color: var(--danger); }
+.note-find button { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-2); transition: background var(--dur-fast), transform .1s ease-out; }
+.note-find button:hover { background: var(--row-hover); color: var(--ink); }
+.note-find button:active { transform: scale(.92); }
+.note-find button[data-nf="next"] svg { transform: rotate(180deg); }
+.note-find button svg { width: 14px; height: 14px; }
+::highlight(note-find) { background-color: color-mix(in srgb, var(--gold, #d9a520) 34%, transparent); }
+::highlight(note-find-cur) { background-color: var(--gold, #d9a520); color: #1b1503; }

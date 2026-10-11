@@ -90,7 +90,7 @@ app.whenReady().then(async () => {
     window.__end = (needle) => {  // 那一塊最右邊的空白處（點了游標會在最後）
       const p = window.__pt(needle); if (!p) return null;
       const el = window.__block(needle); const r = el.getBoundingClientRect();
-      const lines = el.querySelector(".bk-t, .bk-in").getBoundingClientRect();
+      const lines = (el.querySelector(".bk-cb") || el.querySelector(".bk-t, .bk-in, .bk-ct") || el).getBoundingClientRect();
       return { x: Math.round(r.right - 12), y: Math.round(lines.bottom - 8) };
     };
     window.__block = (text) => Array.from(document.querySelectorAll(".bk-b")).find((b) => b.textContent.includes(text) || ((b.querySelector(".bk-in") || {}).value || "").includes(text));
@@ -102,7 +102,13 @@ app.whenReady().then(async () => {
   const mouse = (type, x, y, extra) => wc.sendInputEvent(Object.assign({ type, x, y, button: "left", clickCount: 1 }, extra || {}));
   const click = async (p, extra) => { mouse("mouseMove", p.x, p.y); mouse("mouseDown", p.x, p.y, extra); mouse("mouseUp", p.x, p.y, extra); await sleep(90); };
   const rclick = async (p) => { mouse("mouseDown", p.x, p.y, { button: "right" }); mouse("mouseUp", p.x, p.y, { button: "right" }); wc.sendInputEvent({ type: "contextMenu", x: p.x, y: p.y }); await sleep(120); };
-  const key = async (keyCode, modifiers) => { wc.sendInputEvent({ type: "keyDown", keyCode, modifiers: modifiers || [] }); wc.sendInputEvent({ type: "keyUp", keyCode, modifiers: modifiers || [] }); await sleep(60); };
+  // Enter 要補一個 char 事件：頁面沒攔下來（說明框、程式碼裡的換行）時，是它讓瀏覽器真的插入換行；頁面攔了 keydown，Chromium 會把它吃掉
+  const key = async (keyCode, modifiers) => {
+    wc.sendInputEvent({ type: "keyDown", keyCode, modifiers: modifiers || [] });
+    if (keyCode === "Return" && !(modifiers || []).length) wc.sendInputEvent({ type: "char", keyCode: "\r" });
+    wc.sendInputEvent({ type: "keyUp", keyCode, modifiers: modifiers || [] });
+    await sleep(60);
+  };
   const type = async (text) => { await wc.insertText(text); await sleep(60); };
 
   let bad = 0;
@@ -282,6 +288,58 @@ app.whenReady().then(async () => {
     await type("！");
     const s = await st();
     check(name, s.tag === "TEXTAREA" && /- \[x\] 待辦事項！|- \[x\] 待辦！事項|- \[x\] 待！辦事項/.test(s.md), { tag: s.tag, md: (s.md.match(/- \[.\] 待[^\n]*/) || [])[0] });
+  });
+  await run("說明框裡 Enter 是換行；最後空一行再按 Enter 跳出去", async (name) => {
+    await click(await end("學習率"));
+    await type("第二句");
+    await key("Return");
+    await type("第三行");
+    await key("Return"); await key("Return");
+    await type("出來了");
+    const s = await st();
+    check(name, /> \[!note\] 重點\n> 學習率太大會發散。第二句\n> 第三行\n\n出來了/.test(s.md) && /bk-b t-p/.test(s.cls), { md: (s.md.match(/> \[!note\][\s\S]{0,60}/) || [])[0], cls: s.cls });
+  });
+  await run("清單：Tab 縮排、⇧Tab 退回、空的項目按 Enter 變回內文", async (name) => {
+    await click(await end("第一項"));
+    await key("Tab");
+    const s1 = await st();
+    await key("Tab", ["shift"]);
+    await key("Return");
+    const s2 = await st();
+    await key("Return");
+    const s3 = await st();
+    check(name, /\n  - 第一項\n/.test(s1.md) && /\n- 第一項\n- \n?/.test(s2.md.replace(/- \n/, "- \n")) && /l-bullet/.test(s2.cls) && /t-p/.test(s3.cls), { s1: (s1.md.match(/步驟[\s\S]{0,24}/) || [])[0], s2: s2.cls, s3: s3.cls });
+  });
+  await run("方向鍵在區塊之間走；標題按 Enter／↓ 到第一塊，第一塊再往上回標題", async (name) => {
+    await js("const t = document.querySelector('#noteTitle'); t.focus(); t.setSelectionRange(0, 0); 1");
+    await key("Return");
+    const s1 = await st();
+    await key("Down");
+    const s2 = await st();
+    await key("Up"); await key("Up");
+    const s3 = await js("({ id: document.activeElement.id, tag: document.activeElement.tagName })");
+    check(name, /hl-1/.test(s1.cls) && s1.value === "梯度下降" && /t-p/.test(s2.cls) && s2.value.startsWith("這一段有") && s3.id === "noteTitle", { s1: s1.cls, s2: [s2.cls, s2.value.slice(0, 6)], s3 });
+  });
+  await run("正在打字時 ⌥⌘↓ 把這一塊往下搬，游標還在原來的字上", async (name) => {
+    await click(await pt("引用的一句話", 30));
+    const s0 = await st();
+    await key("Down", ["alt", CMD]);
+    const s1 = await st();
+    const order = s1.md.indexOf("> [!note] 重點") < s1.md.indexOf("> 引用的一句話");
+    check(name, order && s1.tag === "TEXTAREA" && s1.value === "引用的一句話" && s1.at === s0.at, { order, tag: s1.tag, at: [s0.at, s1.at] });
+  });
+  await run("⌘F 在這份筆記裡找：標出每一處、Enter 往下一處、Esc 關掉", async (name) => {
+    await click(await pt("最後一段", 10));
+    await key("f", [CMD]);
+    await type("項");
+    await sleep(250);
+    const s1 = await js("({ open: document.querySelector('#noteFind').classList.contains('open'), n: document.querySelector('#noteFind .nf-n').textContent, marks: CSS.highlights.has('note-find') ? CSS.highlights.get('note-find').size : 0, cur: CSS.highlights.has('note-find-cur'), editing: document.querySelectorAll('.bk-b.editing').length })");
+    await key("Return");
+    const s2 = await js("document.querySelector('#noteFind .nf-n').textContent");
+    await key("Escape");
+    const s3 = await js("({ open: document.querySelector('#noteFind').classList.contains('open'), marks: CSS.highlights.has('note-find') })");
+    const a = +(s1.n.split(" / ")[0] || 0), b = +(String(s2).split(" / ")[0] || 0);  // 從畫面上看得到的第一處開始（不一定是第 1 處）
+    check(name, s1.open && s1.marks === 4 && s1.cur && s1.editing === 0 && / \/ 4$/.test(s1.n) && b === (a % 4) + 1 && !s3.open && !s3.marks, { s1, s2, s3 });
   });
   await run("存檔：改的內容真的寫回伺服器", async (name) => {
     await click(await end("最後一段"));
