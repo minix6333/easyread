@@ -198,11 +198,9 @@ window.PR = window.PR || {};
   };
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
   /* 標誌：一張文件加一道勾（單色線條，顏色由 CSS 的 .mark / .hero 給，預設是強調色） */
-  /* FOLI 的標誌：深棕書脊、兩頁掀開的米色紙（顏色由 CSS 的 .lg-s/.lg-a/.lg-b 決定，跟著主題走）。和 web/logo.svg、electron/assets/icon.svg 是同一個形狀 */
-  PR.LOGO = '<path class="lg-s" d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z"/>' +
-    '<path class="lg-b" d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z"/>' +
-    '<path class="lg-a" d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z"/>';
-  PR.logo = (cls) => '<svg class="' + (cls || "mark") + '" viewBox="19 17 29.5 32" aria-hidden="true">' + PR.LOGO + "</svg>";
+  /* FOLI 的標誌：藍色的方塊、白色的折紙（顏色由 CSS 的 .lg-tile/.lg-s/.lg-a/.lg-b 決定）。和 web/logo.svg、electron/assets/icon.svg 是同一個形狀 */
+  PR.LOGO = '<rect class="lg-tile" width="64" height="64" rx="14"/><g transform="translate(32 32) scale(1.5) translate(-33.7 -32.9)"><path class="lg-s" d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z"/><path class="lg-b" d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z"/><path class="lg-a" d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z"/></g>';
+  PR.logo = (cls) => '<svg class="' + (cls || "mark") + '" viewBox="0 0 64 64" aria-hidden="true">' + PR.LOGO + "</svg>";
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" aria-hidden="true">' + (P[name] || "") + "</svg>";
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
 

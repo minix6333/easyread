@@ -1,116 +1,133 @@
-/* FOLI · 共用的設計變數與基礎元件（文獻庫頁、閱讀頁、外殼都用）
-   調性：像一本放在桌上的米色筆記本——暖白的底、深棕的字、米色和淺褐的頁（標誌的顏色），一點陶土色當強調。
-   形狀和動作照 Apple 的 app 來：大圓角、半透明毛玻璃的工具列、輕的分層陰影、按下去縮一下、浮層帶一點彈性地冒出來。 */
+/* FOLI · 共用的設計變數與基礎元件（文獻庫頁、閱讀頁、外殼、筆記頁都用）
+   照 Apple 的做法（apple-design）：
+   - 顏色用系統色：白／淺灰的底、近黑的字、系統藍當唯一的強調色，深色模式是深灰底、亮藍。
+   - 字用系統字（SF Pro / PingFang），字級對應 macOS：內文 13、標題 22；大字收緊字距、小字放鬆。
+   - 材質：工具列、側欄、選單是半透明的毛玻璃，內容從底下捲過去；材質越大越厚（更糊、更深的影）。
+   - 動作：按下去那一刻就回應（:active），浮層從觸發的地方長出來，用臨界阻尼的彈簧曲線（--spring，沒有過衝），
+     只有拖完放開的東西才帶一點彈（--spring-bounce）；減少動態→淡入淡出、減少透明度→實色。
+   頁面各自的樣子（文獻庫、閱讀頁、筆記、外殼）在 apple.css，排在各頁自己的樣式後面蓋過去。 */
 [hidden] { display: none !important; }  /* 元素设了 hidden 就一定藏起来，别被自己的 display 盖掉 */
 :root {
-  --bg: #f6f3ee;                         /* app 的底：暖白（標誌底板的顏色） */
+  color-scheme: light;
+  --bg: #ffffff;                         /* 視窗的底 */
+  --bg-2: #f5f5f7;                       /* 分組的底：側欄、設定的區塊、清單的外框 */
   --surface: #ffffff;                    /* 面板、卡片、對話框 */
-  --surface-2: #eee9e2;                  /* 懸停、標籤底、分段控制的底 */
-  --card: #fbf9f6;                       /* 卡片、建議問題 */
-  --ink: #2b2420;                        /* 深棕黑 */
-  --ink-2: #5f554e;
-  --ink-3: #928a82;
-  --rule: #e6e0d8;
-  --rule-2: #d3cbc1;
-  --accent: #b8552f;                     /* 陶土：品牌、AI、連結、選中的分頁 */
-  --accent-ink: #ffffff;                 /* 壓在強調色上的字 */
-  --accent-soft: rgba(184, 85, 47, .08);
-  --accent-soft-2: rgba(184, 85, 47, .15);
-  --mine: #3b6cc8;                       /* 藍：我的筆記、我改過的地方（和陶土色的 AI 分開） */
-  --mine-soft: rgba(59, 108, 200, .10);
-  --paper: #ebe0d1;                      /* 標誌的米色頁 */
-  --paper-2: #cdb9a2;                    /* 標誌的淺褐頁 */
-  --danger: #c8402c;
-  --ok: #3a8f5c;
-  --gold: #d9a520;
+  --surface-2: rgba(0, 0, 0, .05);       /* 懸停 */
+  --fill: rgba(120, 120, 128, .12);      /* 控制項的底（systemFill）：分段控制的槽、搜尋框、標籤 */
+  --fill-2: rgba(120, 120, 128, .2);
+  --card: #ffffff;
+  --ink: #1d1d1f;
+  --ink-2: #6e6e73;
+  --ink-3: #aeaeb2;
+  --rule: rgba(60, 60, 67, .12);         /* 髮線 */
+  --rule-2: rgba(60, 60, 67, .24);
+  --accent: #007aff;                     /* 系統藍：選取、連結、主要按鈕、AI */
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(0, 122, 255, .1);
+  --accent-soft-2: rgba(0, 122, 255, .18);
+  --mine: #5856d6;                       /* 靛藍：我的筆記、我改過的地方（和 AI 的藍分開） */
+  --mine-soft: rgba(88, 86, 214, .12);
+  --paper: #e5e5ea;                      /* 標誌的兩頁（淺色時用灰階） */
+  --paper-2: #c7c7cc;
+  --danger: #ff3b30;
+  --ok: #34c759;
+  --gold: #ff9f0a;
   /* 螢光筆：淡的粉彩（正片疊底，字不會變灰）——看得出劃過，但不搶字；--ul-* 是底線、小圓點、卡片色條用的同色系實色 */
-  --hl: rgba(255, 213, 79, .30);
-  --hl-yellow: rgba(255, 213, 79, .30);
-  --hl-green: rgba(112, 200, 138, .26);
-  --hl-blue: rgba(110, 168, 250, .24);
-  --hl-pink: rgba(244, 128, 158, .22);
-  --ul-yellow: #e2b02c; --ul-green: #4bae72; --ul-blue: #5990ea; --ul-pink: #e0668a;
-  --hl-q: rgba(184, 85, 47, .12);
-  --focus: rgba(184, 85, 47, .05);
-  --pair: rgba(184, 85, 47, .10);        /* 原頁框和對應段落的配對色 */
-  --pair-ring: rgba(184, 85, 47, .5);
-  --canvas: #f0ece6;                     /* PDF 頁面底下：比紙暗一階，頁才像一張紙放在桌上 */
-  --shadow: 0 1px 2px rgba(43, 36, 32, .05), 0 8px 24px -8px rgba(43, 36, 32, .14);
-  --shadow-lg: 0 2px 6px rgba(43, 36, 32, .06), 0 24px 48px -12px rgba(43, 36, 32, .22);
-  --shadow-page: 0 1px 2px rgba(43, 36, 32, .06), 0 6px 18px -6px rgba(43, 36, 32, .16);
-  --glass: color-mix(in srgb, var(--bg) 74%, transparent);  /* 毛玻璃工具列的底（配 backdrop-filter） */
-  --r-sm: 8px; --r: 12px; --r-lg: 18px; --r-xl: 24px;        /* 圓角：控制項、卡片、面板、對話框 */
+  --hl: rgba(255, 214, 10, .32);
+  --hl-yellow: rgba(255, 214, 10, .32);
+  --hl-green: rgba(52, 199, 89, .26);
+  --hl-blue: rgba(0, 122, 255, .2);
+  --hl-pink: rgba(255, 45, 85, .18);
+  --ul-yellow: #e0b000; --ul-green: #34c759; --ul-blue: #007aff; --ul-pink: #ff2d55;
+  --hl-q: rgba(0, 122, 255, .12);
+  --focus: rgba(0, 122, 255, .06);
+  --pair: rgba(0, 122, 255, .12);        /* 原頁框和對應段落的配對色 */
+  --pair-ring: rgba(0, 122, 255, .55);
+  --canvas: #e9e9ec;                     /* PDF 頁面底下（像「預覽程式」）：淺灰，頁是白的紙 */
+  --shadow: 0 0 0 .5px rgba(0, 0, 0, .08), 0 8px 24px rgba(0, 0, 0, .12);
+  --shadow-lg: 0 0 0 .5px rgba(0, 0, 0, .12), 0 24px 60px rgba(0, 0, 0, .22);
+  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .1), 0 2px 10px rgba(0, 0, 0, .12);
+  --glass: rgba(255, 255, 255, .74);     /* 工具列的材質（配 backdrop-filter） */
+  --glass-sidebar: rgba(243, 243, 245, .8);  /* 側欄：比工具列厚一點、暗一點（結構用深的材質） */
+  --glass-edge: rgba(255, 255, 255, .55);    /* 材質上緣那道亮邊：光打在玻璃上 */
+  --r-sm: 6px; --r: 10px; --r-lg: 12px; --r-xl: 16px;   /* 圓角：控制項、卡片、面板、對話框 */
+  /* 動作：臨界阻尼的彈簧（response 0.35s，沒有過衝）當所有 UI 的預設；拖完放開的用帶一點彈的那條 */
+  --spring: linear(0, 0.0547 4.2%, 0.1726 8.3%, 0.309 12.5%, 0.4408 16.7%, 0.5577 20.8%, 0.656 25%, 0.7361 29.2%, 0.7997 33.3%, 0.8493 37.5%, 0.8874 41.7%, 0.9164 45.8%, 0.9383 50%, 0.9547 54.2%, 0.9668 58.3%, 0.9758 62.5%, 0.9824 66.7%, 0.9872 70.8%, 0.9908 75%, 0.9934 79.2%, 0.9952 83.3%, 0.9966 87.5%, 0.9975 91.7%, 0.9982 95.8%, 1);
+  --spring-bounce: linear(0, 0.0473 3.6%, 0.1576 7.1%, 0.295 10.7%, 0.4364 14.3%, 0.5678 17.9%, 0.6821 21.4%, 0.7763 25%, 0.8507 28.6%, 0.9071 32.1%, 0.9481 35.7%, 0.9765 39.3%, 0.9951 42.9%, 1.0064 46.4%, 1.0124 50%, 1.0149 53.6%, 1.015 57.1%, 1.0138 60.7%, 1.0119 64.3%, 1.0097 67.9%, 1.0076 71.4%, 1.0057 75%, 1.0041 78.6%, 1.0029 82.1%, 1.0019 85.7%, 1.0011 89.3%, 1.0006 92.9%, 1.0002 96.4%, 1);
+  --ease: var(--spring);
+  --ease-spring: var(--spring-bounce);
+  --dur: .45s;                           /* 彈簧曲線跑完的時間（面板、抽屜、對話框） */
+  --dur-fast: .15s;                      /* 小東西：按鈕的底色、提示 */
+  --bar-h: 52px;
 
   /* 預設是繁體中文（台灣）字型；簡體介面、其他譯文語言在下面另外指定 */
   --serif-zh: "Noto Serif TC", "Source Han Serif TC", "Source Han Serif TW", "Songti TC", "PingFang TC", "Noto Serif SC", "Songti SC", serif;
-  --sans-zh: "Noto Sans TC", "Source Han Sans TC", "PingFang TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans SC", sans-serif;
+  --sans-zh: "PingFang TC", "Noto Sans TC", "Source Han Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans SC", sans-serif;
   --serif-en: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif TC", serif;
-  --ui: -apple-system, "SF Pro Text", "SF Pro Display", "PingFang TC", "Noto Sans TC", "Segoe UI", "Microsoft JhengHei UI", system-ui, sans-serif;
-  --mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", "Segoe UI", "Microsoft JhengHei UI", "Noto Sans TC", system-ui, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", Menlo, "Cascadia Mono", Consolas, monospace;
   --round-zh: "Yuanti TC", "GenSenRounded TW", "jf-openhuninn-2.0", "Yuanti SC", "PingFang TC", "Microsoft JhengHei UI", sans-serif;
   --read-zh: var(--sans-zh);             /* 內文、筆記用的字型：預設黑體；閱讀頁的 Aa 可以換圓體、宋體 */
-  --bar-h: 50px;
-  /* 動畫統一一套節奏：面板、抽屜、對話框都用 --dur/--ease，小東西（按鈕、提示）用 --dur-fast；接起來才不會一個快一個慢 */
-  --ease: cubic-bezier(.2, .8, .2, 1);
-  --ease-spring: cubic-bezier(.3, 1.35, .5, 1);   /* 浮層、彈出來的東西：過一點再回來 */
-  --dur: .24s;
-  --dur-fast: .13s;
 }
-@media (prefers-reduced-motion: reduce) { :root { --dur: .01s; --dur-fast: .01s; } }
 /* 英文介面：西文字型排前面，否則中文字型會把彎引號、撇號畫成全形 */
 html[lang="en"] {
-  --ui: -apple-system, "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, Arial, "Noto Sans TC", "PingFang TC", sans-serif;
   --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif TC", "Songti TC", serif;
-  --sans-zh: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
+  --sans-zh: -apple-system, "Helvetica Neue", "Segoe UI", system-ui, Arial, "Noto Sans TC", "PingFang TC", sans-serif;
 }
 /* 簡體介面、簡體譯文：用 SC 字型，字形才是大陸標準 */
 html[lang="zh-CN"], html[data-target="zh"] {
   --serif-zh: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "STSong", serif;
-  --sans-zh: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --sans-zh: "PingFang SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
 }
-html[lang="zh-CN"] { --ui: -apple-system, "SF Pro Text", "PingFang SC", "Noto Sans SC", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; }
+html[lang="zh-CN"] { --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; }
 /* 譯文不是中文時換內文字型（變數名沿用 -zh，指「譯文」） */
 html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif; --sans-zh: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif; }
 html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", AppleMyungjo, Batang, serif; --sans-zh: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
-html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
-  /* 暖黑底、米白字、淡陶土強調。面板和卡片比底色亮一階（Material 的「海拔」做法），邊界不用只靠一條看不見的線；
-     強調色降一點飽和、線條亮一點，夜裡才不刺眼也不會看不見 */
-  --bg: #1a1816;
-  --surface: #221f1c;
-  --surface-2: #2e2a26;
-  --card: #262320;
-  --ink: #eee8e0;
-  --ink-2: #bfb6ac;
-  --ink-3: #8e857c;
-  --rule: #342f2b;
-  --rule-2: #4b443e;
-  --accent: #f0a27f;
-  --accent-ink: #3a1a0e;
-  --accent-soft: rgba(240, 162, 127, .10);
-  --accent-soft-2: rgba(240, 162, 127, .18);
-  --mine: #9db8ff;
-  --mine-soft: rgba(157, 184, 255, .12);
-  --paper: #9c8b79;
-  --paper-2: #6f6154;
-  --danger: #ff8a76;
-  --ok: #6fcf97;
-  --gold: #e8b84a;
-  --hl: rgba(255, 214, 80, .22);
-  --hl-yellow: rgba(255, 214, 80, .22);
-  --hl-green: rgba(112, 205, 140, .22);
-  --hl-blue: rgba(120, 172, 255, .24);
-  --hl-pink: rgba(255, 130, 160, .22);
-  --ul-yellow: #d2a83a; --ul-green: #58b47a; --ul-blue: #7aa3ee; --ul-pink: #e27c98;
-  --hl-q: rgba(240, 162, 127, .16);
-  --focus: rgba(240, 162, 127, .06);
-  --pair: rgba(240, 162, 127, .12);
-  --pair-ring: rgba(240, 162, 127, .55);
-  --canvas: #141210;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 24px -6px rgba(0, 0, 0, .55);
-  --shadow-lg: 0 2px 8px rgba(0, 0, 0, .5), 0 24px 48px -12px rgba(0, 0, 0, .7);
-  --shadow-page: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px -6px rgba(0, 0, 0, .6);
-  --glass: color-mix(in srgb, var(--bg) 70%, transparent);
+  color-scheme: dark;
+  /* 深灰底、亮字、亮一階的藍；面板和卡片比底色亮一階，邊界不用只靠一條看不見的線 */
+  --bg: #1e1e1e;
+  --bg-2: #1c1c1e;
+  --surface: #2a2a2c;
+  --surface-2: rgba(255, 255, 255, .08);
+  --fill: rgba(120, 120, 128, .24);
+  --fill-2: rgba(120, 120, 128, .36);
+  --card: #2a2a2c;
+  --ink: #f5f5f7;
+  --ink-2: #a1a1a6;
+  --ink-3: #6e6e73;
+  --rule: rgba(84, 84, 88, .55);
+  --rule-2: rgba(84, 84, 88, .8);
+  --accent: #0a84ff;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(10, 132, 255, .16);
+  --accent-soft-2: rgba(10, 132, 255, .28);
+  --mine: #6e6cf0;
+  --mine-soft: rgba(110, 108, 240, .18);
+  --paper: #8e8e93;
+  --paper-2: #636366;
+  --danger: #ff453a;
+  --ok: #30d158;
+  --gold: #ffd60a;
+  --hl: rgba(255, 214, 10, .24);
+  --hl-yellow: rgba(255, 214, 10, .24);
+  --hl-green: rgba(48, 209, 88, .24);
+  --hl-blue: rgba(10, 132, 255, .26);
+  --hl-pink: rgba(255, 55, 95, .24);
+  --ul-yellow: #d4b000; --ul-green: #30d158; --ul-blue: #0a84ff; --ul-pink: #ff375f;
+  --hl-q: rgba(10, 132, 255, .16);
+  --focus: rgba(10, 132, 255, .08);
+  --pair: rgba(10, 132, 255, .14);
+  --pair-ring: rgba(10, 132, 255, .6);
+  --canvas: #141414;
+  --shadow: 0 0 0 .5px rgba(0, 0, 0, .5), 0 10px 28px rgba(0, 0, 0, .55);
+  --shadow-lg: 0 0 0 .5px rgba(255, 255, 255, .1), 0 28px 70px rgba(0, 0, 0, .7);
+  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .5);
+  --glass: rgba(30, 30, 30, .72);
+  --glass-sidebar: rgba(28, 28, 30, .82);
+  --glass-edge: rgba(255, 255, 255, .08);
   /* 夜間的原頁圖：預設「反相」（保留色相、只翻明暗，白底黑字變暗底亮字，彩圖的顏色不跑掉；飽和度壓一點免得螢光）。
      閱讀設定可以換「調暗」（照片、投影片不反相，只把亮度壓下來）或「原色」。 */
   --night-filter: invert(.888) hue-rotate(180deg) saturate(.9);
@@ -118,133 +135,140 @@ html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif
 }
 :root[data-theme="dark"] body.night-dim { --night-filter: brightness(.78) contrast(1.02); --night-page-bg: #c7c5c2; }
 :root[data-theme="dark"] body.night-none { --night-filter: none; --night-page-bg: #ffffff; }
+/* 減少動態：不滑、不彈，只淡入淡出；減少透明度：材質變實色 */
+@media (prefers-reduced-motion: reduce) { :root { --dur: .01s; --dur-fast: .01s; --spring: linear(0, 1); --spring-bounce: linear(0, 1); } }
+@media (prefers-reduced-transparency: reduce) { :root { --glass: var(--bg); --glass-sidebar: var(--bg-2); } }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 var(--ui); -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 var(--ui); -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { background: none; border: 0; padding: 0; cursor: pointer; }
+button { background: none; border: 0; padding: 0; cursor: default; }
 a { color: inherit; }
-::selection { background: rgba(184, 85, 47, .18); }
-:root[data-theme="dark"] ::selection { background: rgba(240, 162, 127, .28); }
-/* 圖示：Lucide 的細線風格（24 格），顏色跟著文字 */
-svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+::selection { background: rgba(0, 122, 255, .22); }
+:root[data-theme="dark"] ::selection { background: rgba(10, 132, 255, .36); }
+/* 圖示：細線（像 SF Symbols 的 regular），顏色跟著文字 */
+svg.i { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 svg.i.sm { width: 15px; height: 15px; }
 
-/* 顶栏：常驻 */
+/* 顶栏：毛玻璃，內容從底下捲過去；上緣一道亮邊是光打在玻璃上 */
 .topbar {
   position: fixed; inset: 0 0 auto 0; height: var(--bar-h); z-index: 50;
-  display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  display: flex; align-items: center; gap: 6px; padding: 0 12px;
   background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--rule);
+  box-shadow: inset 0 1px 0 var(--glass-edge), 0 .5px 0 var(--rule-2);
 }
 .topbar .grow { flex: 1; min-width: 0; }
-.brand { display: inline-flex; align-items: center; gap: 9px; font: 700 16px/1 var(--ui); letter-spacing: .14em; text-decoration: none; color: var(--ink); white-space: nowrap; }
-.brand .mark { width: 24px; height: 26px; flex: none; display: block; }
-/* 標誌（PR.logo）：深棕書脊、米色和淺褐的兩頁，顏色跟主題走 */
-.mark .lg-s, .hero .lg-s { fill: var(--ink); }
-.mark .lg-a, .hero .lg-a { fill: var(--paper); }
-.mark .lg-b, .hero .lg-b { fill: var(--paper-2); }
+.brand { display: inline-flex; align-items: center; gap: 8px; font: 600 15px/1 var(--ui); letter-spacing: .06em; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.brand .mark { width: 22px; height: 22px; flex: none; display: block; border-radius: 6px; }
+/* 標誌（PR.logo）：藍色的方塊、白色的折紙 */
+.mark .lg-tile, .hero .lg-tile { fill: var(--accent); }
+.mark .lg-s, .hero .lg-s { fill: #ffffff; }
+.mark .lg-a, .hero .lg-a { fill: rgba(255, 255, 255, .82); }
+.mark .lg-b, .hero .lg-b { fill: rgba(255, 255, 255, .55); }
 .brand b { font-weight: 700; color: var(--ink); }
-.brand-back { gap: 3px; padding: 0 8px 0 4px; color: var(--ink-3); }
-.brand-back .mark { width: 21px; height: 23px; }
-.brand small { font: 400 12.5px/1 var(--ui); color: var(--ink-3); letter-spacing: .02em; margin-left: 2px; }
+.brand-back { gap: 4px; padding: 0 8px 0 6px; color: var(--ink-2); }
+.brand-back .mark { width: 20px; height: 20px; border-radius: 5px; }
+.brand small { font: 400 12px/1 var(--ui); color: var(--ink-3); letter-spacing: 0; margin-left: 2px; }
 
-/* 按钮：膠囊形 */
+/* 按鈕（macOS）：平常是沒框的文字鈕，滑過去才有底；.line 是有框的推鈕；.accent／.primary 是藍色的主要鈕；.icon 是工具列的圖示鈕。
+   按下去那一刻就縮一下（0.1 秒，沒有延遲），放開才算 */
 .btn {
-  height: 32px; padding: 0 12px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; text-decoration: none;
-  transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast);
+  height: 28px; padding: 0 11px; border-radius: 7px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; text-decoration: none;
+  transition: background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast), transform .1s ease-out;
 }
-.btn:hover { background: var(--surface-2); color: var(--ink); }
-.btn:active { transform: scale(.96); }  /* 按下去縮一下：有回應的感覺 */
-.btn.on { background: var(--accent-soft); color: var(--accent); }
-.btn.line { box-shadow: inset 0 0 0 1px var(--rule-2); }
-.btn.primary { background: var(--ink); color: var(--bg); }
-.btn.primary:hover { opacity: .9; background: var(--ink); color: var(--bg); }
-.btn.accent { background: var(--accent); color: var(--accent-ink); }
-.btn.accent:hover { filter: brightness(1.1); background: var(--accent); color: var(--accent-ink); }
+.btn:hover { background: var(--surface-2); }
+.btn:active { transform: scale(.96); background: var(--fill-2); }
+.btn.on { background: var(--accent-soft-2); color: var(--accent); }
+.btn.line { background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 1px rgba(0, 0, 0, .05); }
+.btn.line:hover { background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 2px rgba(0, 0, 0, .1); }
+.btn.line:active { background: var(--fill); }
+.btn.primary, .btn.accent { color: var(--accent-ink); background: linear-gradient(var(--accent) 0%, color-mix(in srgb, var(--accent) 86%, #000) 100%); box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .35), 0 .5px 1px rgba(0, 0, 0, .2); }
+.btn.primary:hover, .btn.accent:hover { background: linear-gradient(color-mix(in srgb, var(--accent) 92%, #fff) 0%, var(--accent) 100%); color: var(--accent-ink); }
+.btn.primary:active, .btn.accent:active { background: color-mix(in srgb, var(--accent) 80%, #000); }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
-.btn.accent, .btn.primary { box-shadow: 0 1px 2px rgba(43, 36, 32, .12); }
-.btn.sm { height: 26px; padding: 0 10px; font-size: 12.5px; border-radius: 8px; }
-.btn.icon { width: 32px; padding: 0; justify-content: center; }
-.btn.sm.icon { width: 26px; }
-.btn[disabled] { opacity: .45; pointer-events: none; }
+.btn.sm { height: 24px; padding: 0 9px; font-size: 12px; border-radius: 6px; }
+.btn.icon { width: 28px; padding: 0; justify-content: center; color: var(--ink-2); }
+.btn.icon:hover { color: var(--ink); }
+.btn.sm.icon { width: 24px; }
+.btn[disabled] { opacity: .4; pointer-events: none; }
 
-/* 分段選擇：一排膠囊，選中的是強調色 */
-/* 分段選擇：像 macOS 的分段控制——淺灰槽裡一塊白的滑過去 */
-.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--surface-2); }
-.seg button { height: 26px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; transition: background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast); }
+/* 分段控制（macOS）：淺灰的槽，選中的那一段是白的、浮起來 */
+.seg { display: inline-flex; gap: 1px; padding: 2px; border-radius: 7px; background: var(--fill); }
+.seg button { height: 22px; padding: 0 10px; border-radius: 5px; font-size: 12.5px; font-weight: 500; color: var(--ink); white-space: nowrap; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform .1s ease-out; }
 .seg button:hover { color: var(--ink); }
-.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(43, 36, 32, .12), 0 0 0 .5px rgba(43, 36, 32, .06); }
-:root[data-theme="dark"] .seg button.on { background: #3a3531; }
+.seg button:active { transform: scale(.97); }
+.seg button.on { background: var(--surface); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .12); }
+:root[data-theme="dark"] .seg button.on { background: #5a5a5e; }
 
 .field { display: block; margin: 0 0 14px; }
-.field > span { display: block; font-size: 12.5px; color: var(--ink-3); margin-bottom: 5px; }
+.field > span { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 5px; }
 .input, select.input, textarea.input {
-  width: 100%; height: 34px; padding: 0 12px; border-radius: 10px; border: 0; outline: 0;
-  background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule-2); color: var(--ink); transition: box-shadow var(--dur-fast);
+  width: 100%; height: 28px; padding: 0 9px; border-radius: 6px; border: 0; outline: 0; font-size: 13px;
+  background: var(--surface); box-shadow: inset 0 0 0 .5px var(--rule-2), inset 0 1px 1px rgba(0, 0, 0, .04); color: var(--ink); transition: box-shadow var(--dur-fast);
 }
-textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height: 1.7; }
-.input:focus { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft-2); }
-.hint { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+textarea.input { height: auto; padding: 6px 9px; resize: vertical; line-height: 1.6; }
+.input:focus { box-shadow: inset 0 0 0 .5px var(--accent), 0 0 0 3.5px var(--accent-soft-2); }  /* macOS 的焦點環 */
+.hint { font-size: 12px; color: var(--ink-2); line-height: 1.55; }
 
-.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 11px; font-size: 12px; color: var(--ink-2); background: var(--surface-2); white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 5px; font-size: 11.5px; font-weight: 500; color: var(--ink-2); background: var(--fill); white-space: nowrap; }
 .chip button { color: var(--ink-3); font-size: 13px; line-height: 1; }
 .chip button:hover { color: var(--danger); }
 .chip.kind { color: var(--accent); background: var(--accent-soft); }
-.pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; white-space: nowrap; }
-.pill.unread { color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule-2); }
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+.pill.unread { color: var(--ink-2); background: var(--fill); }
 .pill.reading { color: var(--accent); background: var(--accent-soft); }
-.pill.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.pill.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .spin { width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 浮层 */
-/* 浮層：從點的地方彈出來（縮一點再放大，帶一點彈性），毛玻璃底 */
+/* 浮層（選單、彈出框）：毛玻璃，從觸發的地方長出來（縮一點再放大），臨界阻尼、不過衝 */
 .menu, .popover {  /* 菜单要能盖住设置对话框（.dialog-backdrop 是 90） */
-  position: fixed; z-index: 100; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--ink);
-  -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px);
-  box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow-lg); border-radius: 14px;
-  opacity: 0; pointer-events: none; transform: scale(.96) translateY(-4px); transform-origin: top center;
-  transition: opacity var(--dur-fast), transform var(--dur) var(--ease-spring);
+  position: fixed; z-index: 100; background: var(--glass); color: var(--ink);
+  -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+  box-shadow: inset 0 .5px 0 var(--glass-edge), var(--shadow-lg); border-radius: var(--r);
+  opacity: 0; pointer-events: none; transform: scale(.96) translateY(-3px); transform-origin: top left;
+  transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring);
 }
 .menu.open, .popover.open { opacity: 1; pointer-events: auto; transform: none; }
 .menu-list { padding: 5px; min-width: 190px; }
 /* 页面内确认框（js/common/confirm.js） */
 .confirm { z-index: 120; width: min(320px, calc(100vw - 16px)); padding: 14px 14px 12px; box-sizing: border-box; }
-.confirm .cf-title { font-size: 14px; font-weight: 600; line-height: 1.45; }
-.confirm .cf-body { margin-top: 5px; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.confirm .cf-title { font-size: 13.5px; font-weight: 600; line-height: 1.45; }
+.confirm .cf-body { margin-top: 5px; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
 .confirm .cf-input { width: 100%; margin-top: 10px; box-sizing: border-box; }
 .confirm .cf-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .btn.danger-fill { background: var(--danger); color: #fff; }
 .btn.danger-fill:hover { background: var(--danger); opacity: .9; }
-:root[data-theme="dark"] .btn.danger-fill { color: #2a0b08; }
-.menu-list button, .menu-list a { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border-radius: 9px; font-size: 13.5px; color: var(--ink); text-align: left; text-decoration: none; }
+.menu-list button, .menu-list a { display: flex; align-items: center; gap: 8px; width: 100%; height: 26px; padding: 0 9px; border-radius: 6px; font-size: 13px; color: var(--ink); text-align: left; text-decoration: none; }
 .menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--accent); color: var(--accent-ink); }
 .menu-list button:hover svg, .menu-list a:hover svg { color: inherit; }
 .menu-list button:hover .kbd { color: inherit; opacity: .8; }
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
-.menu-list hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 4px; }
+.menu-list hr { border: 0; border-top: .5px solid var(--rule-2); margin: 5px 6px; }
 
-.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(43, 36, 32, .28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); }
+/* 對話框（macOS 的 sheet）：底下的畫面壓暗，框從中間長出來 */
+.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .26); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) ease-out; }
 .dialog-backdrop.open { opacity: 1; pointer-events: auto; }
-.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: var(--r-xl); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow-lg); padding: 22px 24px; transform: scale(.96) translateY(10px); transition: transform var(--dur) var(--ease-spring); }
+.dialog { width: min(560px, 94vw); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-lg); padding: 22px 24px; transform: scale(.97) translateY(6px); transition: transform var(--dur) var(--spring); }
 .dialog-backdrop.open .dialog { transform: none; }
-.dialog h2 { font: 600 18px/1.4 var(--ui); margin: 0 0 16px; }
+.dialog h2 { font: 600 17px/1.35 var(--ui); letter-spacing: -.01em; margin: 0 0 16px; }
 .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 #toast {
-  position: fixed; left: 50%; bottom: 26px; z-index: 95; transform: translate(-50%, 12px) scale(.96);
-  padding: 9px 16px; border-radius: 14px; background: var(--ink); color: var(--bg);
-  font-size: 13px; box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast), transform var(--dur) var(--ease-spring);
+  position: fixed; left: 50%; bottom: 22px; z-index: 95; transform: translate(-50%, 10px) scale(.97);
+  padding: 8px 14px; border-radius: 12px; background: var(--glass); color: var(--ink);
+  -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px);
+  font-size: 13px; font-weight: 500; box-shadow: inset 0 .5px 0 var(--glass-edge), var(--shadow-lg); opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring);
   display: flex; gap: 12px; align-items: center; max-width: 92vw;
 }
 #toast.open { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-#toast button { color: inherit; text-decoration: underline; text-underline-offset: 3px; opacity: .85; }
+#toast button { color: var(--accent); font-weight: 600; }
 
-kbd { font: 11px var(--mono); padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 -1px 0 var(--rule-2), inset 0 0 0 1px var(--rule); color: var(--ink-2); }
+kbd { font: 11px var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--fill); color: var(--ink-2); }
 input[type=range] { accent-color: var(--accent); }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-.btn.icon.lang-btn { font: 600 12.5px/1 var(--ui); letter-spacing: .02em; }  /* 顶栏的 中 / EN */
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation: none !important; } }
+.btn.icon.lang-btn { font: 600 12px/1 var(--ui); letter-spacing: .02em; }  /* 顶栏的 中 / EN */

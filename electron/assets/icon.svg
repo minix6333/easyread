@@ -1,40 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- FOLI 的 App 圖示：米白圓角方塊上一本折開的紙——深棕的書脊、兩頁掀向右邊的米色紙。
-       做成 PNG／ICO 的是 scripts/build_icons.js；App 裡的小標誌是 web/logo.svg（同一個形狀、沒有底板）。
+  <!-- FOLI 的 App 圖示：藍色的圓角方塊（系統藍，上亮下深），上面一本折開的白紙——書脊、兩頁掀向右邊。
+       做成 PNG／ICO 的是 scripts/build_icons.js；App 裡的小標誌是 web/logo.svg 和 PR.logo()（同一個形狀）。
        只用漸層、不用濾鏡：產圖用的 librsvg 畫不好 feDropShadow。 -->
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FAF7F2"/>
-      <stop offset="1" stop-color="#EFEAE2"/>
-    </linearGradient>
-    <linearGradient id="spine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#574B43"/>
-      <stop offset="1" stop-color="#3D3430"/>
+      <stop offset="0" stop-color="#5fb0ff"/>
+      <stop offset="1" stop-color="#1468f0"/>
     </linearGradient>
     <linearGradient id="top" x1="0" y1="0" x2="1" y2="0.25">
-      <stop offset="0" stop-color="#E7DCCD"/>
-      <stop offset="1" stop-color="#F8F3EB"/>
+      <stop offset="0" stop-color="#e6f0ff"/>
+      <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
     <linearGradient id="low" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#E0D1BD"/>
-      <stop offset="1" stop-color="#C8B29A"/>
+      <stop offset="0" stop-color="#cfe2ff"/>
+      <stop offset="1" stop-color="#a9ccff"/>
     </linearGradient>
     <linearGradient id="fold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#2B2420" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#2B2420" stop-opacity="0"/>
+      <stop offset="0" stop-color="#0b3f9e" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#0b3f9e" stop-opacity="0"/>
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#tile)"/>
-  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228" fill="none" stroke="#2B2420" stroke-opacity=".07"/>
+  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228" fill="none" stroke="#ffffff" stroke-opacity=".18"/>
   <g transform="translate(512 506) scale(16) translate(-33.7 -32.9)">
     <!-- 書脊 -->
-    <path d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z" fill="url(#spine)"/>
+    <path d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z" fill="#ffffff"/>
     <!-- 下面那一頁（先畫，被上面那頁蓋住一部分） -->
     <path d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z" fill="url(#low)"/>
-    <!-- 折痕：頁靠著書脊的那一側暗一點，才有翻起來的立體感 -->
     <path d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L40.2 44.2 C35.6 44.9 31 45.6 28.4 47.6 Z" fill="url(#fold)"/>
     <!-- 上面那一頁 -->
     <path d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z" fill="url(#top)"/>
-    <path d="M28.4 20.6 L36 19.4 L36 33.1 C33.2 33.4 30.4 33.8 28.4 35.3 Z" fill="url(#fold)" opacity=".55"/>
+    <path d="M28.4 20.6 L36 19.4 L36 33.1 C33.2 33.4 30.4 33.8 28.4 35.3 Z" fill="url(#fold)" opacity=".5"/>
   </g>
 </svg>

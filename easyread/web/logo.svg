@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="19 17 29.5 32" width="29.5" height="32">
-  <!-- FOLI 的標誌（沒有底板的版本，給分頁圖示、瀏覽器用）：深棕書脊、兩頁掀開的米色紙。顏色跟著淺色／深色走。
-       App 裡的標誌不是讀這個檔，是 js/common/util.js 的 PR.logo()（同樣的路徑，顏色用 CSS 變數）。 -->
-  <style>
-    .s{fill:#4B413B}.a{fill:#EBE0D1}.b{fill:#CDB9A2}
-    @media (prefers-color-scheme: dark){.s{fill:#EADFD2}.a{fill:#9C8B79}.b{fill:#6F6154}}
-  </style>
-  <path class="s" d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z"/>
-  <path class="b" d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z"/>
-  <path class="a" d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- FOLI 的標誌（分頁圖示、瀏覽器用）：藍色方塊、白色折紙。App 裡的標誌是 js/common/util.js 的 PR.logo()，同樣的形狀、顏色用 CSS 變數。 -->
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#1a7cff"/>
+  <g transform="translate(32 32) scale(1.5) translate(-33.7 -32.9)">
+    <path d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z" fill="#ffffff"/>
+    <path d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z" fill="#ffffff" fill-opacity=".55"/>
+    <path d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z" fill="#ffffff" fill-opacity=".85"/>
+  </g>
 </svg>
