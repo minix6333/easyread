@@ -42,6 +42,8 @@ html.chat-only #inspTabs, html.notes-only #inspTabs { display: none !important; 
 #inspTabs .insp-x { width: 26px; height: 26px; border-radius: 50%; color: var(--ink-3); }
 body.side-open #notespanel, body.side-open #chatpanel, body.side-open:not(.pdf-main) #pageview { top: calc(var(--bar-h) + var(--insp-h)); }
 body.side-open .panel-grip { top: calc(var(--bar-h) + var(--insp-h)); }
+/* 分頁列右邊已經有一顆 ×：面板自己的關閉鈕不用再出現 */
+body.side-open .np-head [data-np-act="close"], body.side-open .ch-head [data-c="close"], body.side-open:not(.pdf-main) .pv-head [data-pv="close"] { display: none !important; }
 .side-panel, #inspTabs { background: var(--bg); }
 @media (max-width: 1179px) { #inspTabs { width: min(600px, 100vw); } }
 @media (max-width: 760px) { #inspTabs { width: 100vw; } }

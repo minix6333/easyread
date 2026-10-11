@@ -11,6 +11,7 @@ const opt = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] :
 const out = opt("--out", "/tmp/shots");
 const base = opt("--base", "http://localhost:8765");
 const wait = Number(opt("--wait", "1800"));
+const js = opt("--js", "");
 const specs = argv.filter((a) => a.includes("|")).map((a) => {
   const [name, url, size, theme] = a.split("|");
   const [w, h] = (size || "1280x800").split("x").map(Number);
@@ -33,6 +34,7 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, wait));
       // 伺服器存的偏好會蓋掉 localStorage 的主題：載完再直接把主題掛到 <html> 上
       await win.webContents.executeJavaScript('document.documentElement.dataset.theme=' + JSON.stringify(s.theme)).catch(() => {});
+      if (js) { await win.webContents.executeJavaScript(js).catch((e) => console.log("js fail", s.name, String(e))); await new Promise((r) => setTimeout(r, 900)); }  // --js：載完要跑的（開面板之類）
       await new Promise((r) => setTimeout(r, 500));
       const img = await win.webContents.capturePage();
       fs.writeFileSync(path.join(out, s.name + ".png"), img.toPNG());
