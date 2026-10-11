@@ -22,6 +22,7 @@ html.desktop #tabs .tab, html.desktop #tabs .btn, html.desktop #tabs .dock-rail,
 /* ---------------- 閱讀頁：文章是一張卡 ---------------- */
 :root { --gap: 60px; }
 #paper { background: var(--surface); border-radius: 20px; padding: 40px var(--card-pad) 60px; margin: 0 calc(-1 * var(--card-pad)); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
+body.side-open:not(.pdf-main) { --card-pad: 28px; }  /* 右邊開著面板時版心被擠窄：卡片少往外撐一點，左邊才留得出呼吸的空 */
 #paper .blk::before { left: -14px; }
 #paper .edited-dot { left: -22px; }
 .pv-page { border-radius: 10px; }

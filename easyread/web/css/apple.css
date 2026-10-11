@@ -301,9 +301,13 @@ li.todo.done > i { background: var(--accent); }
 .bk-go { border-radius: 6px; }
 .bk-code pre, .bk-b.t-code .bk-in, .bk-b.t-math .bk-in, .bk-b.t-table .bk-in { border-radius: 10px; background: var(--fill); }
 .bk-b.t-callout .bk-in { border-radius: 10px; background: var(--fill); }
-.bk-menu { border-radius: 14px; transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring); }
-.bk-mi { border-radius: 8px; }
+.bk-menu { width: 260px; border-radius: 14px; transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring); }
+/* 「/」選單（像 Craft）：圖示放在一格小方塊裡，名字粗、說明灰 */
+.bk-mi { border-radius: 10px; padding: 6px 8px; gap: 10px; }
+.bk-mi svg { width: 28px; height: 28px; padding: 6px; border-radius: 8px; background: var(--fill); color: var(--ink-2); box-sizing: border-box; }
+.bk-mi b { font-weight: 600; }
 .bk-mi.on, .bk-mi:hover { background: var(--select); color: var(--ink); }
+.bk-mi.on svg, .bk-mi:hover svg { background: var(--ink); color: var(--on-ink, var(--bg)); }
 .bk-preview { border-radius: 12px; background: var(--accent-soft); box-shadow: 0 0 0 .5px var(--accent-soft-2); }
 .bk-pv-head { border-bottom: .5px solid var(--accent-soft-2); }
 
