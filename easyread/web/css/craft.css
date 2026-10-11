@@ -52,6 +52,17 @@ body.side-open .panel-grip { top: calc(var(--bar-h) + var(--insp-h)); }
 .pv-fabs .fab.on { color: var(--accent); }
 .pv-fabs .fab.primary { background: var(--ink) !important; color: var(--on-ink); }
 .pv-fabs .fab svg.i { width: 18px; height: 18px; }
+/* 右下角的「問 AI」：像 Craft 的「助理」，一顆有字的膠囊 */
+.pv-ai { position: absolute; right: 22px; bottom: 18px; z-index: 6; display: none; }
+body.pdf-main .pv-ai { display: block; }
+.pv-ai .fab.primary { position: relative; width: auto; height: 40px; padding: 0 16px 0 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; background: var(--ink); color: var(--on-ink); border: 0; box-shadow: var(--shadow); font: 600 13px var(--ui); transition: transform var(--dur) var(--spring-bounce), opacity var(--dur-fast); }
+.pv-ai .fab.primary::after { content: "問 AI"; }
+html[lang="zh-CN"] .pv-ai .fab.primary::after { content: "问 AI"; }
+html[lang="en"] .pv-ai .fab.primary::after { content: "Ask AI"; }
+.pv-ai .fab.primary svg.i { width: 17px; height: 17px; }
+.pv-ai .fab.primary:hover { transform: scale(1.04); filter: none; opacity: .94; }
+.pv-ai .fab.primary:active { transform: scale(.96); }
+.pv-ai .fab.primary.on { background: var(--accent); color: #fff; }
 /* 跳回剛才讀的地方：膠囊放左下 */
 body.pdf-main .jump-back { left: 20px; }
 
