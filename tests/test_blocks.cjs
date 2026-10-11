@@ -41,3 +41,27 @@ test("odd input: blank, fences without closing, headings deeper than three, CRLF
   assert.equal(PR.blocksParse("> [!什麼] x").at(0).type, "quote");  // 不認得的說明框種類：當一般引用
   assert.equal(PR.blocksSerialize(PR.blocksParse("- a\n\n\n- b")), "- a\n- b");
 });
+
+test("a click on rendered text maps back to the right place in the Markdown source", () => {
+  const PR = load();
+  const at = PR.blocksSrcOffset, OBJ = "￼";
+  const src = "這有**粗體**、公式 $\\nabla f$，還有[連結](https://e.com)在中間。";
+  const show = (vis, next) => { const i = at(src, vis, next); return i == null ? null : src.slice(0, i) + "|" + src.slice(i); };
+  // 記號在前面：游標落在看得到的那個字前面，不是記號前面
+  assert.equal(show("這有", "粗"), "這有**|粗體**、公式 $\\nabla f$，還有[連結](https://e.com)在中間。");
+  assert.equal(show("這有粗", "體"), "這有**粗|體**、公式 $\\nabla f$，還有[連結](https://e.com)在中間。");
+  // 收尾的記號（**、連結的網址）要跨過去
+  assert.equal(show("這有粗體", "、"), "這有**粗體**|、公式 $\\nabla f$，還有[連結](https://e.com)在中間。");
+  assert.equal(show("這有粗體、公式 " + OBJ + "，還有連結", "在"), "這有**粗體**、公式 $\\nabla f$，還有[連結](https://e.com)|在中間。");
+  // 公式是一個佔位字元：點在它前面、後面
+  assert.equal(show("這有粗體、公式 ", OBJ), "這有**粗體**、公式 |$\\nabla f$，還有[連結](https://e.com)在中間。");
+  assert.equal(show("這有粗體、公式 " + OBJ, "，"), "這有**粗體**、公式 $\\nabla f$|，還有[連結](https://e.com)在中間。");
+  // 最後面
+  assert.equal(at(src, "這有粗體、公式 " + OBJ + "，還有連結在中間。", ""), src.length);
+  assert.equal(at("**全粗**", "全粗", ""), 6);
+  assert.equal(at("", "", ""), 0);
+  // 換行、多的空白不影響；對不上（畫面和原文不是同一段）回 null，由呼叫的人把游標放最後
+  assert.equal(at("第一行\n第二行", "第一行 第", "二"), 5);
+  assert.equal(at("abc", "abx", ""), null);
+  assert.equal(at("a \\* b", "a * ", "b"), 5);
+});

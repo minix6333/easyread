@@ -168,7 +168,7 @@ html[data-backdrop] body, html[data-backdrop].desktop.framed body { background: 
 .chip { border-radius: 7px; }
 /* 字印在石墨黑上的地方 */
 #selbar > button.primary, .np-filters > button.on, .ch-pill.on, .ch-send, .nai-send,
-.cm.user .bubble, .editor-bar button.primary, #askline, .askline, .bk-mi.on svg, .bk-mi:hover svg { color: var(--on-ink); }
+.cm.user .bubble, .editor-bar button.primary, #askline, .askline, .bk-mi.on .bk-mic { color: var(--on-ink); }
 .ch-send.stop, .nai-send.stop { color: #fff; }
 /* 浮層：厚玻璃，圓角 14 */
 .menu, .popover { border-radius: 14px; }
@@ -274,10 +274,7 @@ body.dock-open #dock { animation: dock-in .34s cubic-bezier(.2, .8, .2, 1) backw
 .dock-presets button[data-d] { color: var(--ink-2); font-weight: 500; background: var(--fill); box-shadow: none; }
 .dock-presets button[data-d] > svg.i { flex: none; width: 26px; color: var(--ink-2); }
 .dock-url, .dock-presets button { animation: dock-rise .38s cubic-bezier(.2, .8, .2, 1) backwards; }
-.dock-presets button:nth-child(1) { animation-delay: .03s; } .dock-presets button:nth-child(2) { animation-delay: .05s; }
-.dock-presets button:nth-child(3) { animation-delay: .07s; } .dock-presets button:nth-child(4) { animation-delay: .09s; }
-.dock-presets button:nth-child(5) { animation-delay: .11s; } .dock-presets button:nth-child(6) { animation-delay: .13s; }
-.dock-presets button:nth-child(7) { animation-delay: .15s; } .dock-presets button:nth-child(n + 8) { animation-delay: .17s; }
+.dock-presets button { animation-delay: calc(.03s + min(var(--k, 7), 7) * .02s); }  /* --k：第幾顆（dock.js 寫在元素上），一顆接一顆浮上來 */
 @keyframes dock-rise { from { opacity: 0; transform: translateY(8px); } }
 .dock-empty .again { margin: 14px 2px 0; font-size: 12px; color: var(--ink-3); }
 .dock-empty.fail { max-width: 300px; text-align: center; }
@@ -364,7 +361,9 @@ body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.ico
 .list.grid .row::before { display: none; }
 .list.grid .thumb { width: 100%; height: auto; aspect-ratio: 4 / 4.4; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--line); background-size: cover; background-position: center top; }
 .list.grid .row > :not(.thumb):not(.pick) { padding: 0 14px; }
-.list.grid .row > div:nth-of-type(2) { margin-top: 6px; }
+/* 這一格用類別選，不用 div:nth-of-type(2)：「第幾個」這類選擇器只要寫在泛用的標籤上，瀏覽器就會把整頁每個父元素都記成「小孩的樣式跟排第幾有關」，
+   之後在任何清單中間插一個元素都要把整個清單的樣式重算一遍（筆記 400 塊時按一次 Enter 要 80 毫秒就是這樣來的）。新加樣式時別再用。 */
+.list.grid .row > .row-main { margin-top: 6px; }
 .list.grid .row .t1 { font: 600 13.5px/1.35 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .list.grid .row .t2 { display: none; }
 .list.grid .row .t3 { margin-top: 4px; font-size: 11.5px; gap: 4px 6px; }
@@ -811,3 +810,84 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
   html.desktop { --mat-bg: var(--mat); --canvas-c: var(--canvas-bg); }
   .topbar > .btn.icon, .topbar > .brand-back, .bar-group, .topbar .seg, .topbar > .search, #pageview > .pv-head, .pv-ai .fab.primary { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+
+/* ---------------- 筆記／資料夾共用的顏色和圖示挑選器（js/common/pick.js） ----------------
+   顏色存的是名字（PR.TINTS：gray、red…），[data-c] 把名字變成 --c；亮暗各一組，暗色那組亮一點、淡一點，放在深底上不刺眼。 */
+:root { --nc-gray: #8b9099; --nc-red: #d6564d; --nc-orange: #dc8a35; --nc-yellow: #c9a227; --nc-green: #4d9e63; --nc-teal: #2f9d96; --nc-blue: #4b86da; --nc-purple: #8568d8; --nc-pink: #d25d97; --nc-brown: #9b7554; }
+:root[data-theme="dark"] { --nc-gray: #a4a9b2; --nc-red: #f0857d; --nc-orange: #f0a65e; --nc-yellow: #e3c565; --nc-green: #7dc68f; --nc-teal: #63c9c1; --nc-blue: #80b1f6; --nc-purple: #aa97f1; --nc-pink: #ee8cb9; --nc-brown: #c6a386; }
+[data-c="gray"] { --c: var(--nc-gray); } [data-c="red"] { --c: var(--nc-red); } [data-c="orange"] { --c: var(--nc-orange); } [data-c="yellow"] { --c: var(--nc-yellow); } [data-c="green"] { --c: var(--nc-green); }
+[data-c="teal"] { --c: var(--nc-teal); } [data-c="blue"] { --c: var(--nc-blue); } [data-c="purple"] { --c: var(--nc-purple); } [data-c="pink"] { --c: var(--nc-pink); } [data-c="brown"] { --c: var(--nc-brown); }
+.ti { display: inline-grid; place-items: center; flex: none; color: var(--c, currentColor); }
+.ni-dots button, .pick-dots button { width: 22px; height: 22px; padding: 0; border-radius: 50%; background: var(--c, transparent); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 16%, transparent); transition: transform .12s ease-out, box-shadow var(--dur-fast); }
+.ni-dots button:hover, .pick-dots button:hover { transform: scale(1.12); }
+.ni-dots button.none, .pick-dots button.none { position: relative; box-shadow: inset 0 0 0 1.5px var(--rule-2); }
+.ni-dots button.none::after, .pick-dots button.none::after { content: ""; position: absolute; left: 4px; right: 4px; top: calc(50% - .75px); height: 1.5px; background: var(--rule-2); transform: rotate(-45deg); }
+.ni-dots button.on, .pick-dots button.on { box-shadow: 0 0 0 2px var(--mat, #fff), 0 0 0 3.5px var(--c, var(--ink-3)); }
+.popover.pick { z-index: 110; width: 316px; padding: 12px 10px 10px; box-sizing: border-box; }
+.pick-dots { display: flex; justify-content: space-between; padding: 0 5px 10px; border-bottom: .5px solid var(--line); }
+.pick-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; max-height: 262px; overflow-y: auto; overscroll-behavior: contain; padding: 0 2px 2px; color: var(--c, var(--ink)); }
+.pick-g { grid-column: 1 / -1; padding: 9px 5px 3px; font: 600 11px/1.2 var(--ui); color: var(--ink-3); }
+.pick-grid button { aspect-ratio: 1; padding: 0; border-radius: 9px; display: grid; place-items: center; color: inherit; transition: background var(--dur-fast), transform .1s ease-out; }
+.pick-grid button svg { width: 18px; height: 18px; stroke-width: 1.7; }
+.pick-grid button:hover { background: var(--row-hover); }
+.pick-grid button:active { transform: scale(.9); }
+.pick-grid button.on { background: var(--row-on); box-shadow: inset 0 0 0 1.5px var(--c, var(--ink-2)); }
+.pick-foot { display: flex; justify-content: flex-end; padding: 8px 2px 0; }
+.pick-foot .btn[disabled] { opacity: .4; pointer-events: none; }
+
+/* ---------------- 文獻庫裡的筆記和分類的自訂圖示（js/library/notes.js、sidebar.js） ---------------- */
+/* 側欄：分類和筆記前面那顆圖示可以有自己的顏色（[data-c]→--c）；收藏的筆記右邊一顆小星 */
+.side .srow .ti { width: 16px; height: 16px; }
+.side .srow .ti svg.i { width: 16px; height: 16px; color: var(--c, var(--ink-2)); }
+.side .srow.on .ti svg.i { color: var(--c, var(--ink)); }
+.side .srow.note { text-decoration: none; }
+.side .srow .st { flex: none; display: grid; place-items: center; color: var(--gold, #d9a520); }
+.side .srow .st svg.i { width: 11px; height: 11px; color: inherit; fill: currentColor; }
+.side .srow.note:hover .st { display: none; }
+.row .chip.cat .ti svg { width: 11px; height: 11px; color: var(--c, var(--ink-3)); }
+/* 主畫面的筆記卡：像 Craft 的文件卡——一張小小的紙，上面是標題和開頭幾行（貼了圖就拿第一張當封面），下面一行是時間 */
+.list-sec { grid-column: 1 / -1; margin: 10px 4px 0; font: 700 13px/1.3 var(--ui); color: var(--ink); opacity: .9; }
+.list-sec:first-child { margin-top: 0; }
+.list:not(.grid) .list-sec { margin: 14px 16px 6px; }
+.ncard { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 15px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); overflow: hidden; color: var(--ink); text-decoration: none; text-align: left; transition: box-shadow var(--dur-fast), transform var(--dur) var(--spring); }
+.ncard:hover { box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 20px -8px rgba(0, 0, 0, .25); }
+.ncard:active { transform: scale(.985); }
+.ncard[data-c] { box-shadow: 0 0 0 .5px var(--line), inset 0 3px 0 var(--c); }
+.ncard[data-c]:hover { box-shadow: 0 0 0 .5px var(--rule-2), inset 0 3px 0 var(--c), 0 6px 20px -8px rgba(0, 0, 0, .25); }
+.nc-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px 15px 0; aspect-ratio: 4 / 4.4; box-sizing: border-box; overflow: hidden; }
+.nc-t { display: flex; align-items: flex-start; gap: 7px; font: 700 15px/1.35 var(--ui); letter-spacing: -.01em; }
+.nc-t > span:last-child { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.nc-ic { margin-top: 2px; }
+.nc-ic svg { width: 17px; height: 17px; color: var(--c, var(--ink-3)); }
+.nc-cover { flex: none; height: 44%; margin: 0 -1px; border-radius: 9px; background: var(--fill) center / cover no-repeat; box-shadow: inset 0 0 0 .5px var(--line); }
+.nc-pv { flex: 1; min-height: 0; font: 12px/1.6 var(--ui); color: var(--ink-2); overflow: hidden; overflow-wrap: anywhere; -webkit-mask-image: linear-gradient(#000 62%, transparent); mask-image: linear-gradient(#000 62%, transparent); }
+.nc-pv.empty { color: var(--ink-3); }
+.nc-foot { flex: none; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px 0 15px; font: 11.5px var(--ui); color: var(--ink-3); }
+.nc-foot .st { display: grid; place-items: center; color: var(--gold, #d9a520); }
+.nc-foot .st svg { width: 12px; height: 12px; fill: currentColor; }
+.nc-foot .chip.cat { height: 20px; max-width: 46%; overflow: hidden; white-space: nowrap; }
+.nc-foot .chip.cat .ti svg { width: 11px; height: 11px; color: var(--c, var(--ink-3)); }
+.nc-foot .grow { flex: 1; }
+.ncard .more { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast); }
+.ncard:hover .more, .ncard .more:focus-visible { opacity: 1; }
+.ncard .more:hover { background: var(--row-hover); color: var(--ink); }
+@media (hover: none) { .ncard .more { opacity: 1; } }
+.ncard.new { align-items: center; justify-content: center; gap: 8px; aspect-ratio: auto; min-height: 120px; background: var(--row-hover); box-shadow: none; font: 500 13px var(--ui); color: var(--ink-2); }
+.list.grid .ncard.new { aspect-ratio: 4 / 5.05; }
+.ncard.new:hover { background: var(--row-on); box-shadow: none; color: var(--ink); }
+.nc-plus { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); }
+/* 清單檢視：一列一份 */
+.list:not(.grid) .ncard { flex-direction: row; align-items: center; gap: 12px; height: 58px; padding: 0 10px 0 16px; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--line); background: transparent; }
+.list:not(.grid) .ncard[data-c] { box-shadow: inset 0 -.5px 0 var(--line), inset 3px 0 0 var(--c); }
+.list:not(.grid) .ncard:hover { background: var(--row-hover); box-shadow: inset 0 -.5px 0 var(--line); }
+.list:not(.grid) .nc-page { flex-direction: row; align-items: center; gap: 14px; padding: 0; aspect-ratio: auto; }
+.list:not(.grid) .nc-t { flex: none; max-width: 46%; font-size: 13.5px; font-weight: 600; align-items: center; }
+.list:not(.grid) .nc-t > span:last-child { -webkit-line-clamp: 1; }
+.list:not(.grid) .nc-cover { display: none; }
+.list:not(.grid) .nc-pv { white-space: nowrap; text-overflow: ellipsis; -webkit-mask-image: none; mask-image: none; }
+.list:not(.grid) .nc-foot { height: auto; padding: 0; }
+.list:not(.grid) .ncard.new { min-height: 0; height: 46px; justify-content: flex-start; background: transparent; }
+.list:not(.grid) .ncard.new .nc-plus { width: 28px; height: 28px; border-radius: 9px; }
+/* 回收站裡每一項前面的圖示 */
+.trash-ic { width: 30px; height: 30px; border-radius: 9px; background: var(--fill); color: var(--c, var(--ink-2)); }
+.trash-ic svg { width: 16px; height: 16px; }

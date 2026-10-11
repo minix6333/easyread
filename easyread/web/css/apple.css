@@ -285,9 +285,7 @@ li.todo > i { border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--rule-2); }
 li.todo.done > i { background: var(--accent); }
 /* 區塊編輯器 */
 .bk-b { border-radius: 8px; }
-.bk-b.sel { background: var(--accent-soft); box-shadow: 0 0 0 1.5px var(--accent-soft-2); }
-.bk-handle { border-radius: 6px; }
-.bk-handle:hover { background: var(--fill-2); }
+.bk-b.sel { background: var(--accent-soft); }
 .bk-h1 { letter-spacing: -.02em; } .bk-h2 { letter-spacing: -.015em; } .bk-h3 { letter-spacing: -.01em; }
 .bk-mark.todo { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--rule-2); margin-top: .34em; }
 .bk-mark.todo:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
@@ -300,14 +298,14 @@ li.todo.done > i { background: var(--accent); }
 .bk-page { border-radius: 6px; background: var(--accent-soft-2); }
 .bk-go { border-radius: 6px; }
 .bk-code pre, .bk-b.t-code .bk-in, .bk-b.t-math .bk-in, .bk-b.t-table .bk-in { border-radius: 10px; background: var(--fill); }
-.bk-b.t-callout .bk-in { border-radius: 10px; background: var(--fill); }
-.bk-menu { width: 260px; border-radius: 14px; transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring); }
-/* 「/」選單（像 Craft）：圖示放在一格小方塊裡，名字粗、說明灰 */
-.bk-mi { border-radius: 10px; padding: 6px 8px; gap: 10px; }
-.bk-mi svg { width: 28px; height: 28px; padding: 6px; border-radius: 8px; background: var(--fill); color: var(--ink-2); box-sizing: border-box; }
-.bk-mi b { font-weight: 600; }
+.bk-b.t-callout.c-ref .bk-in { border-radius: 10px; background: var(--fill); }
+.bk-menu { width: 264px; border-radius: 14px; transition: opacity var(--dur-fast) ease-out, transform var(--dur) var(--spring); }
+/* 「/」選單（像 Craft）：圖示放在一格小方塊裡，名字在中間，右邊灰字是打字的捷徑 */
+.bk-mi { border-radius: 9px; }
+.bk-mic { width: 26px; height: 26px; border-radius: 8px; background: var(--fill); color: var(--ink-2); }
+.bk-mi b { font-weight: 550; }
 .bk-mi.on, .bk-mi:hover { background: var(--select); color: var(--ink); }
-.bk-mi.on svg, .bk-mi:hover svg { background: var(--ink); color: var(--on-ink, var(--bg)); }
+.bk-mi.on .bk-mic { background: var(--ink); color: var(--on-ink, var(--bg)); }
 .bk-preview { border-radius: 12px; background: var(--accent-soft); box-shadow: 0 0 0 .5px var(--accent-soft-2); }
 .bk-pv-head { border-bottom: .5px solid var(--accent-soft-2); }
 

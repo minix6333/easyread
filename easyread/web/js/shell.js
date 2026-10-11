@@ -211,6 +211,10 @@
     focusFrame(LIB);
   }
 
+  function tellLibrary(except) {
+    const lib = frames[LIB];
+    if (lib && lib.contentWindow && lib.contentWindow !== except) lib.contentWindow.postMessage({ easyread: true, type: "notes-changed" }, location.origin);
+  }
   window.addEventListener("message", (e) => {
     if (e.origin !== location.origin || !e.data || !e.data.easyread) return;
     const from = tabOfSource(e.source), d = e.data;
@@ -220,6 +224,8 @@
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
     else if (d.type === "key") key(String(d.key), !!d.shift);
     else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方
+    else if (d.type === "close-self" && from) { closeTab(from.id); goHome(""); tellLibrary(); }  // 筆記把自己刪了：關掉那個分頁、回文獻庫（那邊會出「復原」）
+    else if (d.type === "notes-changed") tellLibrary(e.source);  // 筆記改了名字、圖示、建了副本…：文獻庫的清單馬上跟上
     else if (d.type === "close-papers") {  // 文獻庫要換位置了：論文分頁全部收掉（它們開著時後端不讓換）
       for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
       render();

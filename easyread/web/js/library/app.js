@@ -65,7 +65,7 @@
   };
 
   L.load = async function () {
-    PR.api("/api/notes").then((d) => { L.notes = d.items || []; PR.renderSide && PR.renderSide(); }).catch(() => {});  // 獨立筆記的清單（側欄）
+    if (L.loadNotes) L.loadNotes();  // 獨立筆記的清單、分類的圖示顏色（library/notes.js）
     apply(await PR.api("/api/library"));
   };
   function apply(d) {
@@ -129,26 +129,34 @@
     const sub = tt.sub ? '<div class="t2" lang="' + tt.subLang + '">' + PR.esc(tt.sub) + "</div>" : "";
     const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
     const kind = i.kind && i.kind !== "paper" ? '<span class="chip kind">' + PR.esc(PR.kindName(i.kind)) + "</span>" : "";  // 投影片、講義標一下
-    const tags = kind + (i.tags || []).map((t) => '<span class="chip cat">' + PR.icon("folder", "sm") + PR.esc(t) + "</span>").join("");
+    const tags = kind + (i.tags || []).map((t) => '<span class="chip cat">' + (L.catIcon ? L.catIcon(t) : PR.icon("folder", "sm")) + PR.esc(t) + "</span>").join("");
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
     const picked = L.picked.has(i.id);
     return '<div class="row' + (L.selected === i.id ? " on" : "") + (picked ? " picked" : "") + '" data-id="' + i.id + '" role="option" draggable="true"' + (L.picking ? ' aria-selected="' + picked + '"' : "") + ">" +
       '<span class="pick" data-pick title="' + PR.t("勾选（批量操作）") + '">' + PR.icon("check", "sm") + "</span>" + thumb +
-      '<div><div class="t1">' + (i.starred ? '<span class="star">' + PR.icon("star") + "</span>" : "") + "<span>" + PR.esc(title) + "</span></div>" + sub +
+      '<div class="row-main"><div class="t1">' + (i.starred ? '<span class="star">' + PR.icon("star") + "</span>" : "") + "<span>" + PR.esc(title) + "</span></div>" + sub +
       '<div class="t3">' + bits.map((b) => "<span>" + PR.esc(String(b)) + "</span>").join("<span>·</span>") + tags + "</div></div>" +
       '<div class="side-info">' + statusPill(i) + prog + L.jobLine(i) + notes + "</div></div>";
   }
 
   L.render = function () {
     PR.renderSide();
-    const list = filtered();
+    // 「全部筆記」只列筆記；點了某個分類，那個分類裡的筆記排在論文前面（library/notes.js）
+    const notesView = L.view === "notes" && !L.tag;
+    const list = notesView ? [] : filtered();
+    const notes = L.notesShown ? L.notesShown() : [];
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
-    PR.$("#viewTitle").textContent = L.tag ? L.tag : L.view === "all" ? PR.t("全部论文") : view[1];
-    PR.$("#count").textContent = PR.t("{n} 篇", { n: list.length });
+    PR.$("#viewTitle").textContent = L.tag ? L.tag : notesView ? PR.t("筆記") : L.view === "all" ? PR.t("全部论文") : view[1];
+    PR.$("#count").textContent = notesView ? PR.t("{n} 份", { n: notes.length }) : PR.t("{n} 篇", { n: list.length }) + (notes.length ? " · " + PR.t("{n} 份筆記", { n: notes.length }) : "");
     PR.renderBatch && PR.renderBatch(list);
-    PR.$("#list").innerHTML = list.length ? list.map(rowHtml).join("") : emptyHtml();
+    const el = PR.$("#list");
+    el.classList.toggle("notes-view", notesView);
+    if (document.body) document.body.classList.toggle("lib-notes", notesView);
+    if (notesView) el.innerHTML = notes.length || !L.q.trim() ? L.noteCardsHtml(notes, !L.q.trim()) : '<div class="empty-state"><div class="big">' + PR.t("沒有符合的筆記") + "</div></div>";
+    else el.innerHTML = (notes.length ? '<div class="list-sec">' + PR.t("筆記") + "</div>" + L.noteCardsHtml(notes, false) + (list.length ? '<div class="list-sec">' + PR.t("論文") + "</div>" : "") : "") +
+      (list.length ? list.map(rowHtml).join("") : notes.length ? "" : emptyHtml());
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
   };
@@ -197,7 +205,7 @@
   function restoreReturn() {
     const state = PR.libraryNav.restore();
     if (!state) return;
-    L.view = L.VIEWS.some((v) => v[0] === state.view) ? state.view : "all";
+    L.view = state.view === "notes" || L.VIEWS.some((v) => v[0] === state.view) ? state.view : "all";
     L.tag = state.tag && L.cats().includes(state.tag) ? state.tag : null;
     L.q = state.q;
     L.sort = ["opened", "added", "year", "title"].includes(state.sort) ? state.sort : "opened";

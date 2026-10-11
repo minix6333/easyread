@@ -293,6 +293,8 @@ window.PR = window.PR || {};
   PR.LOGO = '<rect class="lg-tile" width="64" height="64" rx="14"/><g transform="translate(32 32) scale(1.5) translate(-33.7 -32.9)"><path class="lg-s" d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z"/><path class="lg-b" d="M28.4 33.2 C31.6 31.9 35.8 31.3 40.2 31.3 L43.6 31.3 L43.6 37.6 C43.6 41 41.4 43 38 44 C34.4 45.1 31 45.7 28.4 47.6 Z"/><path class="lg-a" d="M28.4 20.6 L44.2 18.2 C45.8 17.9 47 19 47 20.6 L47 27.2 C47 30.6 44.9 32.4 41.2 32.8 C36.5 33.3 31.6 33 28.4 35.3 Z"/></g>';
   PR.logo = (cls) => '<svg class="' + (cls || "mark") + '" viewBox="0 0 64 64" aria-hidden="true">' + PR.LOGO + "</svg>";
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" aria-hidden="true">' + (P[name] || "") + "</svg>";
+  PR.addIcons = (more) => Object.assign(P, more);  // icons-extra.js（從 Lucide 產生的那一批）掛進同一張表
+  PR.hasIcon = (name) => !!P[name];
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
 
   PR.toast = function (html, action, ms) {
@@ -379,30 +381,80 @@ window.PR = window.PR || {};
   PR.on = (ev, fn) => (subs[ev] = subs[ev] || []).push(fn);
   PR.emit = (ev, data) => (subs[ev] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } });
 
-  /* 通用下拉菜单：items = [{label, icon, kbd, fn} | "-"] */
+  /* 通用下拉選單。items 裡可以放：
+       "-"                                       分隔線
+       { label, icon, kbd, fn, disabled, danger, checked }   一般的一列（checked：右邊打勾）
+       { label, icon, sub: [items] }             子選單：點了整個選單換成那一層（最上面一列是「‹ 返回」）
+       { head: "小標" }                          一行小字的分組標題
+       { row: [{ icon, title, on, fn, disabled }] }   一排圖示鈕（轉成哪一種區塊之類）
+       { dots: [{ color, title, on, fn }] }      一排色點（color 是 CSS 顏色；空字串＝「不上色」那一顆）
+     鍵盤：↑↓ 走、Enter 選、→ 進子選單、← 回上一層、Esc 關。 */
   PR.menu = function (anchorOrPoint, items) {
     let m = PR.$("#ctxmenu");
     if (!m) { m = PR.el("div", { id: "ctxmenu", class: "menu" }); document.body.appendChild(m); }
-    m.innerHTML = '<div class="menu-list">' + items.map((it, i) => it === "-" ? "<hr>" :
-      '<button data-i="' + i + '"' + (it.disabled ? " disabled" : "") + ">" + (it.icon ? PR.icon(it.icon, "sm") : "") + "<span>" + PR.esc(it.label) + "</span>" +
-      (it.kbd ? '<span class="kbd">' + PR.esc(it.kbd) + "</span>" : "") + "</button>").join("") + "</div>";
-    m.onclick = (e) => {
-      const b = e.target.closest("[data-i]"); if (!b) return;
+    const stack = [];  // 進了幾層子選單
+    let cur = items.filter(Boolean);
+    const rowHtml = (it, i) => {
+      if (it === "-") return "<hr>";
+      if (it.head) return '<div class="menu-head">' + PR.esc(it.head) + "</div>";
+      if (it.row) return '<div class="menu-row">' + it.row.map((b, k) => '<button data-i="' + i + '" data-k="' + k + '" title="' + PR.esc(b.title || "") + '" class="' + (b.on ? "on" : "") + '"' + (b.disabled ? " disabled" : "") + ">" + PR.icon(b.icon, "sm") + "</button>").join("") + "</div>";
+      if (it.dots) return '<div class="menu-dots">' + it.dots.map((d, k) => '<button data-i="' + i + '" data-k="' + k + '" title="' + PR.esc(d.title || "") + '" class="' + (d.on ? "on" : "") + (d.color ? "" : " none") + '"' + (d.color ? ' style="--dot:' + PR.esc(d.color) + '"' : "") + "></button>").join("") + "</div>";
+      return '<button data-i="' + i + '" class="mi' + (it.danger ? " danger" : "") + '"' + (it.disabled ? " disabled" : "") + ">" + (it.icon ? PR.icon(it.icon, "sm") : "") + "<span>" + PR.esc(it.label) + "</span>" +
+        (it.kbd ? '<span class="kbd">' + PR.esc(it.kbd) + "</span>" : "") + (it.checked ? '<span class="tick">' + PR.icon("check", "sm") + "</span>" : "") + (it.sub ? '<span class="tick sub">' + PR.icon("next", "sm") + "</span>" : "") + "</button>";
+    };
+    const paint = () => {
+      m.innerHTML = '<div class="menu-list">' + (stack.length ? '<button class="mi back" data-back>' + PR.icon("back", "sm") + "<span>" + PR.esc(stack[stack.length - 1].label) + "</span></button><hr>" : "") + cur.map(rowHtml).join("") + "</div>";
+    };
+    const place = () => {
+      const r = anchorOrPoint.getBoundingClientRect ? anchorOrPoint.getBoundingClientRect() : { left: anchorOrPoint.x, right: anchorOrPoint.x, top: anchorOrPoint.y, bottom: anchorOrPoint.y };
+      const w = m.offsetWidth, h = m.offsetHeight;
+      let x = anchorOrPoint.getBoundingClientRect ? (anchorOrPoint.dataset && anchorOrPoint.dataset.menuAlign === "left" ? r.left : r.right - w) : r.left;
+      let y = r.bottom + 4;
+      if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 4);
+      m.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + "px";
+      m.style.top = y + "px";
+    };
+    const enter = (it) => { stack.push({ label: it.label, items: cur }); cur = it.sub.filter(Boolean); paint(); place(); };
+    const back = () => { const s = stack.pop(); if (!s) return; cur = s.items; paint(); place(); };
+    const run = (fn) => {
       const r = m.getBoundingClientRect();
       PR.lastMenuAt = { x: r.left, y: r.top };  // 菜单项要确认时，确认框就出在菜单原来的位置
-      PR.closeMenu(); items[+b.dataset.i].fn();
+      PR.closeMenu(); fn();
       setTimeout(() => (PR.lastMenuAt = null), 0);
     };
+    m.onclick = (e) => {
+      if (e.target.closest("[data-back]")) return back();
+      const b = e.target.closest("[data-i]"); if (!b || b.disabled) return;
+      const it = cur[+b.dataset.i];
+      if (it.sub) return enter(it);
+      const leaf = it.row ? it.row[+b.dataset.k] : it.dots ? it.dots[+b.dataset.k] : it;
+      if (leaf && leaf.fn) run(leaf.fn);
+    };
+    m.onmousedown = (e) => e.preventDefault();  // 點選單不搶焦點（正在編的區塊才不會被收起來）
+    PR.menuKey = (e) => {  // 開著的時候鍵盤歸選單
+      const rows = PR.$$(".menu-list > button.mi:not([disabled])", m);
+      let at = rows.findIndex((r) => r.classList.contains("kb-on"));
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        at = (at + (e.key === "ArrowDown" ? 1 : rows.length - 1) + (at < 0 && e.key === "ArrowUp" ? 1 : 0)) % rows.length;
+        rows.forEach((r, k) => r.classList.toggle("kb-on", k === at));
+        if (rows[at]) rows[at].scrollIntoView({ block: "nearest" });
+        return true;
+      }
+      if (e.key === "Enter" || e.key === "ArrowRight") { if (at >= 0 && (e.key === "Enter" || rows[at].querySelector(".sub"))) { rows[at].click(); return true; } return e.key === "Enter"; }
+      if (e.key === "ArrowLeft" && stack.length) { back(); return true; }
+      return false;
+    };
+    paint();
     m.classList.add("open");
-    const r = anchorOrPoint.getBoundingClientRect ? anchorOrPoint.getBoundingClientRect() : { left: anchorOrPoint.x, right: anchorOrPoint.x, top: anchorOrPoint.y, bottom: anchorOrPoint.y };
-    const w = m.offsetWidth, h = m.offsetHeight;
-    let x = anchorOrPoint.getBoundingClientRect ? r.right - w : r.left;
-    let y = r.bottom + 4;
-    if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 4);
-    m.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + "px";
-    m.style.top = y + "px";
+    place();
+    return m;
   };
+  PR.menuOpen = () => { const m = PR.$("#ctxmenu"); return !!(m && m.classList.contains("open")); };
   PR.closeMenu = () => { const m = PR.$("#ctxmenu"); m && m.classList.remove("open"); };
   document.addEventListener("mousedown", (e) => { if (!e.target.closest("#ctxmenu")) PR.closeMenu(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") PR.closeMenu(); });
+  document.addEventListener("keydown", (e) => {
+    if (!PR.menuOpen()) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); return PR.closeMenu(); }
+    if (PR.menuKey && PR.menuKey(e)) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 })(window.PR);

@@ -226,7 +226,7 @@
       html = '<div class="dock-empty" title="' + PR.esc(more) + '">' +
         '<form class="dock-url" title="">' + PR.icon("link", "sm") + '<input type="text" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="' + PR.t("要嵌的網址") + '" placeholder="' + PR.t("輸入網址，或把連結拖進來") + '">' +
         '<button type="submit" class="go" title="' + PR.t("加入") + '">' + PR.icon("arrowUp", "sm") + "</button></form>" +
-        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '" title=""><i class="ltr" style="--tint:' + p.tint + '">' + PR.esc((p.name || "?").slice(0, 1)) + "</i><span>" + PR.esc(p.name) + "</span></button>").join("") +
+        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '" style="--k:' + i + '" title=""><i class="ltr" style="--tint:' + p.tint + '">' + PR.esc((p.name || "?").slice(0, 1)) + "</i><span>" + PR.esc(p.name) + "</span></button>").join("") +
         (native ? '<button data-d="pickapp" title="">' + PR.icon("panel", "sm") + "<span>" + PR.t("貼齊一個 App…") + "</span></button>" : "") + "</div>" +
         (cur && cur.kind === "app" ? '<p class="again">' + PR.t("要再把「{name}」貼在旁邊：點上面它的圖示。", { name: PR.esc(cur.name) }) + "</p>" : "") + "</div>";
     } else if (cur.failed) {

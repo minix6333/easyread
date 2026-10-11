@@ -14,6 +14,11 @@
     location.href = url;
     return false;
   };
+  /* 筆記的清單變了（改名、換圖示、建副本、刪掉）：請外殼叫文獻庫那一格重新取。closeSelf：把自己這個分頁關掉、回文獻庫 */
+  PR.notesChanged = function (closeSelf) {
+    if (framed) post({ type: closeSelf ? "close-self" : "notes-changed" });
+    else if (closeSelf) location.href = "/library";
+  };
   if (!framed) return;
   document.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest("a[href]");

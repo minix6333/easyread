@@ -297,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/note/"):  # 獨立筆記（notes.py）
             return self._page(WEB / "note.html")
         if path == "/api/notes":
-            return self._json(200, {"items": notes.listing(lib.root), "token": app.token})
+            return self._json(200, {"items": notes.listing(lib.root), "folders": notes.folder_styles(lib.root), "token": app.token})
         if path.startswith("/api/notes/"):
             n = notes.get(lib.root, path.split("/")[3])
             if not n:
@@ -473,7 +473,14 @@ class Handler(BaseHTTPRequestHandler):
                                     **cloudsync.report(lib.root, sync.status())})
         if path == "/api/notes":  # 新筆記
             body = json.loads(self._body() or b"{}")
-            return self._json(200, notes.create(lib.root, str(body.get("title") or ""), str(body.get("body") or ""), body.get("papers")))
+            return self._json(200, notes.create(lib.root, str(body.get("title") or ""), str(body.get("body") or ""), body.get("papers"),
+                                                style={k: body[k] for k in notes.STYLE_KEYS if k in body}))
+        if path == "/api/notes-folder":  # 分類改名／刪掉（from、to）：放在裡面的筆記跟著改；或設分類的圖示顏色（name、icon、color）
+            body = json.loads(self._body() or b"{}")
+            if "name" in body:
+                return self._json(200, {"folders": notes.set_folder_style(lib.root, str(body.get("name") or ""), body.get("icon"), body.get("color"))})
+            changed = notes.rename_folder(lib.root, str(body.get("from") or ""), str(body.get("to") or ""))
+            return self._json(200, {"changed": changed, "folders": notes.folder_styles(lib.root)})
         if path.startswith("/api/notes/"):
             bits = path.split("/")  # ['', 'api', 'notes', id, action?]
             nid, action = bits[3], bits[4] if len(bits) > 4 else ""
@@ -481,16 +488,21 @@ class Handler(BaseHTTPRequestHandler):
                 raw = self._body()
                 return self._json(200, {"src": notes.clip(lib.root, nid, raw, self.headers.get("Content-Type") or "")})
             body = json.loads(self._body() or b"{}")
-            if action == "delete":
-                return self._json(200, {"deleted": notes.delete(lib.root, nid)})
+            if action == "delete":  # 挪到回收站；trash 是回收站裡的名字（復原用）
+                name = notes.delete(lib.root, nid)
+                return self._json(200, {"deleted": bool(name), "trash": name})
+            if action == "duplicate":
+                return self._json(200, notes.duplicate(lib.root, nid))
             if action == "ai":  # 筆記 AI（edit / write），串流
                 n = notes.get(lib.root, nid)
                 if not n:
                     raise ValueError(tr("沒有這份筆記"))
                 return notehelp.handle_note(self, body, n, notes.note_dir(lib.root, nid))
             if not action:
+                style = {k: body[k] for k in notes.STYLE_KEYS if k in body}
                 return self._json(200, notes.save(lib.root, nid, title=body.get("title") if "title" in body else None,
-                                                  body=body.get("body") if "body" in body else None, papers=body.get("papers") if "papers" in body else None))
+                                                  body=body.get("body") if "body" in body else None, papers=body.get("papers") if "papers" in body else None,
+                                                  style=style or None))
             return self._json(404, {"error": "not found"})
         if path == "/api/update":  # 开关“自动检查新版本”
             config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})

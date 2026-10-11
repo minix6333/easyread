@@ -268,6 +268,23 @@ textarea.input { height: auto; padding: 7px 10px; resize: vertical; line-height:
 .menu-list button:active, .menu-list a:active { background: var(--fill-2); }
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .menu-list hr { border: 0; border-top: .5px solid var(--rule-2); margin: 5px 6px; }
+/* 選單裡的其他零件（PR.menu）：小標、一排圖示鈕、一排色點、打勾／子選單的箭頭、紅色的危險項 */
+.menu-head { padding: 7px 10px 3px; font: 600 11px/1.2 var(--ui); color: var(--ink-3); }
+.menu-list .tick { margin-left: auto; display: grid; place-items: center; color: var(--accent); }
+.menu-list .kbd + .tick { margin-left: 8px; }
+.menu-list .tick.sub { color: var(--ink-3); }
+.menu-list button.danger { color: var(--danger); }
+.menu-list button.danger:hover, .menu-list button.danger.kb-on { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.menu-list button[disabled] { opacity: .38; pointer-events: none; }
+.menu-row, .menu-dots { display: flex; align-items: center; gap: 2px; padding: 2px 4px; }
+.menu-list .menu-row button { width: 30px; height: 30px; padding: 0; flex: none; justify-content: center; border-radius: 8px; color: var(--ink-2); }
+.menu-list .menu-row button.on { background: var(--accent-soft); color: var(--accent); }
+.menu-dots { gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
+.menu-list .menu-dots button { width: 20px; height: 20px; padding: 0; flex: none; border-radius: 50%; background: var(--dot); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 18%, transparent); transition: transform .12s ease-out, box-shadow var(--dur-fast); }
+.menu-list .menu-dots button:hover { background: var(--dot); transform: scale(1.12); }
+.menu-list .menu-dots button.none { background: transparent; box-shadow: inset 0 0 0 1.5px var(--rule-2); position: relative; }
+.menu-list .menu-dots button.none::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 1.5px; background: var(--rule-2); transform: rotate(-45deg); }
+.menu-list .menu-dots button.on { box-shadow: 0 0 0 2px var(--surface, #fff), 0 0 0 3.5px var(--dot, var(--ink-3)); }
 
 /* 對話框（macOS 的 sheet）：底下的畫面壓暗、糊掉，框從中間長出來 */
 .dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .22); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) ease-out; }

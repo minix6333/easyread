@@ -4,7 +4,9 @@
      点“＋”新建；右键或“⋯”打开菜单；把论文拖到分类上就放进去（拖到在读 / 未读 / 已读是改状态，拖到星标是加星标）。一篇论文可以在好几个分类里（存在论文的 tags 里）。
    - 最近阅读：默认 5 篇，展开最多 10 篇；显示短标题。置顶了的论文、分类只出现在“置顶”里，不在下面重复。
    - 侧栏右边缘可以拖动调宽度。
-   侧栏的设置（自建分类的顺序、隐藏、置顶）存在 prefs.json 的 library 里。 */
+   侧栏的设置（自建分类的顺序、隐藏、置顶）存在 prefs.json 的 library 里。
+   分類（資料夾）可以自訂圖示和顏色（選單的「圖示與顏色…」），存在文獻庫裡（L.catStyle，見 library/notes.js、notes.py）；
+   分類裡除了論文也可以放獨立筆記（筆記的 folder），數量是兩種加起來。「筆記」那一段在 library/notes.js。 */
 (function (PR) {
   "use strict";
   const L = PR.lib;
@@ -35,6 +37,7 @@
   L.cats = function () {
     const out = L.side.cats.slice();
     L.items.forEach((i) => (i.tags || []).forEach((t) => { if (!out.includes(t)) out.push(t); }));
+    (L.notes || []).forEach((n) => { if (n.folder && !out.includes(n.folder)) out.push(n.folder); });  // 只有筆記在用的分類
     return out;
   };
   const isPinned = (key) => L.side.pinned.includes(key);
@@ -67,16 +70,24 @@
     L.side.hidden = L.side.hidden.map((k) => (k === "c:" + from ? "c:" + to : k));
     if (L.tag === from) L.tag = to;
     saveSide();
+    moveNotes(from, to);
     patchMany(L.items.filter((i) => (i.tags || []).includes(from)).map((i) => [i.id, { tags: i.tags.map((t) => (t === from ? to : t)) }]));
   };
+  /* 分類改名／刪掉：放在裡面的筆記、分類的圖示顏色跟著改（伺服器那邊一次做完） */
+  function moveNotes(from, to) {
+    (L.notes || []).forEach((n) => { if (n.folder === from) n.folder = to; });
+    if (L.catStyle && L.catStyle[from]) { if (to) L.catStyle[to] = L.catStyle[from]; delete L.catStyle[from]; }
+    PR.api("/api/notes-folder", { method: "POST", body: { from, to } }).then((r) => { if (r.folders) L.catStyle = r.folders; }).catch(() => {});
+  }
   L.deleteCat = async function (name, at) {
-    const n = L.items.filter((i) => (i.tags || []).includes(name)).length;
-    if (!(await PR.confirm({ title: PR.t("删除分类“{name}”？", { name }), body: n ? PR.t("里面的 {n} 篇论文不会删，只是不再属于这个分类。", { n }) : "", ok: PR.t("删除"), danger: true, at }))) return;
+    const n = L.items.filter((i) => (i.tags || []).includes(name)).length + (L.notes || []).filter((x) => x.folder === name).length;
+    if (!(await PR.confirm({ title: PR.t("删除分类“{name}”？", { name }), body: n ? PR.t("裡面的 {n} 份不會刪，只是不再屬於這個分類。", { n }) : "", ok: PR.t("删除"), danger: true, at }))) return;
     L.side.cats = L.cats().filter((c) => c !== name);
     L.side.pinned = L.side.pinned.filter((k) => k !== "c:" + name);
     L.side.hidden = L.side.hidden.filter((k) => k !== "c:" + name);
     if (L.tag === name) L.tag = null;
     saveSide();
+    moveNotes(name, "");
     patchMany(L.items.filter((i) => (i.tags || []).includes(name)).map((i) => [i.id, { tags: i.tags.filter((t) => t !== name) }]));
   };
   L.toggleInCat = function (id, name) {
@@ -106,9 +117,9 @@
       '</span><span class="n">' + count(fn) + "</span>" + (k === "all" && !pinnedRow ? "" : more) + "</div>";
   }
   function catRow(c, pinnedRow) {
-    if (ui.renaming === c && !pinnedRow) return '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-rename="' + PR.esc(c) + '" value="' + PR.esc(c) + '" maxlength="30"></div>';
-    return '<div class="srow' + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon("folder", "sm") +
-      '<span class="t">' + PR.esc(c) + '</span><span class="n">' + count((i) => (i.tags || []).includes(c)) + "</span>" + more + "</div>";
+    if (ui.renaming === c && !pinnedRow) return '<div class="srow editing">' + L.catIcon(c) + '<input class="side-input" data-rename="' + PR.esc(c) + '" value="' + PR.esc(c) + '" maxlength="30"></div>';
+    return '<div class="srow' + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + L.catIcon(c) +
+      '<span class="t">' + PR.esc(c) + '</span><span class="n">' + (count((i) => (i.tags || []).includes(c)) + (L.notes || []).filter((n) => n.folder === c).length) + "</span>" + more + "</div>";
   }
   /* 侧栏放短标题（PR.titles 里定：翻译时起的短标题，或主标题冒号前那半句） */
   const shortTitle = (i) => PR.titles(i).short;
@@ -143,11 +154,7 @@
       h += '<h3>' + PR.t("最近阅读") + '</h3><div class="sgroup">' + shown.map((i) => paperRow(i)).join("") +
         (recent.length > RECENT_SHORT ? '<button class="srow toggle-more" data-recent>' + (ui.recentOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: Math.min(recent.length, RECENT_MAX) - RECENT_SHORT })) + "</button>" : "") + "</div>";
     }
-    const notes = L.notes || [];  // 獨立筆記（/api/notes）
-    h += '<h3>' + PR.t("筆記") + '<button class="h-add" data-newnote title="' + PR.t("新筆記") + '">' + PR.icon("plus", "sm") + '</button></h3><div class="sgroup">' +
-      notes.slice(0, ui.notesOpen ? 40 : 6).map((n) => '<a class="srow recent" href="/note/' + PR.esc(n.id) + '" title="' + PR.esc(n.preview || "") + '">' + PR.icon("notebook", "sm") + '<span class="t">' + PR.esc(n.title || PR.t("未命名筆記")) + "</span></a>").join("") +
-      (notes.length > 6 ? '<button class="srow toggle-more" data-notes-more>' + (ui.notesOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: notes.length - 6 })) + "</button>" : "") +
-      (!notes.length ? '<button class="srow hint-row" data-newnote>' + PR.icon("plus", "sm") + '<span class="t">' + PR.t("新筆記") + "</span></button>" : "") + "</div>";
+    h += L.sideNotesHtml();  // 獨立筆記那一段（library/notes.js）
     if (L.trashCount) h += '<div class="sgroup side-trash"><button class="srow" data-trash>' + PR.icon("trash", "sm") + '<span class="t">' + PR.t("回收站") + '</span><span class="n">' + L.trashCount + "</span></button></div>";
     box.innerHTML = h;
     const inp = PR.$(".side-input", box);
@@ -167,6 +174,10 @@
       return PR.menu(where, [
         { label: isPinned(key) ? PR.t("取消置顶") : PR.t("置顶"), icon: "pin", fn: () => L.togglePin(key) },
         { label: PR.t("改名"), icon: "edit", fn: () => { ui.renaming = c; L.render(); } },
+        { label: PR.t("圖示與顏色…"), icon: PR.hasIcon("palette") ? "palette" : "accent", fn: () => {
+          const at = PR.$('#side .srow[data-cat="' + (window.CSS && CSS.escape ? CSS.escape(c) : c) + '"]') || where;
+          setTimeout(() => PR.pickIcon(at, { icon: (L.catStyle[c] || {}).icon, color: (L.catStyle[c] || {}).color, onChange: (v) => L.setCatStyle(c, v) }), 0);
+        } },
         { label: PR.t("上移"), disabled: i <= 0, fn: () => L.moveCat(c, -1) },
         { label: PR.t("下移"), disabled: i >= L.cats().length - 1, fn: () => L.moveCat(c, 1) },
         { label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden("c:" + c, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: PR.esc(c) })); } },
@@ -208,7 +219,7 @@
   });
   side.addEventListener("contextmenu", (e) => {
     const row = e.target.closest(".srow[data-view], .srow[data-cat], .srow[data-paper]");
-    if (!row) return;
+    if (!row || row.dataset.view === "notes") return;
     e.preventDefault();
     rowMenu(row, { x: e.clientX, y: e.clientY });
   });
@@ -274,18 +285,5 @@
       if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c) }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
       else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(c) }));
     }
-  });
-  /* 新筆記：建好直接開；外殼裡開成分頁 */
-  document.addEventListener("click", async (e) => {
-    const more = e.target.closest("#side [data-notes-more]");
-    if (more) { ui.notesOpen = !ui.notesOpen; return PR.renderSide(); }
-    const b = e.target.closest("#side [data-newnote]");
-    if (!b) return;
-    e.preventDefault();
-    try {
-      const n = await PR.api("/api/notes", { method: "POST", body: {} });
-      (L.notes = L.notes || []).unshift(n);
-      if (PR.navigate) PR.navigate("/note/" + n.id); else location.href = "/note/" + n.id;
-    } catch (err) { PR.toast(PR.t("沒建成：{msg}", { msg: PR.esc(err.message) })); }
   });
 })(window.PR);

@@ -13,25 +13,38 @@
 <link rel="stylesheet" href="/web/css/note.css">
 <link rel="stylesheet" href="/web/css/apple.css">
 <link rel="stylesheet" href="/web/css/craft.css">
+<link rel="stylesheet" href="/web/css/notepage.css">
 <script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear);if(p.paper&&p.paper!=="white")document.documentElement.dataset.paper=p.paper;if(p.tint)document.documentElement.style.setProperty("--tint",p.tint);if(p.hl)document.documentElement.style.setProperty("--hl-k",p.hl/100);var b=p.backdrop||"mist";if(b==="image"&&location.protocol==="file:")b="mist";if(b!=="none"){document.documentElement.dataset.backdrop=b;if(b==="image"){var u="?v="+(p.backdropV||0);document.documentElement.style.setProperty("--bd",'url("/backdrop.jpg'+u+'") center / cover no-repeat');document.documentElement.style.setProperty("--bd-s",'url("/backdrop-s.jpg'+u+'") center / cover no-repeat')}}}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){}</script>
 </head>
 <body class="note-page">
 <div id="canvas" aria-hidden="true"></div>
 <header class="topbar" id="bar">
   <a class="btn brand-back" id="backBtn" href="/library" title="回文獻庫"></a>
+  <button class="btn icon" id="outlineBtn" title="目錄"></button>
   <span class="note-state" id="noteState"><i></i></span>
   <span class="grow"></span>
+  <button class="btn icon" id="starBtn" title="收藏"></button>
+  <button class="btn icon" id="inspBtn" title="插入、格式、資訊"></button>
   <button class="btn icon" id="noteMore" title="更多"></button>
 </header>
-<main class="note-main" id="noteMain">
-  <textarea class="note-title" id="noteTitle" rows="1" placeholder="未命名筆記"></textarea>
-  <div id="noteEd"></div>
-</main>
+<div class="note-shell" id="noteShell">
+  <aside class="note-outline" id="noteOutline" aria-label="目錄"></aside>
+  <main class="note-main" id="noteMain">
+    <div class="note-head">
+      <button class="note-icon" id="noteIcon" title="圖示與顏色"></button>
+      <textarea class="note-title" id="noteTitle" rows="1" placeholder="未命名筆記"></textarea>
+    </div>
+    <div class="note-meta" id="noteMeta"></div>
+    <div id="noteEd"></div>
+  </main>
+  <aside class="note-insp bk-keep" id="noteInsp" aria-label="插入、格式、資訊"></aside>
+</div>
 <div class="note-ai" id="noteAi"></div>
 <div id="toast" role="status"></div>
 <script src="/web/vendor/katex/katex.min.js"></script>
 <script src="/web/js/common/i18n.js"></script>
 <script src="/web/js/common/util.js"></script>
+<script src="/web/js/common/icons-extra.js"></script>
 <script src="/web/vendor/liquid-glass.js"></script>
 <script src="/web/js/common/glass.js"></script>
 <script src="/web/js/common/ui.js"></script>
@@ -42,6 +55,8 @@
 <script src="/web/js/common/flow.js"></script>
 <script src="/web/js/common/viz.js"></script>
 <script src="/web/js/common/blocks.js"></script>
+<script src="/web/js/common/pick.js"></script>
 <script src="/web/js/note/app.js"></script>
+<script src="/web/js/note/panels.js"></script>
 </body>
 </html>

@@ -1,0 +1,156 @@
+/* 獨立筆記的頁面（note.html、js/note/*.js），照 Craft 的文件頁：
+   左邊一欄目錄、右邊一欄檢閱器（插入／格式／樣式／資訊）都直接在視窗的材質上；中間是畫布（#canvas）和上面那張紙（.note-main）。
+   兩欄開著時畫布讓出位置（沿用閱讀頁的 --nav-now／--insp-now：#canvas、頂欄本來就跟著這兩個變數走）；視窗窄的時候改成蓋在上面。
+   這個檔在 craft.css 後面載入，只有筆記頁用。 */
+body.note-page { --ol-w: 0px; --in-w: 0px; --nav-now: var(--ol-w); --insp-now: var(--in-w); }
+body.note-page.ol-open { --ol-w: 228px; }
+body.note-page.in-open { --in-w: 300px; }
+.note-page #canvas, .note-page #bar { transition: left .34s var(--ease), right .34s var(--ease); }
+.note-page .topbar { left: calc(var(--nav-now) + var(--pad)); right: calc(var(--insp-now) + var(--pad)); }
+.note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); transition: padding .34s var(--ease); }
+/* 紙：左邊的留白裡有一道 44px 是區塊的槽（「＋」和把手），所以左邊的內距少 44px，字的左右留白才一樣寬 */
+.note-page .note-main { max-width: 820px; padding-left: 12px; transition: max-width .34s var(--ease); }
+@media (max-width: 900px) { .note-page .note-main { padding-left: 0; padding-right: 22px; } }
+body.note-page.wide .note-main { max-width: 1240px; }
+.note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); transition: left .34s var(--ease), width .34s var(--ease); }
+.note-missing { padding: 40px 0; }
+body.note-gone #outlineBtn, body.note-gone #starBtn, body.note-gone #inspBtn, body.note-gone #noteMore, body.note-gone .note-ai, body.note-gone #noteState { display: none; }
+
+/* 標題那一排：圖示在左邊那道槽裡（和區塊的把手同一欄），標題的字和內文對齊 */
+.note-head { position: relative; display: flex; align-items: flex-start; margin: 0 0 6px; }
+.note-icon { flex: none; width: 36px; height: 36px; margin: 1px 8px 0 0; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); opacity: .0; transition: opacity var(--dur-fast), background var(--dur-fast), transform .12s ease-out; }
+.note-icon .ti svg { width: 24px; height: 24px; stroke-width: 1.7; }
+.note-icon.set { opacity: 1; }
+.note-head:hover .note-icon, .note-icon:focus-visible { opacity: 1; }
+.note-icon:hover { background: var(--row-hover); }
+.note-icon:active { transform: scale(.94); }
+.note-page .note-title { flex: 1; min-width: 0; margin: 0; padding: 0; field-sizing: content; }
+.note-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px 44px; min-height: 0; }
+.note-meta:empty { display: none; }
+.note-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; max-width: 240px; padding: 0 9px 0 7px; border-radius: 8px; font: 12px var(--ui); color: var(--ink-2); background: var(--fill); text-decoration: none; transition: background var(--dur-fast), color var(--dur-fast); }
+.note-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-chip:hover { background: var(--fill-2); color: var(--ink); }
+.note-chip svg { width: 13px; height: 13px; }
+.note-page .bk-b { scroll-margin-top: calc(var(--bar-h) + 14px); }
+
+/* 字型（樣式 → 字型，像 Craft 的 System／Serif／Mono／Round） */
+body.note-page[data-font="serif"] .note-main { --read-zh: "Songti TC", "Noto Serif TC", "Source Han Serif TC", Georgia, "Times New Roman", serif; }
+body.note-page[data-font="mono"] .note-main { --read-zh: var(--mono); }
+body.note-page[data-font="round"] .note-main { --read-zh: "SF Pro Rounded", "Hiragino Maru Gothic ProN", "jf open 粉圓", ui-rounded, var(--ui); }
+
+/* 頂欄：收藏亮起來是金色的星 */
+#starBtn.on { color: var(--gold, #d9a520); }
+#starBtn.on svg { fill: currentColor; }
+
+/* ---------- 左邊的目錄 ---------- */
+.note-outline { position: fixed; z-index: 3; left: var(--pad); top: 0; bottom: 0; width: 228px; padding: 0 6px 12px 6px; box-sizing: border-box; display: flex; flex-direction: column;
+  opacity: 0; visibility: hidden; transform: translateX(-10px); transition: opacity .22s ease-out, transform .34s var(--ease), visibility 0s .34s; }
+body.ol-open .note-outline { opacity: 1; visibility: visible; transform: none; transition: opacity .28s ease-out .06s, transform .34s var(--ease), visibility 0s; }
+.no-head { flex: none; height: var(--bar-h); display: flex; align-items: center; padding: 0 12px; font: 600 12px var(--ui); color: var(--ink-3); letter-spacing: .02em; }
+.no-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 20px; }
+.no-i { flex: none; display: block; width: 100%; min-height: 30px; padding: 6px 10px 6px 12px; border-radius: var(--r-row); text-align: left; font: 13px/1.4 var(--ui); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background var(--dur-fast), color var(--dur-fast); }
+.no-i.l1 { font-weight: 600; color: var(--ink); }
+.no-i.l2 { padding-left: 24px; }
+.no-i.l3 { padding-left: 36px; font-size: 12.5px; color: var(--ink-3); }
+.no-i:hover { background: var(--row-hover); color: var(--ink); }
+.no-i.on { background: var(--row-on); color: var(--ink); }
+.no-empty { padding: 4px 12px; font-size: 12.5px; }
+
+/* ---------- 右邊的檢閱器 ---------- */
+.note-insp { position: fixed; z-index: 3; right: 0; top: 0; bottom: 0; width: 300px; box-sizing: border-box; display: flex; flex-direction: column; color: var(--ink);
+  opacity: 0; visibility: hidden; transform: translateX(12px); transition: opacity .22s ease-out, transform .34s var(--ease), visibility 0s .34s; }
+body.in-open .note-insp { opacity: 1; visibility: visible; transform: none; transition: opacity .28s ease-out .06s, transform .34s var(--ease), visibility 0s; }
+.ni-top { flex: none; height: var(--bar-h); display: flex; align-items: center; padding: 0 14px 0 10px; }
+.ni-top .seg { width: 100%; height: var(--ctl-h); padding: 3px; border-radius: var(--r-ctl); background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); }
+.ni-top .seg > button { flex: 1; height: 100%; padding: 0; border-radius: 8px; font: 500 12.5px var(--ui); }
+.ni-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 14px 28px 10px; overscroll-behavior: contain; animation: ni-in .22s var(--ease); }
+@keyframes ni-in { from { opacity: 0; transform: translateY(4px); } }
+.ni-sec { margin: 16px 4px 8px; font: 600 11.5px/1.2 var(--ui); color: var(--ink-3); letter-spacing: .02em; }
+.ni-sec:first-child { margin-top: 6px; }
+/* 插入：一格一格 */
+.ni-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 6px; }
+.ni-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; font: 11.5px/1.25 var(--ui); color: var(--ink-2); text-align: center; }
+.ni-tic { width: 100%; aspect-ratio: 1; border-radius: 13px; display: grid; place-items: center; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); transition: background var(--dur-fast), transform .12s ease-out; }
+.ni-tic svg { width: 20px; height: 20px; stroke-width: 1.6; }
+.ni-tile:hover .ni-tic { background: var(--ctl-hover); }
+.ni-tile:active .ni-tic { transform: scale(.94); }
+.ni-tile:hover { color: var(--ink); }
+/* 格式：三格一排的字鈕、一排圖示鈕 */
+.ni-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ni-tbtn { height: 36px; padding: 0 4px; border-radius: 11px; font: 500 13px var(--ui); color: var(--ink-2); background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background var(--dur-fast), color var(--dur-fast), transform .12s ease-out; }
+.ni-tbtn:hover { background: var(--ctl-hover); color: var(--ink); }
+.ni-tbtn:active { transform: scale(.96); }
+.ni-tbtn.on { background: var(--ink); color: var(--on-ink, var(--bg)); box-shadow: none; }
+.ni-tbtn[data-fmt="h1"] { font-size: 15px; font-weight: 700; } .ni-tbtn[data-fmt="h2"] { font-size: 14px; font-weight: 650; } .ni-tbtn[data-fmt="h3"] { font-weight: 600; }
+.ni-tbtn[data-fmt="code"] { font-family: var(--mono); font-size: 12px; }
+.ni-row3.deco .ni-tbtn.k-note { color: var(--accent); } .ni-row3.deco .ni-tbtn.k-tip { color: var(--ok); } .ni-row3.deco .ni-tbtn.k-warn { color: #b7780e; }
+:root[data-theme="dark"] .ni-row3.deco .ni-tbtn.k-warn { color: #e2b25c; }
+.ni-row3.deco .ni-tbtn.on { color: var(--on-ink, var(--bg)); }
+.ni-icons { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 12px; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); }
+.ni-ibtn { flex: 1; height: 30px; min-width: 0; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); transition: background var(--dur-fast), color var(--dur-fast), transform .12s ease-out; }
+.ni-ibtn:hover { background: var(--row-hover); color: var(--ink); }
+.ni-ibtn:active { transform: scale(.92); }
+.ni-ibtn.on { background: var(--ink); color: var(--on-ink, var(--bg)); }
+.ni-gap { flex: none; width: 1px; height: 16px; margin: 0 4px; background: var(--line); }
+.ni-body button[disabled] { opacity: .36; pointer-events: none; }
+/* 樣式 */
+.ni-iconrow { display: flex; align-items: center; gap: 12px; }
+.ni-bigicon { flex: none; width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); transition: background var(--dur-fast), transform .12s ease-out; }
+.ni-bigicon .ti svg { width: 26px; height: 26px; stroke-width: 1.6; }
+.ni-bigicon:hover { background: var(--ctl-hover); }
+.ni-bigicon:active { transform: scale(.95); }
+.ni-dots { display: grid; grid-template-columns: repeat(6, 22px); gap: 8px 9px; }
+.ni-fonts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ni-fonts button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 54px; border-radius: 12px; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink-2); transition: background var(--dur-fast), color var(--dur-fast); }
+.ni-fonts button b { font-size: 17px; font-weight: 500; line-height: 1.2; color: var(--ink); }
+.ni-fonts button span { font: 10.5px var(--ui); color: var(--ink-3); }
+.ni-fonts .f-serif b { font-family: "Songti TC", Georgia, serif; } .ni-fonts .f-mono b { font-family: var(--mono); font-size: 15px; } .ni-fonts .f-round b { font-family: "SF Pro Rounded", ui-rounded, var(--ui); }
+.ni-fonts button:hover { background: var(--ctl-hover); }
+.ni-fonts button.on { background: var(--ink); }
+.ni-fonts button.on b, .ni-fonts button.on span { color: var(--on-ink, var(--bg)); }
+.ni-switch { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 6px 0 12px; border-radius: 12px; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); font: 13px var(--ui); cursor: pointer; }
+.ni-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.ni-switch i { width: 38px; height: 23px; border-radius: 999px; background: var(--fill-2); position: relative; transition: background .2s ease-out; }
+.ni-switch i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 19px; height: 19px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .26s var(--spring, cubic-bezier(.3, 1.3, .5, 1)); }
+.ni-switch input:checked + i { background: var(--ok, #34c759); }
+.ni-switch input:checked + i::after { transform: translateX(15px); }
+/* 資訊 */
+.ni-kv { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; padding: 0 6px; border-radius: 9px; font: 13px var(--ui); color: var(--ink-2); text-align: left; }
+.ni-kv svg { flex: none; width: 15px; height: 15px; color: var(--ink-3); }
+.ni-kv > span { flex: none; }
+.ni-kv > b { flex: 1; min-width: 0; font-weight: 500; color: var(--ink); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ni-kv.as-btn:hover { background: var(--row-hover); }
+.ni-folder { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.ni-folder .ti svg, .ni-folder > svg { width: 14px; height: 14px; }
+.ni-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ni-stats > div { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; height: 54px; border-radius: 12px; background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); }
+.ni-stats b { font: 600 16px/1.2 var(--ui); font-variant-numeric: tabular-nums; }
+.ni-stats span { font: 10.5px var(--ui); color: var(--ink-3); }
+.ni-papers { display: flex; flex-direction: column; gap: 2px; }
+.ni-paper { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border-radius: 9px; font: 12.5px/1.35 var(--ui); color: var(--ink-2); text-decoration: none; }
+.ni-paper span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ni-paper svg { flex: none; width: 15px; height: 15px; color: var(--ink-3); }
+.ni-paper:hover { background: var(--row-hover); color: var(--ink); }
+.ni-acts { display: flex; flex-direction: column; gap: 5px; }
+.ni-act { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 12px; border-radius: 12px; font: 13px var(--ui); color: var(--ink); background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); text-align: left; transition: background var(--dur-fast), transform .12s ease-out; }
+.ni-act svg { width: 16px; height: 16px; color: var(--ink-2); }
+.ni-act:hover { background: var(--ctl-hover); }
+.ni-act:active { transform: scale(.985); }
+.ni-act.danger, .ni-act.danger svg { color: var(--danger); }
+.ni-act.danger { background: color-mix(in srgb, var(--danger) 9%, var(--ctl-bg)); }
+
+/* 視窗窄：兩欄不擠畫布，蓋在上面（有底、有影子）；再窄就只留一欄的寬度 */
+@media (max-width: 1020px) {
+  body.note-page { --nav-now: 0px; --insp-now: 0px; }
+  .note-outline, .note-insp { z-index: 40; top: calc(var(--bar-h) - 4px); bottom: var(--pad); border-radius: 16px; background: color-mix(in srgb, var(--canvas-bg) 86%, transparent); -webkit-backdrop-filter: blur(30px) saturate(1.7); backdrop-filter: blur(30px) saturate(1.7); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); }
+  .note-insp { right: var(--pad); width: min(300px, calc(100vw - 2 * var(--pad))); }
+  .note-outline { width: min(260px, calc(100vw - 2 * var(--pad))); }
+  .no-head { height: 44px; }
+  .ni-top { height: 52px; }
+}
+@media (max-width: 900px) { .note-meta { margin-left: 22px; } }
+@media print {
+  .note-page .topbar, .note-ai, .note-outline, .note-insp, #canvas, .bk-gut { display: none !important; }
+  .note-page .note-main { margin: 0; max-width: none; box-shadow: none; background: #fff; color: #000; }
+  .note-shell { padding: 0; }
+}

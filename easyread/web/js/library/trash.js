@@ -1,4 +1,4 @@
-/* 回收站：侧栏最下面的“回收站”（有东西时才出现），点开列出删掉的论文，可以恢复、彻底删除、清空。 */
+/* 回收站：侧栏最下面的“回收站”（有东西时才出现），点开列出删掉的论文和筆記（kind 是 "note" 的），可以恢复、彻底删除、清空。 */
 (function (PR) {
   "use strict";
   const L = PR.lib;
@@ -12,8 +12,9 @@
   }
 
   function render() {
-    const rows = items.map((t) => '<div class="trash-row"><div class="trash-t"><b>' + PR.esc(PR.titles(t).main) + "</b>" +
-      "<small>" + PR.esc([PR.titles(t).sub, PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
+    const rows = items.map((t) => '<div class="trash-row">' + (t.kind === "note" ? PR.tintIcon(t.icon, t.color, PR.hasIcon("notes") ? "notes" : "notebook", "trash-ic") : '<span class="ti trash-ic">' + PR.icon("pdf", "sm") + "</span>") +
+      '<div class="trash-t"><b>' + PR.esc(t.kind === "note" ? t.title || PR.t("未命名筆記") : PR.titles(t).main) + "</b>" +
+      "<small>" + PR.esc([t.kind === "note" ? PR.t("筆記") : PR.titles(t).sub, PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
       '<button class="btn sm" data-tr="restore" data-name="' + PR.esc(t.name) + '">' + PR.t("恢复") + "</button>" +
       '<button class="btn sm danger" data-tr="purge" data-name="' + PR.esc(t.name) + '">' + PR.t("彻底删除") + "</button></div>").join("");
     dlg().querySelector(".dialog").innerHTML = "<h2>" + PR.t("回收站") + "</h2>" +
@@ -23,8 +24,10 @@
   }
 
   async function act(action, name, at) {
-    if (action === "purge" && !(await PR.confirm({ title: PR.t("彻底删除这篇？"), body: PR.t("论文、译文、笔记都会删掉，不能恢复。"), ok: PR.t("彻底删除"), danger: true, at }))) return;
-    if (action === "empty" && !(await PR.confirm({ title: PR.t("清空回收站？"), body: PR.t("{n} 篇论文会被彻底删除，不能恢复。", { n: items.length }), ok: PR.t("清空"), danger: true, at }))) return;
+    const isNote = (items.find((t) => t.name === name) || {}).kind === "note";
+    if (action === "purge" && !(await PR.confirm(isNote ? { title: PR.t("徹底刪除這份筆記？"), body: PR.t("內容和貼的圖都會刪掉，不能復原。"), ok: PR.t("彻底删除"), danger: true, at }
+      : { title: PR.t("彻底删除这篇？"), body: PR.t("论文、译文、笔记都会删掉，不能恢复。"), ok: PR.t("彻底删除"), danger: true, at }))) return;
+    if (action === "empty" && !(await PR.confirm({ title: PR.t("清空回收站？"), body: PR.t("{n} 項會被徹底刪除，不能復原。", { n: items.length }), ok: PR.t("清空"), danger: true, at }))) return;
     try {
       await PR.api("/api/trash", { method: "POST", body: { action, name } });
     } catch (e) { return PR.toast(PR.esc(e.message)); }

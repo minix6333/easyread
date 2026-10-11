@@ -192,7 +192,7 @@ node tests/e2e.cjs library/<论文ID>       # 浏览器端到端测试（需要 
 
 ## 许可
 
-MIT。公式渲染用 [KaTeX](https://katex.org)（MIT）。液態玻璃的折射效果用 [liquid-glass](https://github.com/deepika-builds/liquid-glass)（MIT，Deepika Rao；授權全文在 `easyread/web/vendor/liquid-glass.LICENSE`）。
+MIT。公式渲染用 [KaTeX](https://katex.org)（MIT）。液態玻璃的折射效果用 [liquid-glass](https://github.com/deepika-builds/liquid-glass)（MIT，Deepika Rao；授權全文在 `easyread/web/vendor/liquid-glass.LICENSE`）。介面圖示用 [Lucide](https://lucide.dev)（ISC；授權全文在 `easyread/web/vendor/lucide.LICENSE`，挑出來的那一批由 `scripts/gen_icons.cjs` 產生）。
 
 在线演示用的论文是 Rafailov 等人的 *Direct Preference Optimization: Your Language Model is Secretly a Reward Model*（[arXiv:2305.18290](https://arxiv.org/abs/2305.18290)，CC BY 4.0），中文译文由 EasyRead 调用 Claude 生成，演示里的划线和笔记是示例。
 
