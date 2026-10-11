@@ -5,7 +5,7 @@
 (function (PR) {
   "use strict";
   const dlg = () => PR.$("#settingsDlg");
-  const ALL_TABS = [["chat", PR.t("模型")], ["reading", PR.t("阅读")], ["library", PR.t("侧边栏")], ["cloud", PR.t("云文献库")], ["keys", PR.t("快捷键")]];
+  const ALL_TABS = [["chat", PR.t("模型")], ["look", PR.t("外觀")], ["reading", PR.t("阅读")], ["library", PR.t("侧边栏")], ["cloud", PR.t("云文献库")], ["keys", PR.t("快捷键")]];
   const tabs = () => ALL_TABS.filter(([k]) => PR.settingsTabs[k]);  // “侧边栏”页只在文献库页面有
   PR.settingsTabs = PR.settingsTabs || {};
   const st = (PR.settingsState = { tab: "chat", cfg: null, presets: [], groups: [], found: null, chat: null, ui: null });
@@ -44,7 +44,10 @@
     dlg().querySelector(".dialog").innerHTML =
       '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" + (st.tab === "chat" ? saveStatusHtml() : "") + "</div>" +
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
-      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span><button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";  // i18n-ok 寫的是要切換到的語言
+      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span>' +  // i18n-ok 寫的是要切換到的語言
+      // 模型那一頁自己會存、外觀那一頁點了就生效：前者只有「關閉」，後者只有「完成」（順便把別頁還沒存的一起存了）；其他頁是取消／儲存
+      (st.tab === "look" ? "" : '<button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + "</button>") +
+      (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + (st.tab === "look" ? PR.t("完成") : PR.t("保存")) + "</button>") + "</div>";
   }
 
   function saveStatusHtml() {
@@ -120,19 +123,29 @@
     if (e.target === dlg() || e.target.closest("#setCancel")) { st.recording = null; return dlg().classList.remove("open"); }
     const tb = e.target.closest("[data-set-tab]");
     if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
-    const sw = e.target.closest("[data-accent-pick]");  // 強調色：點了就換，不用按保存
-    if (sw && PR.setAccent) { PR.setAccent(sw.dataset.accentPick); PR.$$("[data-accent-pick]", dlg()).forEach((b) => b.classList.toggle("on", b === sw)); return; }
+    // 外觀那一頁：點了就換、馬上存，不用按儲存
+    const pick = (attr, apply) => { const b = e.target.closest("[" + attr + "]"); if (!b) return false; apply(b.getAttribute(attr)); PR.$$("[" + attr + "]", dlg()).forEach((x) => x.classList.toggle("on", x === b)); return true; };
+    if (pick("data-accent-pick", (v) => PR.setLook("accent", v))) return;
+    if (pick("data-paper-pick", (v) => PR.setLook("paper", v))) return;
+    if (pick("data-look-theme", (v) => { st.theme = v; PR.setTheme(v); })) return;
+    if (e.target.closest("[data-look-reset]")) {
+      for (const [key, v] of [["accent", "violet"], ["paper", "white"], ["tint", 0], ["hl", 100]]) PR.setLook(key, v);
+      if (PR.setGlass) { PR.setGlass(60); PR.setClear(75); }
+      return render();
+    }
     if (e.target.closest("#setLang")) { PR.$("#langBtn").click(); return; }  // 介面語言：還是頂欄那顆（藏著的）按鈕在做
     if (e.target.closest("#showLog")) { const r = await PR.api("/api/log"); PR.showText(PR.t("运行日志"), r.text + "\n\n" + PR.t("（完整日志：{path}）", { path: r.path })); return; }
     if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(err.message) })); } return; }
     const t = PR.settingsTabs[st.tab];
     if (t && t.click && (await t.click(e, st, dlg()))) render();
   });
-  dlg().addEventListener("input", (e) => {  // 玻璃折射：拉著就看得到，不用按保存
-    const g = e.target.closest("[data-glass-level]");  // 不能用 data-glass：那是玻璃元素自己的記號
-    if (g && PR.setGlass) PR.setGlass(+g.value);
-    const c = e.target.closest("[data-clear-level]");
-    if (c && PR.setClear) PR.setClear(+c.value);
+  dlg().addEventListener("input", (e) => {  // 外觀的滑桿：拉著就看得到，不用按保存
+    const r = e.target.closest("input.look-range");
+    if (!r) return;
+    r.style.setProperty("--p", Math.round(((+r.value - +r.min) / (+r.max - +r.min)) * 100) + "%");  // 軌道填到哪裡
+    if (r.dataset.look) PR.setLook(r.dataset.look, +r.value);
+    else if (r.hasAttribute("data-glass-level") && PR.setGlass) PR.setGlass(+r.value);  // 不能用 data-glass：那是玻璃元素自己的記號
+    else if (r.hasAttribute("data-clear-level") && PR.setClear) PR.setClear(+r.value);
   });
   dlg().addEventListener("change", (e) => {
     const t = PR.settingsTabs[st.tab];

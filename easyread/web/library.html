@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="/web/css/usage.css">
 <link rel="stylesheet" href="/web/css/apple.css">
 <link rel="stylesheet" href="/web/css/craft.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear)}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){}</script>
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear);if(p.paper&&p.paper!=="white")document.documentElement.dataset.paper=p.paper;if(p.tint)document.documentElement.style.setProperty("--tint",p.tint);if(p.hl)document.documentElement.style.setProperty("--hl-k",p.hl/100)}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){}</script>
 </head>
 <body>
 <div class="lib">

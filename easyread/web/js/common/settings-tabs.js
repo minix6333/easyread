@@ -1,4 +1,4 @@
-/* 设置的另外两页：阅读（功能开关、主题）、快捷键（总开关、改键）。 */
+/* 设置的另外幾页：外觀（主題、顏色、透明度）、阅读（排版、功能开关）、快捷键（总开关、改键）。 */
 (function (PR) {
   "use strict";
   const T = PR.settingsTabs;
@@ -15,16 +15,38 @@
       sel("view", PR.t("打开时显示"), [["translation", PR.t("译文")], ["original", PR.t("原文")], ["both", PR.t("双语")]]) + sel("margin", PR.t("边注"), [["true", PR.t("显示")], ["false", PR.t("收起")]]) +
       '</div><div class="keys-foot" style="margin-top:4px"><span class="hint">' + PR.t("阅读时也能在右上角 Aa 里随手调。") + '</span><button class="btn sm" data-type-reset>' + PR.t("恢复默认排版") + "</button></div>";
   }
+  /* ---------- 外觀 ---------- */
+  /* 每一樣都是點了、拉了就套到畫面上並存起來（不用按儲存）；最上面一小塊是即時預覽：材質上的畫布、畫布上的一張紙、八色螢光筆。
+     事件在 settings.js（對話框那一層）接：data-look-theme／data-accent-pick／data-paper-pick／data-look／data-glass-level／data-clear-level／data-look-reset */
+  const HL_WORDS = ["Sampling", "off-policy", "on-policy", "SFT", "generalize", "forget", "rival", "baselines"];
+  const HL_TEXT = ["", " turns ", " traces into ", " ones, so ", " can ", " better, ", " less, and ", " RL ", "."];
+  function range(attr, min, max, step, val) {
+    const pct = Math.round(((val - min) / (max - min)) * 100);
+    return '<input type="range" class="look-range" ' + attr + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" style="--p:' + pct + '%">';
+  }
+  T.look = {
+    render(s) {
+      const k = PR.look(), theme = s.theme === "dark" || s.theme === "light" ? s.theme : "auto";
+      const row = (label, body, cls) => '<div class="look-row' + (cls ? " " + cls : "") + '"><span>' + label + "</span>" + body + "</div>";
+      return '<div class="look">' +
+        '<div class="look-prev" aria-hidden="true"><div class="lp-canvas"><div class="lp-sheet"><div class="lp-top"><b>Finetuning with Sampling</b><i class="lp-ai">' + PR.icon("sparkle", "sm") + PR.t("問 AI") + "</i></div><p>" +
+        HL_WORDS.map((w, i) => HL_TEXT[i] + '<mark class="hl c-' + PR.HL_COLORS[i][0] + '">' + w + "</mark>").join("") + HL_TEXT[8] + "</p></div></div></div>" +
+        '<div class="look-list">' +
+        row(PR.t("主題"), '<div class="seg">' + [["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]].map(([v, l]) => '<button type="button" data-look-theme="' + v + '"' + (v === theme ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>") +
+        row(PR.t("強調色"), '<div class="swatches">' + PR.ACCENTS.map(([v, name]) => '<button type="button" class="sw sw-' + v + (k.accent === v ? " on" : "") + '" data-accent-pick="' + v + '" title="' + name + '"></button>').join("") + "</div>") +
+        row(PR.t("紙張"), '<div class="papers">' + PR.PAPERS.map(([v, name]) => '<button type="button" class="pp pp-' + v + (k.paper === v ? " on" : "") + '" data-paper-pick="' + v + '" title="' + name + '">Aa</button>').join("") + "</div>") +
+        row(PR.t("視窗染色"), range('data-look="tint"', 0, 100, 5, k.tint)) +
+        (PR.setGlass ? row(PR.t("視窗透明"), range("data-clear-level", 0, 100, 5, PR.clearLevel()), "clear-field") + row(PR.t("玻璃折射"), range("data-glass-level", 0, 100, 5, PR.glassLevel())) : "") +
+        row(PR.t("螢光筆濃度"), range('data-look="hl"', 50, 160, 5, k.hl)) +
+        '</div><div class="keys-foot look-foot"><span class="hint"></span><button class="btn sm" data-look-reset>' + PR.t("恢復預設外觀") + "</button></div></div>";
+    },
+  };
+
   T.reading = {
     render(s) {
       return typeHtml(s) + '<h4 class="set-h">' + PR.t("功能") + '</h4><p class="set-lead">' + PR.t("阅读页上显示哪些功能。关掉的功能，按钮和快捷键都会一起消失。") + '</p><div class="switch-list">' +
         PR.FEATURES.map(([id, name, , desc]) => '<label class="switch-row"><span><b>' + name + "</b><small>" + desc + '</small></span><input type="checkbox" class="switch" data-feat="' + id + '"' + (s.ui.features[id] !== false ? " checked" : "") + "></label>").join("") +
-        "</div>" + '<div class="settings-sec grid2"><label class="field"><span>' + PR.t("界面主题") + '</span><select class="input" id="themeSel">' +
-        PR.opt([["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]], s.theme) + "</select></label>" +
-        (PR.ACCENTS ? '<div class="field accent-field"><span>' + PR.t("強調色") + '</span><div class="swatches">' + PR.ACCENTS.map(([k, name]) => '<button type="button" class="sw sw-' + k + (PR.accent() === k ? " on" : "") + '" data-accent-pick="' + k + '" title="' + name + '"></button>').join("") + "</div></div>" : "") +
-        // 玻璃折射：拉的時候就套到畫面上（settings.js 的 input 事件 → PR.setGlass），不用按保存
-        (PR.setGlass ? '<label class="field glass-field"><span>' + PR.t("玻璃折射") + '<small>' + PR.t("左邊是只有毛玻璃") + '</small></span><input type="range" class="glass-range" data-glass-level min="0" max="100" step="5" value="' + PR.glassLevel() + '"></label>' +
-          '<label class="field glass-field clear-field"><span>' + PR.t("視窗透明") + '<small>' + PR.t("左邊是不透明") + '</small></span><input type="range" class="glass-range" data-clear-level min="0" max="100" step="5" value="' + PR.clearLevel() + '"></label>' : "") +
+        "</div>" + '<div class="settings-sec grid2">' +
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("界面语言") + '</span><select class="input" id="langSel">' +
           PR.opt([["auto", PR.t("跟随系统")], ["zh-TW", "繁體中文"], ["zh", "简体中文"], ["en", "English"]], s.lang || PR.langChoice) + "</select></label>") +  // i18n-ok 語言名用各自的寫法
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("论文译成") + '</span><select class="input" id="targetSel">' +
@@ -42,7 +64,6 @@
       if (t === "view") { s.type.mode = e.target.value === "both" ? "bi" : "zh"; if (e.target.value !== "both") s.type.lead = e.target.value; }  // 和阅读页顶栏一样：mode + lead
       else if (t) s.type[t] = t === "margin" ? e.target.value === "true" : ["fs", "measure", "lh"].includes(t) ? +e.target.value : e.target.value;
       if (e.target.dataset.feat) s.ui.features[e.target.dataset.feat] = e.target.checked;
-      if (e.target.id === "themeSel") { s.theme = e.target.value; PR.applyTheme(s.theme); }
       if (e.target.id === "langSel") s.lang = e.target.value;
       if (e.target.id === "targetSel") s.target = e.target.value;
       return false;

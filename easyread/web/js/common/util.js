@@ -122,7 +122,11 @@ window.PR = window.PR || {};
     if (location.protocol === "file:") return {};
     try {
       const p = await PR.api("/api/prefs");
-      if (p.reader) PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), p.reader));
+      if (p.reader) {
+        PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), p.reader));
+        PR.applyLook && PR.applyLook();     // 伺服器存的和這台瀏覽器快取的不一樣時（換了瀏覽器、清過快取）：外觀馬上跟上
+        PR.glassSync && PR.glassSync();
+      }
       if (p.keys) PR.ls.set("easyread-keys", Object.fromEntries(Object.entries(p.keys).filter(([, v]) => v !== null)));
       return p;
     } catch (e) { return {}; }
@@ -205,18 +209,50 @@ window.PR = window.PR || {};
   /* 螢光筆的顏色（八種；前四種是原本的，順序不能動——數字鍵 1–8 照這個順序）。顏色本身在 css/craft.css 的 .c-<名字> */
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")],
     ["orange", PR.t("橙")], ["purple", PR.t("紫")], ["teal", PR.t("青")], ["gray", PR.t("灰")]];  // pink 历史上叫粉，现在画成红
-  /* 強調色（設定 → 閱讀）：掛在 <html data-accent>，顏色在 css/craft.css */
+  /* 外觀（設定 → 外觀）：強調色、紙張色調、視窗染色、螢光筆濃度。都存在 easyread-prefs；點了就套到畫面上，不用按儲存。
+     強調色、紙張掛在 <html data-accent／data-paper>，染色和濃度是 --tint、--hl-k 兩個變數；顏色本身在 css/craft.css */
   PR.ACCENTS = [["violet", PR.t("紫")], ["blue", PR.t("蓝")], ["teal", PR.t("青")], ["green", PR.t("绿")], ["orange", PR.t("橙")], ["pink", PR.t("粉")], ["red", PR.t("红")], ["graphite", PR.t("石墨")]];
-  PR.accent = () => (PR.ls.get("easyread-prefs", {}) || {}).accent || "violet";
-  PR.applyAccent = () => { const a = PR.accent(); if (a === "violet") delete document.documentElement.dataset.accent; else document.documentElement.dataset.accent = a; };
-  PR.setAccent = function (a) {
-    if (!PR.ACCENTS.some(([k]) => k === a)) return;
-    const p = PR.ls.get("easyread-prefs", {});
-    p.accent = a;
+  PR.PAPERS = [["white", PR.t("白")], ["warm", PR.t("暖")], ["cool", PR.t("冷")], ["green", PR.t("绿")]];
+  const LOOK = {
+    accent: (v) => (PR.ACCENTS.some(([k]) => k === v) ? v : "violet"),
+    paper: (v) => (PR.PAPERS.some(([k]) => k === v) ? v : "white"),
+    tint: (v) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0)),          // 視窗染上多少強調色
+    hl: (v) => Math.max(50, Math.min(160, Math.round(Number(v)) || 100)),         // 螢光筆濃度（百分比）
+  };
+  PR.look = function () {
+    const p = PR.ls.get("easyread-prefs", {}) || {}, o = {};
+    for (const k of Object.keys(LOOK)) o[k] = LOOK[k](p[k]);
+    return o;
+  };
+  PR.accent = () => PR.look().accent;
+  PR.applyLook = function () {
+    const k = PR.look(), d = document.documentElement;
+    if (k.accent === "violet") delete d.dataset.accent; else d.dataset.accent = k.accent;
+    if (k.paper === "white") delete d.dataset.paper; else d.dataset.paper = k.paper;
+    d.style.setProperty("--tint", String(k.tint));
+    d.style.setProperty("--hl-k", String(k.hl / 100));
+  };
+  PR.applyAccent = PR.applyLook;
+  PR.setLook = function (key, value) {
+    if (!LOOK[key]) return;
+    const v = LOOK[key](value), p = PR.ls.get("easyread-prefs", {}) || {};
+    p[key] = v;
     PR.ls.set("easyread-prefs", p);
-    if (PR.prefs) PR.prefs.accent = a;
-    if (PR.savePrefs) PR.savePrefs("reader", { accent: a });
-    PR.applyAccent();
+    if (PR.prefs) PR.prefs[key] = v;
+    if (PR.savePrefs) PR.savePrefs("reader", { [key]: v });
+    PR.applyLook();
+  };
+  PR.setAccent = (a) => PR.setLook("accent", a);
+  /* 主題也是點了就換、馬上存（設定 → 外觀、文獻庫的「⋯」、閱讀頁的 Aa 都走這裡） */
+  PR.setTheme = function (theme) {
+    theme = theme === "dark" || theme === "light" ? theme : "auto";
+    if (PR.setPref && PR.prefs) return PR.setPref("theme", theme);  // 閱讀頁：和 Aa 面板裡的主題是同一個設定，走它那條路
+    const p = PR.ls.get("easyread-prefs", {}) || {};
+    p.theme = theme;
+    PR.ls.set("easyread-prefs", p);
+    if (PR.prefs) PR.prefs.theme = theme;
+    if (PR.savePrefs) PR.savePrefs("reader", { theme });
+    PR.applyTheme(theme);
   };
   /* 標誌：一張文件加一道勾（單色線條，顏色由 CSS 的 .mark / .hero 給，預設是強調色） */
   /* FOLI 的標誌：藍色的方塊、白色的折紙（顏色由 CSS 的 .lg-tile/.lg-s/.lg-a/.lg-b 決定）。和 web/logo.svg、electron/assets/icon.svg 是同一個形狀 */
@@ -259,7 +295,7 @@ window.PR = window.PR || {};
     // 桌面版：視窗的半透明材質要跟著亮暗（只有最外層那一頁拿得到橋；iframe 裡改了主題，外殼靠下面的 storage 事件跟上）
     try { const d = window.easyreadDesktop; if (d && d.setTheme) d.setTheme(theme === "dark" || theme === "light" ? theme : "system"); } catch (e) { /* 不是桌面版 */ }
   };
-  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") { PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); PR.applyAccent && PR.applyAccent(); } });
+  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") { PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); PR.applyLook && PR.applyLook(); } });
 
   /* 简单事件总线 */
   const subs = {};

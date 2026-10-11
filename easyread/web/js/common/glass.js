@@ -94,7 +94,8 @@
     applyClear();
   };
   applyClear();
-  addEventListener("storage", (e) => { if (e.key !== "easyread-prefs") return; applyClear(); if (level() !== cur) reapply(); });
+  PR.glassSync = () => { applyClear(); if (level() !== cur) reapply(); };  // 偏好從別處換了（別的分頁、伺服器存的）：跟上
+  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") PR.glassSync(); });
 
   function scan(root) {
     if (!root || root.nodeType !== 1) return;

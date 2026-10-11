@@ -15,15 +15,16 @@
   "use strict";
   const KEY = "easyread-dock";
   const MIN_W = 320, DEF_W = 440;
-  const PRESETS = [
-    { name: "ChatGPT", url: "https://chatgpt.com/" },
-    { name: "Claude", url: "https://claude.ai/" },
-    { name: "Gemini", url: "https://gemini.google.com/app" },
-    { name: "Perplexity", url: "https://www.perplexity.ai/" },
-    { name: "NotebookLM", url: "https://notebooklm.google.com/" },
-    { name: "Google 翻譯", url: "https://translate.google.com/" },  // i18n-ok 產品名
-    { name: "DeepL", url: "https://www.deepl.com/translator" },
+  const PRESETS = [  // tint：字母方塊的顏色（還沒抓到網站圖示時用）
+    { name: "ChatGPT", url: "https://chatgpt.com/", tint: "#10a37f" },
+    { name: "Claude", url: "https://claude.ai/", tint: "#d97757" },
+    { name: "Gemini", url: "https://gemini.google.com/app", tint: "#4c8df6" },
+    { name: "Perplexity", url: "https://www.perplexity.ai/", tint: "#1f9aab" },
+    { name: "NotebookLM", url: "https://notebooklm.google.com/", tint: "#7c6cf0" },
+    { name: "Google 翻譯", url: "https://translate.google.com/", tint: "#3f83f8" },  // i18n-ok 產品名
+    { name: "DeepL", url: "https://www.deepl.com/translator", tint: "#3d6fc4" },
   ];
+  const TINTS = ["#10a37f", "#d97757", "#4c8df6", "#1f9aab", "#7c6cf0", "#d6457f", "#c98a12", "#6b7280"];
   /* 拖 App 圖示進來：這些有網頁版的開網頁版 */
   const APPS = { chatgpt: "https://chatgpt.com/", claude: "https://claude.ai/", gemini: "https://gemini.google.com/app", perplexity: "https://www.perplexity.ai/",
     copilot: "https://copilot.microsoft.com/", "microsoft copilot": "https://copilot.microsoft.com/", deepl: "https://www.deepl.com/translator", notion: "https://www.notion.so/",
@@ -60,6 +61,17 @@
       const s = String(text || "");
       const m = /<key>URL<\/key>\s*<string>([^<]+)<\/string>/i.exec(s) || /^URL=(.+)$/im.exec(s);
       return m ? M.url(m[1].replace(/&amp;/g, "&")) : "";
+    },
+    /* 字母方塊的顏色：常用網站用自己的，其他的照網域固定挑一個 */
+    tintOf(url, name) {
+      let host = "";
+      try { host = new URL(url).hostname.replace(/^www\./, ""); } catch (e) { host = ""; }
+      const p = host && PRESETS.find((x) => new URL(x.url).hostname.replace(/^www\./, "") === host);
+      if (p) return p.tint;
+      const key = host || String(name || "");
+      let n = 0;
+      for (let i = 0; i < key.length; i++) n = (n * 31 + key.charCodeAt(i)) >>> 0;
+      return TINTS[n % TINTS.length];
     },
     nameOf(url) {
       const p = PRESETS.find((x) => { try { return new URL(x.url).hostname === new URL(url).hostname; } catch (e) { return false; } });
@@ -159,38 +171,70 @@
   /* 上面那排圖示哪個算「目前這個」：網頁的看選到誰；電腦上的程式要真的貼著才算 */
   const isOn = (a) => (a.kind === "app" ? nativeOn === a.id : a.id === st.active && !nativeOn);
   function appIcon(a) {
-    return a.icon ? '<img src="' + PR.esc(a.icon) + '" alt="" draggable="false">' : '<i class="ltr">' + PR.esc((a.name || "?").trim().charAt(0).toUpperCase()) + "</i>";
+    return a.icon ? '<img src="' + PR.esc(a.icon) + '" alt="" draggable="false">'
+      : '<i class="ltr" style="--tint:' + M.tintOf(a.url || "", a.name) + '">' + PR.esc((a.name || "?").trim().charAt(0).toUpperCase()) + "</i>";
   }
+  /* 上面那一排：左邊是工具的分頁（目前這個會展開寫出名字），右邊一組導覽鈕。
+     分頁的元素留著重用（只改 class），名字展開、收起才有動畫，載入中閃一下也不會整排重畫。收起這一欄用分頁列右上那顆。 */
   function paintHead() {
     const cur = active(), v = cur && views[cur.id];
     let canBack = false;
     try { canBack = !!(v && v.canGoBack && v.canGoBack()); } catch (e) { canBack = false; }  // 還沒掛上時會丟例外
-    PR.$(".dock-head", dock).innerHTML =
-      '<div class="dock-apps">' + st.apps.map((a) => '<button class="dock-app' + (isOn(a) ? " on" : "") + (a.loading ? " loading" : "") + '" data-app="' + PR.esc(a.id) + '" title="' + PR.esc(a.kind === "app" ? PR.t("把「{name}」的視窗貼在旁邊", { name: a.name }) : a.title || a.name) + '">' +
-        appIcon(a) + '<span class="x" data-x="' + PR.esc(a.id) + '" title="' + PR.t("拿掉") + '">' + PR.icon("x", "sm") + "</span></button>").join("") +
-      '<button class="btn icon" data-d="add" title="' + PR.t("加一個外部工具（也可以把網址拖進來）") + '">' + PR.icon("plus", "sm") + "</button></div>" +
-      '<span class="grow"></span>' +
-      (cur && cur.kind !== "app" ? '<button class="btn icon" data-d="back" title="' + PR.t("上一頁") + '"' + (canBack ? "" : " disabled") + ">" + PR.icon("back", "sm") + "</button>" +
-        '<button class="btn icon" data-d="reload" title="' + PR.t("重新載入") + '">' + PR.icon("redo", "sm") + "</button>" +
-        '<button class="btn icon" data-d="more" title="' + PR.t("更多") + '">' + PR.icon("more", "sm") + "</button>" : "") +
-      '<button class="btn icon" data-d="hide" title="' + PR.t("收起這一欄") + '">' + PR.icon("x", "sm") + "</button>";
+    const head = PR.$(".dock-head", dock);
+    let apps = PR.$(".dock-apps", head);
+    if (!apps) {
+      head.innerHTML = '<div class="dock-apps"><button class="btn icon" data-d="add" title="' + PR.t("加一個外部工具（也可以把網址拖進來）") + '">' + PR.icon("plus", "sm") + '</button></div><span class="grow"></span><div class="dock-nav" hidden></div>';
+      apps = PR.$(".dock-apps", head);
+    }
+    const add = PR.$('[data-d="add"]', apps), have = {};
+    for (const el of PR.$$(".dock-app", apps)) { if (st.apps.some((a) => a.id === el.dataset.app)) have[el.dataset.app] = el; else el.remove(); }  // 拿掉的先清走
+    for (const a of st.apps) if (!have[a.id]) {  // 新加的先放到「＋」前面（下面再照順序對位置）
+      const el = PR.el("button", { class: "dock-app new", "data-app": a.id });
+      el.addEventListener("animationend", () => el.classList.remove("new"), { once: true });
+      apps.insertBefore(el, add);
+      have[a.id] = el;
+    }
+    let ref = apps.firstElementChild;  // 下一個該在的位置
+    for (const a of st.apps) {
+      const el = have[a.id];
+      const sig = (a.icon || "") + "\n" + a.name;
+      if (el.dataset.sig !== sig) {
+        el.dataset.sig = sig;
+        el.innerHTML = appIcon(a) + "<b>" + PR.esc(a.name) + '</b><span class="x" data-x="' + PR.esc(a.id) + '" title="' + PR.t("拿掉") + '">' + PR.icon("x", "sm") + "</span>";
+      }
+      el.title = a.kind === "app" ? PR.t("把「{name}」的視窗貼在旁邊", { name: a.name }) : a.title || a.name;
+      el.classList.toggle("on", isOn(a));
+      el.classList.toggle("loading", !!a.loading);
+      if (el === ref) ref = el.nextElementSibling; else apps.insertBefore(el, ref);  // 已經在對的位置就不搬（搬動會讓動畫、滑鼠停留的狀態重來）
+    }
+    const nav = PR.$(".dock-nav", head);
+    const html = cur && cur.kind !== "app" ? '<button class="btn icon" data-d="back" title="' + PR.t("上一頁") + '"' + (canBack ? "" : " disabled") + ">" + PR.icon("back", "sm") + "</button>" +
+      '<button class="btn icon" data-d="reload" title="' + PR.t("重新載入") + '">' + PR.icon("redo", "sm") + "</button>" +
+      '<button class="btn icon" data-d="more" title="' + PR.t("更多") + '">' + PR.icon("more", "sm") + "</button>" : "";
+    if (nav._html !== html) { nav._html = html; nav.innerHTML = html; }
+    nav.hidden = !html;
+    dock.classList.toggle("loading", !!(cur && cur.kind !== "app" && cur.loading && !cur.failed));
   }
+  /* 網頁上面蓋的那一層：還沒放東西時是起始頁（網址列＋常用網站），載入失敗時說一聲。內容沒變就不重畫（打到一半的網址才不會被清掉） */
   function paintState() {
     const box = PR.$(".dock-state", dock), cur = active();
-    if (!cur || cur.kind === "app") {
-      box.hidden = false;
-      // 說明收成一句；「它有自己的登入、讀不到 FOLI 的內容」「可以拖 App 進來」放在滑鼠提示裡
+    const empty = !cur || cur.kind === "app";
+    let html = "";
+    if (empty) {
+      // 說明只留網址列裡那一句；「它有自己的登入、讀不到 FOLI 的內容」「可以拖 App 進來」放在滑鼠提示裡
       const more = PR.t("它有自己的登入，讀不到 FOLI 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 FOLI 右邊。") : "");
-      box.innerHTML = '<div class="dock-empty" title="' + PR.esc(more) + '"><h3>' + PR.t("外部工具") + "</h3><p>" + PR.t("拖一個網址進來，或從下面挑一個") + "</p>" +
-        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '"><i class="ltr">' + PR.esc((p.name || "?").slice(0, 1)) + "</i>" + PR.esc(p.name) + "</button>").join("") +
-        '<button data-d="url">' + PR.icon("link", "sm") + PR.t("輸入網址…") + "</button>" + (native ? '<button data-d="pickapp">' + PR.icon("panel", "sm") + PR.t("貼齊一個 App…") + "</button>" : "") + "</div>" +
+      html = '<div class="dock-empty" title="' + PR.esc(more) + '">' +
+        '<form class="dock-url" title="">' + PR.icon("link", "sm") + '<input type="text" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="' + PR.t("要嵌的網址") + '" placeholder="' + PR.t("輸入網址，或把連結拖進來") + '">' +
+        '<button type="submit" class="go" title="' + PR.t("加入") + '">' + PR.icon("arrowUp", "sm") + "</button></form>" +
+        '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '" title=""><i class="ltr" style="--tint:' + p.tint + '">' + PR.esc((p.name || "?").slice(0, 1)) + "</i><span>" + PR.esc(p.name) + "</span></button>").join("") +
+        (native ? '<button data-d="pickapp" title="">' + PR.icon("panel", "sm") + "<span>" + PR.t("貼齊一個 App…") + "</span></button>" : "") + "</div>" +
         (cur && cur.kind === "app" ? '<p class="again">' + PR.t("要再把「{name}」貼在旁邊：點上面它的圖示。", { name: PR.esc(cur.name) }) + "</p>" : "") + "</div>";
-    } else if (cur && cur.failed) {
-      box.hidden = false;
-      box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("這一頁沒載入") + "</h3><p>" + PR.esc(cur.failed) + '</p><div class="dock-presets"><button data-d="reload">' + PR.t("再試一次") + "</button></div></div>";
-    } else if (!desktop && cur) {
-      box.hidden = true;
-    } else box.hidden = true;
+    } else if (cur.failed) {
+      html = '<div class="dock-empty fail"><h3>' + PR.t("這一頁沒載入") + "</h3><p>" + PR.esc(cur.failed) + '</p><button class="btn" data-d="reload">' + PR.icon("redo", "sm") + PR.t("再試一次") + "</button></div>";
+    }
+    if (html && box._html !== html) { box._html = html; box.innerHTML = html; }
+    box.hidden = !html;
+    dock.classList.toggle("empty", empty);
   }
   function render() {
     for (const id of Object.keys(views)) if (!st.apps.some((a) => a.id === id)) { views[id].remove(); delete views[id]; }
@@ -319,6 +363,17 @@
         } },
       ]);
     }
+  });
+
+  dock.addEventListener("submit", (e) => {  // 起始頁的網址列
+    const f = e.target.closest(".dock-url");
+    if (!f) return;
+    e.preventDefault();
+    const inp = PR.$("input", f);
+    if (!inp.value.trim()) return inp.focus();
+    if (PR.dock.add(inp.value)) { inp.value = ""; return; }
+    f.classList.remove("bad"); void f.offsetWidth; f.classList.add("bad");  // 不是網址：晃一下（add 裡已經說了原因）
+    inp.select();
   });
 
   document.addEventListener("click", (e) => {  // 貼著別的程式時，切換的圖示在分頁列上

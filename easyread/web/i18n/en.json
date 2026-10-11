@@ -1568,5 +1568,14 @@
  "1–8 留給選字之後的畫線": "1–8 are reserved for highlighting selected text",
  "選字之後 1–8 是八種顏色的畫線、N 筆記、Q 提問，跟著總開關。": "With text selected, 1–8 highlight in eight colours, N adds a note, Q asks; they follow the master switch.",
  "拖一個網址進來，或從下面挑一個": "Drag a link in, or pick one below",
- "它有自己的登入，讀不到 FOLI 裡的內容。": "It has its own sign-in and cannot read anything in FOLI."
+ "它有自己的登入，讀不到 FOLI 裡的內容。": "It has its own sign-in and cannot read anything in FOLI.",
+ "主題": "Theme",
+ "冷": "Cool",
+ "暖": "Warm",
+ "白": "White",
+ "紙張": "Paper",
+ "螢光筆濃度": "Highlighter strength",
+ "視窗染色": "Window tint",
+ "恢復預設外觀": "Reset appearance",
+ "輸入網址，或把連結拖進來": "Type a URL, or drag a link here"
 }

@@ -55,6 +55,16 @@
   }).observe(body, { attributes: true, attributeFilter: ["class"] });
   addEventListener("resize", colMode);
   colMode();
+  /* PDF 那一格很窄時（分割視窗、旁邊又開著面板）：底部的頁碼膠囊和「問 AI」會擠在一起，讓 CSS 知道要收（craft.css 的 body.pv-narrow／pv-tiny） */
+  const pvEl = PR.$("#pageview");
+  if (pvEl && window.ResizeObserver) {
+    new ResizeObserver(() => {
+      const w = pdf() ? pvEl.clientWidth : 0;
+      const narrow = w > 0 && w < 560, tiny = w > 0 && w < 400;
+      if (body.classList.contains("pv-narrow") !== narrow) body.classList.toggle("pv-narrow", narrow);
+      if (body.classList.contains("pv-tiny") !== tiny) body.classList.toggle("pv-tiny", tiny);
+    }).observe(pvEl);
+  }
   const btn = PR.$('[data-act="insp"]');
   if (btn) { btn.innerHTML = PR.icon("panelright"); btn.title = PR.t("右側面板：原頁、筆記、問 AI"); }
   paint();
