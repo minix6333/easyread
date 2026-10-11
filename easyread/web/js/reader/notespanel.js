@@ -1,7 +1,7 @@
 /* 右侧笔记面板，三個分頁：
    - 本頁：跟著 PDF 現在這一頁走。上面是這一頁的筆記（上課邊聽邊打，自動存），下面是這一頁上的畫線、筆記、提問。
      正在打字時 PDF 翻到別頁不會把輸入框換掉，只給一顆「PDF 在第 N 頁」讓你自己切。
-   - 全部：整份文件的標記按頁排好，可以搜尋、按種類和顏色篩，點一張就翻到那裡。
+   - 全部：整份文件的標記按頁排好（或照時間，最新的在前），可以搜尋、按種類和顏色篩，一頁一頁可以收合，點一張就翻到那裡。
    - 總結：整篇的筆記（論文筆記），可以套範本、讓 AI 起草或點評。
    本頁筆記和整篇筆記都是區塊編輯器（js/common/blocks.js，像 Craft）：面板重畫時沿用同一個編輯器，正在打字就先不重畫。 */
 (function (PR) {
@@ -10,6 +10,8 @@
   let tab = PR.ls.get("easyread-np-tab", "page");
   if (!["page", "notes", "paper"].includes(tab)) tab = "page";
   let filter = "all", color = "", query = "";
+  let sortBy = PR.ls.get("easyread-np-sort", "page") === "recent" ? "recent" : "page";  // 全部分頁的排法：照頁（預設）／照時間
+  const folded = new Set();  // 收起來的頁（只記在這次開著的期間）
   let editing = null;
   let pnEdit = false;   // 本頁筆記正在編輯（平常顯示排好的樣子，點一下才變成輸入框；空的直接是輸入框）
   let sumEdit = false;  // 整篇筆記同上
@@ -88,13 +90,13 @@
     if (hi != null) return hi - 0.01;
     return list[i].key;
   };
+  const KEEP = (it) => {
+    const d = it.data, mine = it.src === "mine";
+    return { all: true, mine: mine && d.kind === "note", hl: mine && d.kind === "highlight", q: mine && d.kind === "question", agent: !mine || PR.repliesTo(d.id).length > 0, star: starred(it.page) };
+  };
   function matches(it) {
     const d = it.data, mine = it.src === "mine";
-    const keep = {
-      all: true, mine: mine && d.kind === "note", hl: mine && d.kind === "highlight", q: mine && d.kind === "question",
-      agent: !mine || PR.repliesTo(d.id).length > 0, star: starred(it.page),
-    }[filter];
-    if (!keep) return false;
+    if (!KEEP(it)[filter]) return false;
     if (color && !(mine && d.kind !== "question" && (d.quote || d.region) && (d.color || "yellow") === color)) return false;
     if (!query) return true;
     const text = [d.body, d.quote, d.title, d.q].concat(mine ? PR.repliesTo(d.id).map((r) => r.body) : []).filter(Boolean).join("\n").toLowerCase();
@@ -109,10 +111,17 @@
       ? Object.keys(S.reader.page_notes || {}).map(Number).filter((p) => pageNote(p) && !color && (filter !== "star" || starred(p)) && (!query || pageNote(p).toLowerCase().includes(query)))
       : [];
     const pages = Array.from(new Set(list.map((i) => i.page).concat(pnPages))).sort((a, b) => a - b);
+    const pnHtml = (p) => '<div class="card pnote" data-pnote="' + p + '"><div class="hd"><span class="ic">' + PR.icon("notebook", "sm") + '</span><span class="lbl">' + PR.t("本頁筆記") + '</span><span class="where">p.' + p + '</span></div><div class="body">' + PR.mdBlocks(pageNote(p)) + "</div></div>";
     let h = "";
-    for (const p of pages) {
-      h += '<div class="np-sec" data-page="' + p + '"><span>' + PR.esc(pageLabel(p)) + "</span>" + (starred(p) ? '<span class="st">' + PR.icon("star", "sm") + "</span>" : "") + "</div>";
-      if (pnPages.includes(p)) h += '<div class="card pnote" data-pnote="' + p + '"><div class="hd"><span class="ic">' + PR.icon("notebook", "sm") + '</span><span class="lbl">' + PR.t("本頁筆記") + '</span></div><div class="body">' + PR.mdBlocks(pageNote(p)) + "</div></div>";
+    if (sortBy === "recent") {  // 照時間：不分頁，最新的在最上面（每張卡片上本來就有頁碼）
+      const stamp = (it) => it.data.updated || it.data.created || it.data.at || "";
+      h = list.slice().sort((a, b) => (stamp(a) < stamp(b) ? 1 : stamp(a) > stamp(b) ? -1 : 0)).map((it) => PR.cardHtml(it, editing)).join("") + pnPages.map(pnHtml).join("");
+    } else for (const p of pages) {
+      const n = list.filter((it) => it.page === p).length + (pnPages.includes(p) ? 1 : 0), shut = folded.has(p) && !query;
+      h += '<button type="button" class="np-sec' + (shut ? " shut" : "") + '" data-fold="' + p + '">' + PR.icon("chevron", "sm") + "<span>" + PR.esc(pageLabel(p)) + "</span>" + (starred(p) ? '<span class="st">' + PR.icon("star", "sm") + "</span>" : "") +
+        '<span class="grow"></span><span class="n">' + n + "</span></button>";
+      if (shut) continue;
+      if (pnPages.includes(p)) h += pnHtml(p);
       for (const it of list) if (it.page === p) h += PR.cardHtml(it, editing);
     }
     if (!pages.length) h = '<p class="hint np-empty">' + (filter === "all" && !query && !color ? PR.t("選取文字就能畫線、寫筆記、問 AI") : PR.t("这个分类下没有内容。")) + "</p>";
@@ -154,11 +163,17 @@
   }
 
   function notesHtml() {
+    // 每種有幾條（沒有的那幾顆篩選鈕不出現，少一點雜訊；正在用的那顆一定留著）
+    const all = allItems(), count = { all: all.length, mine: 0, hl: 0, q: 0, agent: 0, star: 0 };
+    for (const it of all) { const k = KEEP(it); for (const key of ["mine", "hl", "q", "agent", "star"]) if (k[key]) count[key]++; }
+    const used = new Set(all.filter((it) => it.src === "mine" && it.data.kind !== "question" && (it.data.quote || it.data.region)).map((it) => it.data.color || "yellow"));
     const chips = [["all", PR.t("全部")], ["mine", PR.t("笔记")], ["hl", PR.t("划线")], ["q", PR.t("提問")], ["agent", "AI"], ["star", PR.t("重點頁")]]
-      .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + "</button>").join("");
-    const dots = '<span class="dots">' + PR.HL_COLORS.map(([c, name]) => '<button data-nc="' + c + '" class="dot-' + c + (color === c ? " on" : "") + '" title="' + name + '"></button>').join("") + "</span>";
+      .filter(([k]) => k === "all" || count[k] || filter === k)
+      .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + (k !== "all" && count[k] ? '<i class="n">' + count[k] + "</i>" : "") + "</button>").join("");
+    const dots = used.size > 1 || color ? '<span class="dots">' + PR.HL_COLORS.filter(([c]) => used.has(c) || color === c).map(([c, name]) => '<button data-nc="' + c + '" class="dot-' + c + (color === c ? " on" : "") + '" title="' + name + '"></button>').join("") + "</span>" : "";
     return '<div class="np-search">' + PR.icon("search", "sm") + '<input id="npSearch" placeholder="' + PR.t("搜尋筆記…") + '" value="' + PR.esc(query) + '">' +
-      (pdf() ? "" : '<button class="btn sm line" data-np-act="add">' + PR.icon("plus", "sm") + PR.t("笔记") + "</button>") + "</div>" +
+      '<button class="btn icon sm np-sort' + (sortBy === "recent" ? " on" : "") + '" data-np-act="sort" title="' + (sortBy === "recent" ? PR.t("現在照時間排（最新的在前）；點一下改成照頁") : PR.t("現在照頁排；點一下改成照時間（最新的在前）")) + '">' + PR.icon(sortBy === "recent" ? "clock" : "sort", "sm") + "</button>" +
+      (pdf() ? "" : '<button class="btn icon sm" data-np-act="add" title="' + PR.t("在現在這一段加一條筆記") + '">' + PR.icon("plus", "sm") + "</button>") + "</div>" +
       '<div class="np-filters">' + chips + '<span class="grow"></span>' + dots + '</div><div class="np-list">' + listHtml() + "</div>";
   }
 
@@ -436,6 +451,7 @@
     if (act) {
       const a = act.dataset.npAct;
       if (a === "close") PR.toggleNotesPanel(false);
+      if (a === "sort") { sortBy = sortBy === "recent" ? "page" : "recent"; PR.ls.set("easyread-np-sort", sortBy); return PR.renderNotesPanel(null); }
       if (a === "popout") PR.notesPopout && PR.notesPopout();
       if (a === "md") PR.openExport();
       if (a === "pedit" || a === "sedit") {
@@ -476,6 +492,8 @@
       }
       return;
     }
+    const fold = e.target.closest("[data-fold]");
+    if (fold) { const p = +fold.dataset.fold; folded.has(p) ? folded.delete(p) : folded.add(p); return PR.renderNotesPanel(null); }
     const pn = e.target.closest(".card.pnote");
     if (pn) { tab = "page"; PR.ls.set("easyread-np-tab", tab); panelPage = +pn.dataset.pnote; if (pdf()) { PR.goToPage(panelPage); detached = false; } else detached = true; return PR.renderNotesPanel(null); }
     const card = e.target.closest(".card");

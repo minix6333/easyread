@@ -1687,5 +1687,12 @@
  "項目清單": "Bulleted list",
  "點子": "Ideas",
  "點標題展開": "Click the title to expand",
- "（沒有字的標題）": "(Untitled heading)"
+ "（沒有字的標題）": "(Untitled heading)",
+ "加進總結…": "Add to summary…",
+ "在現在這一段加一條筆記": "Add a note at the current paragraph",
+ "存成獨立筆記": "Save as a note",
+ "已存成獨立筆記": "Saved as a note",
+ "現在照時間排（最新的在前）；點一下改成照頁": "Sorted by time (newest first); click to sort by page",
+ "現在照頁排；點一下改成照時間（最新的在前）": "Sorted by page; click to sort by time (newest first)",
+ "複製文字": "Copy text"
 }

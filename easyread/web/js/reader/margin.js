@@ -68,8 +68,12 @@
   function cardHtml(item, editingId) {
     const d = item.data;
     if (item.src === "agent") {
-      return '<div class="card agent' + (d.kind === "check" ? " check" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
-        '<div class="hd"><span class="ic ai">' + PR.icon(d.kind === "check" ? "alert" : "sparkle", "sm") + '</span><span class="lbl">' + (KIND_LABEL[d.kind] || "AI") + '</span><span class="meta">' + PR.shortTime(d.updated || d.at) + '</span><span class="grow"></span>' +
+      // 核對提示（翻譯時 AI 順手標的疑點）一來就是一大串：預設收成一行標題，點了才展開
+      const fold = d.kind === "check" && !expanded.has(d.id);
+      return '<div class="card agent' + (d.kind === "check" ? " check" : "") + (fold ? " fold" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
+        '<div class="hd"><span class="ic ai">' + PR.icon(d.kind === "check" ? "alert" : "sparkle", "sm") + '</span><span class="lbl">' + (KIND_LABEL[d.kind] || "AI") + "</span>" +
+        (d.kind === "check" && d.title ? '<span class="fold-t">' + PR.esc(PR.plain(d.title)) + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.at) + '</span><span class="grow"></span>' +
+        (d.kind === "check" ? '<button class="fold-x" data-a="fold" title="' + (fold ? PR.t("展開") : PR.t("收起")) + '">' + PR.icon("chevron", "sm") + "</button>" : "") +
         (PR.store.mode !== "server" ? "" : '<span class="acts">' + (d.reply_to && (S.reader.notes || {})[d.reply_to] && PR.canChat && PR.canChat() ? act("regen", "redo", PR.t("重新回答")) : "") + act("adel", "trash", PR.t("删除")) + "</span>") + "</div>" +
         (d.quote ? '<div class="quote">' + PR.md(d.quote, { cite: false, xref: false }) + "</div>" : "") +
         (d.title ? '<div class="ttl">' + PR.md(d.title, { xref: false }) + "</div>" : "") +
@@ -90,7 +94,7 @@
       : isQ ? (answered ? act("followup", "message", PR.t("追问 AI")) : act("ask", "sparkle", PR.t("让 AI 回答"))) : act("ask", "sparkle", PR.t("让 AI 点评"));
     const head = '<div class="hd"><span class="ic">' + PR.icon(isQ ? "help" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
       (page ? '<span class="where">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
-      (editing ? "" : '<span class="acts">' + askBtn + act("toref", "notebook", PR.t("加進總結：放一張收起來的出處卡，點它跳回這裡")) + act("link", "link", PR.t("建立關聯")) + act("edit", "edit", PR.t("编辑")) + act("del", "trash", PR.t("删除")) + "</span>") + "</div>";
+      (editing ? "" : '<span class="acts">' + askBtn + act("edit", "edit", PR.t("编辑")) + act("menu", "more", PR.t("更多")) + "</span>") + "</div>";
     // 關聯的筆記：一排小標籤，點了跳過去，× 取消關聯
     const links = (d.links || []).map((id) => noteById(id)).filter((x) => x && !x.deleted);
     const linksHtml = links.length ? '<div class="links">' + links.map((x) => '<span class="lk"><button data-a="goto" data-to="' + PR.esc(x.id) + '" title="' + PR.t("看這條關聯的筆記") + '">' + PR.icon("link", "sm") +
@@ -405,6 +409,21 @@
     const inSticky = !!card.closest(".pv-sticky"), inMargin = !!card.closest(".pv-margin");
     const repaint = () => (inSticky ? PR.renderSticky() : inPanel ? PR.renderNotesPanel() : PR.renderMargin());
     const rerender = () => (inSticky ? PR.openSticky(nid, { edit: true }) : inMargin ? PR.editInMargin(nid) : inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
+    if (card.classList.contains("fold") && !a && !e.target.closest("a, button")) {  // 收著的核對提示：點卡片任何地方都展開（在面板裡同時跳到那一段）
+      expanded.add(card.dataset.card);
+      card.classList.remove("fold");
+      const x = card.querySelector(".fold-x"); if (x) x.title = PR.t("收起");
+      PR.layoutMargin(); PR.layoutPvMargin && PR.layoutPvMargin();
+    }
+    if (a && a.dataset.a === "fold") {  // 核對提示：展開／收回一行
+      const id = card.dataset.card, open = !expanded.has(id);
+      open ? expanded.add(id) : expanded.delete(id);
+      card.classList.toggle("fold", !open);
+      a.title = open ? PR.t("收起") : PR.t("展開");
+      PR.layoutMargin(); PR.layoutPvMargin && PR.layoutPvMargin();
+      return true;
+    }
+    if (nid && a && a.dataset.a === "menu") { cardMenu(card, a, inPanel); return true; }
     // 關聯：建立（進入選取模式）、跳過去、取消
     if (nid && a && a.dataset.a === "link") { PR.linkFrom && PR.linkFrom(nid); return true; }
     if (nid && a && a.dataset.a === "toref") { PR.noteRefMenu && PR.noteRefMenu(a, nid); return true; }
@@ -440,12 +459,7 @@
       else if (a.dataset.a === "model") PR.chatModel && PR.chatModel.menu(a);
       else if (a.dataset.a === "send") { if (inSticky) PR.stickySend(); else PR.sendQuestion(nid, ta ? ta.value : n.body, inPanel); }
       else if (a.dataset.a === "kind" && n) { PR.saveNote(Object.assign({}, n, { kind: n.kind === "question" ? "note" : "question" })); repaint(); PR.applyMarks(); }
-      else if (a.dataset.a === "del" && n) {
-        if (inSticky) PR.closeSticky({ discard: true });
-        PR.commit({ op: "note_del", id: nid });
-        PR.renderMargin(); PR.applyMarks(); inPanel && PR.renderNotesPanel();
-        PR.toast(PR.t("已删除这条笔记"), { label: PR.t("撤销"), fn: () => { PR.saveNote(Object.assign({}, n, { deleted: false })); PR.renderMargin(); PR.applyMarks(); PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel(); } });
-      }
+      else if (a.dataset.a === "del" && n) deleteNote(n, inSticky);
       return true;
     }
     if (nid && (k || col)) {
@@ -462,6 +476,41 @@
     if (card.dataset.anchor && inPanel) { PR.goToAnchor(card.dataset.anchor); return true; }
     return false;
   };
+  function deleteNote(n, inSticky) {
+    if (inSticky) PR.closeSticky({ discard: true });
+    PR.commit({ op: "note_del", id: n.id });
+    PR.renderMargin(); PR.applyMarks(); PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel();
+    PR.toast(PR.t("已删除这条笔记"), { label: PR.t("撤销"), fn: () => { PR.saveNote(Object.assign({}, n, { deleted: false })); PR.renderMargin(); PR.applyMarks(); PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel(); } });
+  }
+  /* 一條筆記的選單（卡片上的「⋯」、或在卡片上按右鍵）：改、問 AI、換顏色、複製、改成提問／筆記、加進總結、建立關聯、刪 */
+  function cardMenu(card, at, inPanel) {
+    const nid = card.dataset.note, n = noteById(nid);
+    if (!n) return;
+    const inSticky = !!card.closest(".pv-sticky"), inMargin = !!card.closest(".pv-margin");
+    const repaint = () => { PR.applyMarks && PR.applyMarks(); inSticky ? PR.renderSticky() : PR.renderMargin(); if (PR.notesPanelOpen && PR.notesPanelOpen()) PR.renderNotesPanel(); };
+    const edit = () => (inSticky ? PR.openSticky(nid, { edit: true }) : inMargin ? PR.editInMargin(nid) : inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
+    const isQ = n.kind === "question", answered = PR.repliesTo(nid).length > 0;
+    const canAsk = PR.canChat && PR.canChat() && PR.feature("chat") && n.kind !== "highlight" && n.body && !PR.asking.has(nid);
+    const text = [n.quote ? PR.t("「{q}」", { q: n.quote }) : "", n.body || ""].filter(Boolean).join("\n");
+    PR.menu(at, [
+      { label: PR.t("编辑"), icon: "edit", fn: edit },
+      canAsk ? { label: isQ ? (answered ? PR.t("追问 AI") : PR.t("让 AI 回答")) : PR.t("让 AI 点评"), icon: "sparkle", fn: () => (isQ && answered ? PR.followUp(nid) : PR.askModel(nid)) } : null,
+      (n.quote || n.region) && !isQ ? { dots: PR.HL_COLORS.map(([c, name]) => ({ color: "var(--ul-" + c + ")", title: name, on: (n.color || "yellow") === c, fn: () => { PR.saveNote(Object.assign({}, n, { color: c })); repaint(); } })) } : null,
+      "-",
+      text ? { label: PR.t("複製文字"), icon: "copy", fn: () => navigator.clipboard.writeText(text).then(() => PR.toast(PR.t("已复制"), null, 1200)) } : null,
+      n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "help", fn: () => { PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,
+      PR.noteRefMenu ? { label: PR.t("加進總結…"), icon: "notebook", fn: () => setTimeout(() => PR.noteRefMenu(at, nid), 0) } : null,
+      PR.linkFrom ? { label: PR.t("建立關聯"), icon: "link", fn: () => PR.linkFrom(nid) } : null,
+      "-",
+      { label: PR.t("删除"), icon: "trash", danger: true, fn: () => deleteNote(n, inSticky) },
+    ]);
+  }
+  document.addEventListener("contextmenu", (e) => {
+    const card = e.target.closest && e.target.closest(".card.mine[data-note]");
+    if (!card || card.classList.contains("editing") || e.target.closest("a, textarea, input") || String(getSelection())) return;  // 選著字按右鍵：留給系統（複製）
+    e.preventDefault();
+    cardMenu(card, { x: e.clientX, y: e.clientY }, !!card.closest("#notespanel"));
+  });
   /* 跳到錨點：段落 id 跳正文；"page:N" 是只畫在 PDF 上的筆記，翻到那一頁 */
   PR.goToAnchor = function (a) {
     if (String(a).startsWith("page:")) PR.goToPage(+String(a).slice(5));
