@@ -21,7 +21,7 @@
     }
     const g = {
       mode: () => PR.setPref("mode", PR.prefs.mode === "bi" ? "zh" : "bi"),
-      toc: () => PR.toggleDrawer(null, "toc"),
+      toc: () => PR.toggleNav(),
       fontUp: () => PR.bumpFont(1), fontDown: () => PR.bumpFont(-1), fontReset: () => PR.resetType(),
       pages: () => PR.togglePages(), notes: () => PR.toggleNotesPanel(),
       chat: () => { const b = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); PR.blockById[b] ? PR.chatAsk({ anchor: b }) : PR.toggleChat(); },

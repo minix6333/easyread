@@ -202,6 +202,7 @@ window.PR = window.PR || {};
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
     popout: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     dock: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 15-3-3 3-3"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     read: '<path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/>',
     cursor: '<path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1"/><path d="M7 22h1a4 4 0 0 0 4-4v-1"/><path d="M7 2h1a4 4 0 0 1 4 4v1"/>',
     quote: '<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>',
@@ -213,9 +214,13 @@ window.PR = window.PR || {};
      強調色、紙張掛在 <html data-accent／data-paper>，染色和濃度是 --tint、--hl-k 兩個變數；顏色本身在 css/craft.css */
   PR.ACCENTS = [["violet", PR.t("紫")], ["blue", PR.t("蓝")], ["teal", PR.t("青")], ["green", PR.t("绿")], ["orange", PR.t("橙")], ["pink", PR.t("粉")], ["red", PR.t("红")], ["graphite", PR.t("石墨")]];
   PR.PAPERS = [["white", PR.t("白")], ["warm", PR.t("暖")], ["cool", PR.t("冷")], ["green", PR.t("绿")]];
+  /* 背景：整個視窗後面的一張圖（像 Craft 文件的背景）。內建幾張漸層；"image" 是自選的圖片（存在伺服器，見 backdrop.py），"none" 是不放（桌面版就是透出桌面） */
+  PR.BACKDROPS = [["none", PR.t("無")], ["mist", PR.t("霧")], ["dawn", PR.t("晨")], ["sea", PR.t("海")], ["forest", PR.t("林")], ["dusk", PR.t("暮")]];
   const LOOK = {
     accent: (v) => (PR.ACCENTS.some(([k]) => k === v) ? v : "violet"),
     paper: (v) => (PR.PAPERS.some(([k]) => k === v) ? v : "white"),
+    backdrop: (v) => ((v === "image" && location.protocol !== "file:") || PR.BACKDROPS.some(([k]) => k === v) ? v : "mist"),
+    backdropV: (v) => Math.max(0, Math.round(Number(v)) || 0),                       // 自選圖片的版本（換一張就變，網址帶著）
     tint: (v) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0)),          // 視窗染上多少強調色
     hl: (v) => Math.max(50, Math.min(160, Math.round(Number(v)) || 100)),         // 螢光筆濃度（百分比）
   };
@@ -229,6 +234,11 @@ window.PR = window.PR || {};
     const k = PR.look(), d = document.documentElement;
     if (k.accent === "violet") delete d.dataset.accent; else d.dataset.accent = k.accent;
     if (k.paper === "white") delete d.dataset.paper; else d.dataset.paper = k.paper;
+    if (k.backdrop === "none") delete d.dataset.backdrop; else d.dataset.backdrop = k.backdrop;
+    for (const [name, file] of [["--bd", "backdrop.jpg"], ["--bd-s", "backdrop-s.jpg"]]) {
+      if (k.backdrop === "image") d.style.setProperty(name, 'url("/' + file + "?v=" + k.backdropV + '") center / cover no-repeat');
+      else d.style.removeProperty(name);
+    }
     d.style.setProperty("--tint", String(k.tint));
     d.style.setProperty("--hl-k", String(k.hl / 100));
   };
@@ -243,6 +253,23 @@ window.PR = window.PR || {};
     PR.applyLook();
   };
   PR.setAccent = (a) => PR.setLook("accent", a);
+  /* 自選背景圖：在瀏覽器裡先縮好再送——大的那張最長邊 2560，小的那張 72（放大就是糊的，材質那一層用） */
+  PR.uploadBackdrop = async function (file) {
+    const bmp = await createImageBitmap(file);
+    const shrink = (max, q, soft) => {
+      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      const g = c.getContext("2d");
+      if (soft) g.filter = "blur(" + soft + "px)";
+      g.drawImage(bmp, -4, -4, c.width + 8, c.height + 8);  // 稍微畫出去一點：邊緣才不會被模糊吃成黑邊
+      return c.toDataURL("image/jpeg", q);
+    };
+    const r = await PR.api("/api/backdrop", { method: "POST", body: { image: shrink(2560, 0.86, 0), small: shrink(72, 0.82, 1.2) } });
+    PR.setLook("backdropV", r.v);
+    PR.setLook("backdrop", "image");
+  };
   /* 主題也是點了就換、馬上存（設定 → 外觀、文獻庫的「⋯」、閱讀頁的 Aa 都走這裡） */
   PR.setTheme = function (theme) {
     theme = theme === "dark" || theme === "light" ? theme : "auto";

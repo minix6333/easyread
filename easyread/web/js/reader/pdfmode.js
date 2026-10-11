@@ -24,24 +24,62 @@
   /* PDF 的寬度：使用者拖的那個值，但譯文至少要留 MIN_ART；右邊還開著筆記／問 AI 時再讓一點。
      三欄怎麼都擠不下（視窗太窄）就先把譯文收起來，側面板關了再回來。回傳 [寬度, 譯文擠不擠得下] */
   function clampW() {
+    const nav = PR.navWidth ? PR.navWidth() : 0;  // 左邊釘著的導覽欄（panels.js）：--pdf-w 是 PDF 那一格的右緣，左緣讓給它
     const want = w || innerWidth * 0.56;
     const max = innerWidth - MIN_ART - sideW();
-    const fits = !artOpen || max >= MIN_PDF;
-    const v = Math.round(fits ? Math.max(MIN_PDF, Math.min(max, want)) : Math.max(MIN_PDF, Math.min(innerWidth - sideW(), want)));
+    const fits = !artOpen || max >= nav + MIN_PDF;
+    const v = Math.round(fits ? Math.max(nav + MIN_PDF, Math.min(max, want)) : Math.max(nav + MIN_PDF, Math.min(innerWidth - sideW(), want)));
     root.style.setProperty("--pdf-w", v + "px");
     return [v, fits];
   }
 
-  /* PDF 面板變寬變窄（開關譯文、開側面板、拖分割線）時頁面高度跟著變：做完之後捲回原來看的那個位置 */
-  function keepPlace(fn) {
+  /* 讀到哪裡：PDF 那一格變寬變窄（開關右側面板、導覽欄、譯文、拖分割線、視窗大小）時每一頁的高度跟著變，
+     同一個捲動位置（像素）就不是原來那一段了。所以一邊捲一邊記「視窗上三分之一處在第幾頁的幾分之幾」（spot），
+     頁面寬度一變就照它捲回去。不能在要改版面時才量——有的寬度是 CSS 跟著 class 直接變的（body.side-open），那時候量到的已經跑掉了。 */
+  const topOf = (sc, node) => node.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+  const pageW = () => { const n = PR.pageNodes ? PR.pageNodes() : []; return n.length ? n[0].node.offsetWidth : 0; };
+  let spot = null, spotW = 0, spotHold = 0;
+  /* at：畫面上的哪個高度（距捲動區頂端幾像素）；不給就是上三分之一處。縮放時給游標的位置——那一點要留在游標下 */
+  function capture(at) {
     const sc = PR.$(".pv-scroll"), nodes = PR.pageNodes ? PR.pageNodes() : [];
-    const entry = nodes[(PR.pdfPage ? PR.pdfPage() : 1) - 1];
-    const top = (node) => node.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-    const node = entry && entry.node;
-    const at = node && node.offsetHeight ? (sc.scrollTop + sc.clientHeight / 3 - top(node)) / node.offsetHeight : null;  // 視窗上三分之一處在這一頁的幾分之幾
-    fn();
-    if (at != null && node.offsetHeight) sc.scrollTop = Math.max(0, top(node) + at * node.offsetHeight - sc.clientHeight / 3);
+    if (!sc || !nodes.length || !sc.clientHeight || !nodes[0].node.offsetHeight) return null;
+    const y = sc.scrollTop + (at == null ? sc.clientHeight / 3 : at);
+    let i = 0;
+    for (let lo = 0, hi = nodes.length - 1; lo <= hi;) {  // 最後一個頂端在 y 以上的頁
+      const mid = (lo + hi) >> 1;
+      if (topOf(sc, nodes[mid].node) <= y) { i = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    const node = nodes[i].node;
+    return { i, frac: (y - topOf(sc, node)) / node.offsetHeight, at: at == null ? null : at };
   }
+  function restore(s) {
+    const sc = PR.$(".pv-scroll"), e = s && (PR.pageNodes ? PR.pageNodes() : [])[s.i];
+    if (!sc || !e || !e.node.offsetHeight) return;
+    sc.scrollTop = Math.max(0, topOf(sc, e.node) + s.frac * e.node.offsetHeight - (s.at == null ? sc.clientHeight / 3 : s.at));
+  }
+  function keepPlace(fn) {
+    const s = spot || capture();
+    fn();
+    restore(s);
+    spotW = pageW();
+  }
+  (function watchSpot() {
+    const sc = PR.$(".pv-scroll");
+    if (!sc) return;
+    let raf = 0;
+    // 縮放剛定好位置的那一下（spotHold）不換：那是程式捲的，換掉就變成記上三分之一處、不是游標那一點了
+    sc.addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (performance.now() < spotHold) return; const s = capture(); if (s) spot = s; }); }, { passive: true });
+    if (!window.ResizeObserver) return;
+    const ro = new ResizeObserver(() => {  // 版面已經排好、還沒畫出來：這時候捲回去，畫面上看不到跳
+      const w = pageW();
+      if (!w || w === spotW) return;
+      spotW = w;
+      restore(spot);
+    });
+    PR.on("pages-built", (nodes) => { ro.disconnect(); spot = null; spotW = 0; if (nodes && nodes[0]) ro.observe(nodes[0].node); });
+    const have = PR.pageNodes ? PR.pageNodes() : [];
+    if (have[0]) ro.observe(have[0].node);
+  })();
   PR.applyLayout = function () { keepPlace(applyLayoutNow); };
   function applyLayoutNow() {
     const pdf = PR.pdfMain();
@@ -189,14 +227,17 @@
     const box = sc.getBoundingClientRect();
     const cx = at ? at.x - box.left : sc.clientWidth / 2, cy = at ? at.y - box.top : sc.clientHeight / 3;
     const first = sc.querySelector(".pv-page");
-    const pad = first ? first.offsetTop : 0, x0 = first ? first.offsetLeft : 0, w0 = first ? first.offsetWidth : 1;
-    const fy = (sc.scrollTop + cy - pad) / Math.max(1, sc.scrollHeight - pad), fx = (sc.scrollLeft + cx - x0) / Math.max(1, w0);
+    const x0 = first ? first.offsetLeft : 0, w0 = first ? first.offsetWidth : 1;
+    const fx = (sc.scrollLeft + cx - x0) / Math.max(1, w0);
+    const s = capture(cy);  // 游標下的那一點：第幾頁的幾分之幾（以前用整份文件高度的比例算，頁和頁中間的空隙不跟著縮放，會漂一點）
     PR.prefs.pdfZoom = z;
     sc.style.setProperty("--pv-zoom", String(z));
     zoomLabel(z);
     const x1 = first ? first.offsetLeft : 0, w1 = first ? first.offsetWidth : 1;  // 讀一次版面（只有捲動區裡面重排）
-    sc.scrollTop = Math.max(0, fy * (sc.scrollHeight - pad) + pad - cy);
+    restore(s);
     if (sc.scrollWidth > sc.clientWidth + 1) sc.scrollLeft = Math.max(0, x1 + fx * w1 - cx);
+    // 以這一點為準：等一下邊註欄擺不擺得下再變一次寬度時，照樣讓它留在游標下
+    if (s) { spot = s; spotW = pageW(); spotHold = performance.now() + 500; }
     clearTimeout(zoomT);
     zoomT = setTimeout(() => { zoomT = null; PR.applyPrefs(); PR.reloadPages && PR.reloadPages(); }, 220);
   };

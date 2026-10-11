@@ -33,12 +33,15 @@
         HL_WORDS.map((w, i) => HL_TEXT[i] + '<mark class="hl c-' + PR.HL_COLORS[i][0] + '">' + w + "</mark>").join("") + HL_TEXT[8] + "</p></div></div></div>" +
         '<div class="look-list">' +
         row(PR.t("主題"), '<div class="seg">' + [["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]].map(([v, l]) => '<button type="button" data-look-theme="' + v + '"' + (v === theme ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>") +
+        row(PR.t("背景"), '<div class="bds">' + PR.BACKDROPS.map(([v, name]) => '<button type="button" class="bdc bdc-' + v + (k.backdrop === v ? " on" : "") + '" data-backdrop-pick="' + v + '" title="' + name + '"></button>').join("") +
+          (location.protocol === "file:" ? "" : (k.backdropV ? '<button type="button" class="bdc bdc-image' + (k.backdrop === "image" ? " on" : "") + '" data-backdrop-pick="image" title="' + PR.t("自選的圖片") + '" style="background-image:url(/backdrop-s.jpg?v=' + k.backdropV + ')"></button>' : "") +
+            '<button type="button" class="bdc bdc-add" data-backdrop-add title="' + PR.t("挑一張圖片當背景…") + '">' + PR.icon("plus", "sm") + '</button><input type="file" accept="image/*" data-backdrop-file hidden>') + "</div>") +
         row(PR.t("強調色"), '<div class="swatches">' + PR.ACCENTS.map(([v, name]) => '<button type="button" class="sw sw-' + v + (k.accent === v ? " on" : "") + '" data-accent-pick="' + v + '" title="' + name + '"></button>').join("") + "</div>") +
         row(PR.t("紙張"), '<div class="papers">' + PR.PAPERS.map(([v, name]) => '<button type="button" class="pp pp-' + v + (k.paper === v ? " on" : "") + '" data-paper-pick="' + v + '" title="' + name + '">Aa</button>').join("") + "</div>") +
         row(PR.t("視窗染色"), range('data-look="tint"', 0, 100, 5, k.tint)) +
         (PR.setGlass ? row(PR.t("視窗透明"), range("data-clear-level", 0, 100, 5, PR.clearLevel()), "clear-field") + row(PR.t("玻璃折射"), range("data-glass-level", 0, 100, 5, PR.glassLevel())) : "") +
         row(PR.t("螢光筆濃度"), range('data-look="hl"', 50, 160, 5, k.hl)) +
-        '</div><div class="keys-foot look-foot"><span class="hint"></span><button class="btn sm" data-look-reset>' + PR.t("恢復預設外觀") + "</button></div></div>";
+        "</div></div>";  // 「恢復預設外觀」在對話框底下那一排（settings.js）
     },
   };
 

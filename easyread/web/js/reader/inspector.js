@@ -1,4 +1,4 @@
-/* 右側面板的分頁列（像 Craft 的檢閱器：插入／格式／樣式／資訊）：原頁（PDF 優先時是「譯文」）、筆記、問 AI 三個分頁，
+/* 右側面板的分頁列（像 Craft 的檢閱器：插入／格式／樣式／資訊）：原頁（文章優先時才有）、筆記、問 AI、資訊，
    開著面板時出現在面板最上面；頂欄只留一顆「右側面板」按鈕，開的是最近用的那一個。 */
 (function (PR) {
   "use strict";
@@ -12,6 +12,7 @@
       ["pages", PR.t("原頁"), body.classList.contains("pv-open"), !pdf() && (PR.feature ? PR.feature("pages") !== false : true)],
       ["notes", PR.t("筆記"), body.classList.contains("np-open"), true],
       ["chat", PR.t("問 AI"), body.classList.contains("ch-open"), PR.feature ? PR.feature("chat") !== false : true],
+      ["info", PR.t("資訊"), body.classList.contains("in-open"), !!PR.toggleInfo],
     ];
     strip.innerHTML = tabs.filter((t) => t[3]).map(([k, label, on]) => '<button role="tab" data-insp="' + k + '"' + (on ? ' class="on" aria-selected="true"' : "") + ">" + label + "</button>").join("") +
       '<span class="grow"></span><button class="btn icon insp-x" data-insp="close" title="' + PR.t("關閉") + '">' + PR.icon("x", "sm") + "</button>";
@@ -29,6 +30,7 @@
     else if (k === "pages") PR.togglePages(true);
     else if (k === "notes") PR.toggleNotesPanel(true);
     else if (k === "chat") PR.toggleChat(true);
+    else if (k === "info") PR.toggleInfo(true);
   });
   PR.lastSide = PR.ls.get("easyread-insp-last", "chat");
   PR.toggleInspector = function (force) {
@@ -37,10 +39,11 @@
       if (PR.side === "notes") PR.toggleNotesPanel(false);
       else if (PR.side === "chat") PR.toggleChat(false);
       else if (PR.side === "pages") PR.togglePages(false);
+      else if (PR.side === "info") PR.toggleInfo(false);
       return;
     }
-    const k = PR.lastSide === "notes" ? "notes" : PR.lastSide === "pages" && !pdf() ? "pages" : "chat";
-    if (k === "notes") PR.toggleNotesPanel(true); else if (k === "pages") PR.togglePages(true); else PR.toggleChat(true);
+    const k = PR.lastSide === "notes" ? "notes" : PR.lastSide === "info" && PR.toggleInfo ? "info" : PR.lastSide === "pages" && !pdf() ? "pages" : "chat";
+    if (k === "notes") PR.toggleNotesPanel(true); else if (k === "pages") PR.togglePages(true); else if (k === "info") PR.toggleInfo(true); else PR.toggleChat(true);
   };
   /* 「一整欄」模式：視窗夠寬（≥1180）內容本來就會讓位；PDF 優先時 PDF 那一格也會縮（>760 就行）。
      其他情況面板是蓋在內容上的（craft.css 的 body:not(.insp-col)）。 */

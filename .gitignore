@@ -13,6 +13,9 @@ build/
 dist/
 /outputs/
 /prefs.json
+/backdrop.jpg
+/backdrop-s.jpg
+backdrop*.jpg.tmp
 /limits.json
 /update.json
 .limits.json

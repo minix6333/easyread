@@ -141,7 +141,7 @@
     const a = e.target.closest("[data-act]");
     if (!a) return;
     const act = a.dataset.act;
-    if (act === "drawer") PR.toggleDrawer();
+    if (act === "drawer") PR.toggleNav();
     if (act === "pages") PR.togglePages();
     if (act === "layout" && PR.setLayout) PR.setLayout(PR.pdfMain && PR.pdfMain() ? "article" : "pdf");
     if (act === "notes") PR.toggleNotesPanel();
@@ -177,24 +177,125 @@
     el.hidden = !html;
   };
 
-  /* ---------- 抽屉 ---------- */
-  let tab = "toc";
+  /* ---------- 導覽欄（目錄、頁面、術語、最近、說明） ---------- */
+  /* PDF 優先、視窗放得下時是左邊釘著的一欄（body.nav-open，像 Craft 文件左邊那欄：PDF 那一格讓出位置，見 craft.css 的 --nav-now
+     和 pdfmode.js 的 clampW；點目錄不會收）；放不下、或文章優先時是蓋在上面的抽屜（body.drawer-open，點一下目錄就收）。
+     頂欄那顆鈕和 T 鍵：放得下就釘／收那一欄（記得住），放不下就開關抽屜。 */
+  const NAV_W = 248, TABS = ["toc", "pages", "terms", "recent", "about"];
+  let tab = TABS.includes(PR.ls.get("easyread-nav-tab", "toc")) ? PR.ls.get("easyread-nav-tab", "toc") : "toc";
+  let pinned = !!PR.ls.get("easyread-nav", false), over = false;
+  const inspW = () => { const p = PR.$("#notespanel"); return body.classList.contains("side-open") && body.classList.contains("insp-col") && p ? p.offsetWidth : 0; };
+  // 釘成一欄之後，文件那一格至少還要有 640（開著譯文時 PDF＋譯文要 800）
+  const navCol = () => !!(PR.pdfMain && PR.pdfMain()) && !PR.chatOnly && !PR.notesOnly && innerWidth - inspW() - NAV_W >= (body.classList.contains("art-open") ? 800 : 640);
+  const navShown = () => body.classList.contains("nav-open") || body.classList.contains("drawer-open");
+  PR.navWidth = () => (body.classList.contains("nav-open") ? NAV_W : 0);
+  let navT = 0;
+  function syncNav() {
+    const col = navCol(), was = body.classList.contains("nav-open"), now = col && pinned;
+    body.classList.toggle("nav-col", col);
+    body.classList.toggle("nav-open", now);
+    body.classList.toggle("drawer-open", !col && over);
+    const b = PR.$('[data-act="drawer"]');
+    if (b) b.classList.toggle("on", now);
+    if (was !== now && PR.applyLayout) {  // PDF 那一格變寬變窄：重新分配寬度、停在原來看的地方；頁面的圖等滑完再照新寬度換
+      PR.applyLayout();
+      clearTimeout(navT);
+      navT = setTimeout(() => { PR.reloadPages && PR.reloadPages(); PR.renderPvMargin && PR.renderPvMargin(); }, 280);
+    }
+    if (navShown()) PR.renderDrawer();
+  }
+  PR.toggleNav = function () {
+    if (navCol()) { pinned = !pinned; PR.ls.set("easyread-nav", pinned); over = false; } else over = !over;
+    syncNav();
+  };
+  /* 舊的入口：打開某一頁（說明…）、Esc 或跳走之後收起來。釘著的那一欄不會被 force=false 收掉 */
   PR.toggleDrawer = function (force, which) {
-    if (which) tab = which;
-    const open = force != null ? force : !body.classList.contains("drawer-open");
-    body.classList.toggle("drawer-open", open);
-    if (open) PR.renderDrawer();
+    if (which && TABS.includes(which)) tab = which;
+    if (navCol()) {
+      if (force === true && !pinned) { pinned = true; PR.ls.set("easyread-nav", true); }
+      else if (force == null) { pinned = !pinned; PR.ls.set("easyread-nav", pinned); }
+    } else over = force != null ? !!force : !over;
+    syncNav();
   };
   PR.$("#scrim").onclick = () => PR.toggleDrawer(false);
+  const TAB_ICON = { toc: "list", pages: "grid", terms: "type", recent: "clock", about: "info" };
+  PR.$$(".drawer-tabs [data-tab]").forEach((b) => { b.innerHTML = PR.icon(TAB_ICON[b.dataset.tab], "sm"); });
   if (PR.store.mode !== "server") PR.$('[data-tab="recent"]').hidden = true;  // 离线单文件版没有文献库
-  PR.$(".drawer-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; PR.renderDrawer(); } });
+  PR.$(".drawer-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; PR.ls.set("easyread-nav-tab", tab); PR.renderDrawer(); } });
+  // 版面變了（開關右側面板、譯文、換版面）、視窗大小變了：放不放得下重新算
+  new MutationObserver(() => syncNav()).observe(body, { attributes: true, attributeFilter: ["class"] });
+  addEventListener("resize", PR.debounce(syncNav, 120));
+  PR.on("pages-built", () => setTimeout(syncNav, 0));  // PDF 那一格準備好了：上次釘著的欄這時候才出來
 
   PR.renderDrawer = function () {
-    PR.$$(".drawer-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-    const box = PR.$(".drawer-body");
-    box.innerHTML = ({ toc: tocHtml, terms: termsHtml, about: aboutHtml, recent: recentHtml })[tab]();
+    PR.$$(".drawer-tabs button").forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+    if (!PR.pdfMain || !PR.pdfMain()) { const pg = PR.$('.drawer-tabs [data-tab="pages"]'); if (pg) pg.hidden = PR.store.mode === "static"; }
+    const m = S.paper.meta || {}, n = (m.pages || []).length, first = (m.pages || [])[0];
+    const doc = PR.$(".nav-doc");
+    const head = (first ? '<i class="nd-thumb" style="background-image:url(' + thumbUrl(first) + ')"></i>' : "") + "<span><b>" + PR.esc(m.short_zh || m.title_zh || m.title_en || "") + "</b>" +
+      (n ? "<small>" + PR.t("{n} 页", { n }) + "</small>" : "") + "</span>";
+    if (doc && doc._html !== head) { doc._html = head; doc.innerHTML = head; }
+    const box = PR.$(".drawer-body"), keep = box.className === "drawer-body " + tab ? box.scrollTop : 0;
+    box.innerHTML = ({ toc: tocHtml, pages: pagesHtml, terms: termsHtml, about: aboutHtml, recent: recentHtml })[tab]();
     box.className = "drawer-body " + tab;
+    box.scrollTop = keep;
+    if (tab === "pages" && !keep) { const on = PR.$(".np-thumb.on", box); if (on) on.scrollIntoView({ block: "center" }); }
   };
+  /* PDF 優先時「現在在哪一節」：照 PDF 捲到的位置算（畫面四成高的地方在第幾頁的幾分之幾），往回找最近的標題。
+     不靠「正在讀哪一段」——那要捲動時跟隨開著才會更新，剛開啟、或關了跟隨就不準 */
+  function pdfHeading() {
+    const sc = PR.$(".pv-scroll"), nodes = PR.pageNodes ? PR.pageNodes() : [];
+    const page = PR.pdfPage ? PR.pdfPage() : 1, e = nodes[page - 1];
+    let frac = 0.5;
+    if (sc && e) { const r = e.node.getBoundingClientRect(), box = sc.getBoundingClientRect(); frac = (box.top + sc.clientHeight * 0.4 - r.top) / Math.max(1, r.height); }
+    let cur = null;
+    for (const h of PR.headings || []) {
+      const loc = S.layout[h.id] || {}, pg = loc.page || (PR.blockById[h.id] || {}).page;
+      if (!pg) continue;
+      const y = loc.box ? loc.box[1] : loc.boxes && loc.boxes[0] ? loc.boxes[0][1] : 0;
+      if (pg < page || (pg === page && y <= frac)) cur = h.id; else break;
+    }
+    return cur;
+  }
+  const headingNow = () => (PR.pdfMain && PR.pdfMain() ? pdfHeading() : PR.currentHeading && PR.currentHeading());
+  /* 捲動時只換「現在在哪」的記號（不整個重畫）：目錄是目前這一節，頁面是目前這一頁 */
+  PR.navMark = function () {
+    if (!navShown()) return;
+    const box = PR.$(".drawer-body");
+    if (tab === "toc") {
+      const cur = headingNow();
+      PR.$$("a[data-go]", box).forEach((a) => {
+        const on = a.dataset.go === cur;
+        if (on && !a.classList.contains("on") && !box.matches(":hover")) a.scrollIntoView({ block: "nearest" });
+        a.classList.toggle("on", on);
+      });
+    } else if (tab === "pages") {
+      const n = String(PR.pdfPage ? PR.pdfPage() : 1);
+      PR.$$("[data-go-page]", box).forEach((b) => {
+        const on = b.dataset.goPage === n;
+        if (on && !b.classList.contains("on") && !box.matches(":hover")) b.scrollIntoView({ block: "nearest" });  // 滑鼠在欄裡時不要自己捲走
+        b.classList.toggle("on", on);
+      });
+    }
+  };
+  const pvsc = PR.$(".pv-scroll");
+  if (pvsc) pvsc.addEventListener("scroll", PR.throttle(() => PR.navMark(), 160), { passive: true });
+  const thumbUrl = (p) => PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=400" : "");
+  /* 頁面：兩欄縮圖（要用到才載入）；有筆記、畫線的頁右下角有它們的顏色 */
+  function pagesHtml() {
+    const pages = (S.paper.meta || {}).pages || [], cur = PR.pdfPage ? PR.pdfPage() : 1, marks = {};
+    for (const nt of Object.values(S.reader.notes || {})) {
+      if (!nt || nt.deleted) continue;
+      const pg = (nt.side === "pdf" && nt.page) || ((S.layout[nt.anchor] || {}).page) || ((PR.blockById[nt.anchor] || {}).page);
+      if (pg) (marks[pg] = marks[pg] || []).push(nt.color || "yellow");
+    }
+    if (!pages.length) return '<p class="hint">' + PR.t("正在渲染原页、抽取文字…") + "</p>";
+    return '<div class="nav-pages">' + pages.map((p, i) => {
+      const n = i + 1, cs = Array.from(new Set(marks[n] || [])).slice(0, 4);
+      return '<button class="np-thumb' + (n === cur ? " on" : "") + '" data-go-page="' + n + '" title="' + PR.t("第 {page} 页", { page: n }) + '"><span class="pg" style="aspect-ratio:' + (p.w || 612) + "/" + (p.h || 792) + '"><img loading="lazy" decoding="async" alt="" src="' + thumbUrl(p) + '"></span>' +
+        "<small>" + n + (cs.length ? '<i class="dots">' + cs.map((c) => '<i class="dot-' + PR.esc(c) + '"></i>').join("") + "</i>" : "") + "</small></button>";
+    }).join("") + "</div>";
+  }
   /* 最近读过的论文：不用回文献库就能换一篇 */
   let recent = null;
   function recentHtml() {
@@ -203,8 +304,8 @@
         .catch(() => { recent = []; });
       return '<p class="hint">' + PR.t("加载中…") + "</p>";
     }
-    return '<nav class="toc recent-list">' + recent.map((i) => '<a href="/read/' + i.id + '" class="l1' + (i.id === PR.pid ? " on" : "") + '"><span class="cnt">' + (i.progress > 0.02 ? Math.round(i.progress * 100) + "%" : "") + "</span>" +
-      PR.esc(i.title_zh || i.title_en || PR.t("（未命名）")) + "</a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">' + PR.t("打开文献库") + "</a>";
+    return '<nav class="toc recent-list">' + recent.map((i) => '<a href="/read/' + i.id + '" class="l1' + (i.id === PR.pid ? " on" : "") + '"><span class="t">' +
+      PR.esc(i.short_zh || i.title_zh || i.title_en || PR.t("（未命名）")) + '</span><span class="cnt">' + (i.progress > 0.02 ? Math.round(i.progress * 100) + "%" : "") + "</span></a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">' + PR.t("打开文献库") + "</a>";
   }
   function countByHeading() {
     const counts = {};
@@ -218,16 +319,16 @@
   }
   function tocHtml() {
     const counts = countByHeading();
-    const cur = PR.currentHeading && PR.currentHeading();
+    const cur = headingNow();
     let html = '<nav class="toc">', app = false;
     for (const h of PR.headings) {
       if (h.appendix && !app) { html += '<div class="group">' + PR.t("附录") + "</div>"; app = true; }
       html += '<a href="#b-' + h.id + '" data-go="' + h.id + '" class="' + (h.level === 2 ? "l2" : "l1") + (cur === h.id ? " on" : "") + '">' +
-        (counts[h.id] ? '<span class="cnt">' + counts[h.id] + "</span>" : "") + '<span class="n">' + PR.esc(h.num || "") + "</span>" + PR.esc(PR.plain(PR.textFor(h.id) || h.zh)) + "</a>";
+        '<span class="n">' + PR.esc(h.num || "") + '</span><span class="t">' + PR.esc(PR.plain(PR.textFor(h.id) || h.zh)) + "</span>" + (counts[h.id] ? '<span class="cnt">' + counts[h.id] + "</span>" : "") + "</a>";
     }
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = ((S.paper.meta || {}).pages || []).filter((p) => !done.has(p.n));
-    if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? PR.t("还没整理的页") : PR.t("未译的页")) + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>' + PR.t("原文第 {n} 页", { n: p.n }) + "</a>").join("");
+    if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? PR.t("还没整理的页") : PR.t("未译的页")) + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span><span class="t">' + PR.t("原文第 {n} 页", { n: p.n }) + "</span></a>").join("");
     return html + "</nav>";
   }
   function termsHtml() {
@@ -258,9 +359,25 @@
   }
   PR.$("#drawer").addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]");
-    if (go) { e.preventDefault(); PR.toggleDrawer(false); PR.jumpTo("b-" + go.dataset.go); return; }
+    if (go) {
+      e.preventDefault(); PR.toggleDrawer(false);
+      const id = go.dataset.go;
+      if (PR.pdfMain && PR.pdfMain()) {  // PDF 優先：翻到那一節所在的頁、框出那一段（以前只捲譯文，譯文收著時點了沒反應）
+        const pg = (S.layout[id] || {}).page || (PR.blockById[id] || {}).page;
+        if (pg) PR.openPage(pg, id);
+        if (PR.articleOpen()) PR.jumpTo("b-" + id);
+      } else PR.jumpTo("b-" + id);
+      setTimeout(() => PR.navMark(), 60);
+      return;
+    }
     const og = e.target.closest("[data-go-orig]");
-    if (og) { e.preventDefault(); PR.toggleDrawer(false); PR.jumpTo("orig-" + og.dataset.goOrig); return; }
+    if (og) {
+      e.preventDefault(); PR.toggleDrawer(false);
+      if (PR.pdfMain && PR.pdfMain()) PR.openPage(+og.dataset.goOrig); else PR.jumpTo("orig-" + og.dataset.goOrig);
+      return;
+    }
+    const gp = e.target.closest("[data-go-page]");
+    if (gp) { PR.toggleDrawer(false); PR.openPage(+gp.dataset.goPage, null, { instant: Math.abs(+gp.dataset.goPage - (PR.pdfPage ? PR.pdfPage() : 1)) > 3 }); setTimeout(() => PR.navMark(), 60); return; }
     const t = e.target.closest("[data-term]");
     if (t) {
       let from, to;

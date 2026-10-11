@@ -42,7 +42,11 @@ app.whenReady().then(async () => {
       await win.loadURL(base + s.url).catch(() => {});
       await new Promise((r) => setTimeout(r, wait));
       // 伺服器存的偏好會蓋掉 localStorage 的主題：載完再直接把主題掛到 <html> 上
-      if (js) { await win.webContents.executeJavaScript(js).catch((e) => console.log("js fail", s.name, String(e))); await new Promise((r) => setTimeout(r, 900)); }  // --js：載完要跑的（開面板之類）
+      if (js) {  // --js：載完要跑的（開面板之類）；有回傳值就印出來（量位置、看狀態用，可以回傳 Promise）
+        const r = await win.webContents.executeJavaScript(js).catch((e) => console.log("js fail", s.name, String(e)));
+        if (r !== undefined && r !== null) console.log("js", s.name, JSON.stringify(r));
+        await new Promise((r2) => setTimeout(r2, 900));
+      }
       // 放在 --js 後面：改偏好會把主題套回去。外殼裡每一格都是自己的文件，要一格一格改；localStorage 也寫，免得哪一格存偏好時又被套回去
       const force = '(function(t){try{var p=JSON.parse(localStorage.getItem("easyread-prefs")||"{}");p.theme=t;localStorage.setItem("easyread-prefs",JSON.stringify(p))}catch(e){}' +
         'try{if(window.PR&&PR.prefs)PR.prefs.theme=t}catch(e){}document.documentElement.dataset.theme=t})(' + JSON.stringify(s.theme) + ')';

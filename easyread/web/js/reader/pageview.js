@@ -18,6 +18,7 @@
     body.classList.toggle("pv-open", name === "pages");
     body.classList.toggle("np-open", name === "notes");
     body.classList.toggle("ch-open", name === "chat");
+    body.classList.toggle("in-open", name === "info");  // 資訊（info.js）
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");

@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -343,6 +343,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"found": found, "ready": detect.ready(cfg, found), "engine": cfg.get("engine"), "models": cli_models.listing()})
         if path == "/api/prefs":
             return self._json(200, prefs.load())
+        if path in ("/backdrop.jpg", "/backdrop-s.jpg"):  # 自選的背景圖（設定 → 外觀）；網址帶 ?v=，換了圖瀏覽器才會重抓
+            return self._file(backdrop.path("small" if path.endswith("-s.jpg") else "full"), cache=True)
         if path == "/api/chat/models":
             return self._json(200, chat_models.listing(config.load()))
         if path == "/api/log":
@@ -512,6 +514,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":
             return self._json(200, prefs.save(json.loads(self._body() or b"{}")))
+        if path == "/api/backdrop":
+            return self._json(200, backdrop.save(json.loads(self._body() or b"{}")))
         if path == "/api/trash":  # 回收站：restore 恢复一篇 / purge 彻底删一篇 / empty 清空
             body = json.loads(self._body() or b"{}")
             act, name = body.get("action"), body.get("name", "")

@@ -46,7 +46,7 @@
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
       '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span>' +  // i18n-ok 寫的是要切換到的語言
       // 模型那一頁自己會存、外觀那一頁點了就生效：前者只有「關閉」，後者只有「完成」（順便把別頁還沒存的一起存了）；其他頁是取消／儲存
-      (st.tab === "look" ? "" : '<button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + "</button>") +
+      (st.tab === "look" ? '<button class="btn" data-look-reset>' + PR.t("恢復預設外觀") + "</button>" : '<button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + "</button>") +
       (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + (st.tab === "look" ? PR.t("完成") : PR.t("保存")) + "</button>") + "</div>";
   }
 
@@ -127,9 +127,11 @@
     const pick = (attr, apply) => { const b = e.target.closest("[" + attr + "]"); if (!b) return false; apply(b.getAttribute(attr)); PR.$$("[" + attr + "]", dlg()).forEach((x) => x.classList.toggle("on", x === b)); return true; };
     if (pick("data-accent-pick", (v) => PR.setLook("accent", v))) return;
     if (pick("data-paper-pick", (v) => PR.setLook("paper", v))) return;
+    if (pick("data-backdrop-pick", (v) => PR.setLook("backdrop", v))) return;
+    if (e.target.closest("[data-backdrop-add]")) { PR.$("[data-backdrop-file]", dlg()).click(); return; }
     if (pick("data-look-theme", (v) => { st.theme = v; PR.setTheme(v); })) return;
     if (e.target.closest("[data-look-reset]")) {
-      for (const [key, v] of [["accent", "violet"], ["paper", "white"], ["tint", 0], ["hl", 100]]) PR.setLook(key, v);
+      for (const [key, v] of [["accent", "violet"], ["paper", "white"], ["backdrop", "mist"], ["tint", 0], ["hl", 100]]) PR.setLook(key, v);
       if (PR.setGlass) { PR.setGlass(60); PR.setClear(75); }
       return render();
     }
@@ -147,7 +149,16 @@
     else if (r.hasAttribute("data-glass-level") && PR.setGlass) PR.setGlass(+r.value);  // 不能用 data-glass：那是玻璃元素自己的記號
     else if (r.hasAttribute("data-clear-level") && PR.setClear) PR.setClear(+r.value);
   });
-  dlg().addEventListener("change", (e) => {
+  dlg().addEventListener("change", async (e) => {
+    if (e.target.matches && e.target.matches("[data-backdrop-file]")) {  // 外觀 → 背景 → 挑一張圖片：縮好、存起來、馬上換上
+      const f = e.target.files && e.target.files[0], add = PR.$("[data-backdrop-add]", dlg());
+      e.target.value = "";
+      if (!f) return;
+      if (add) add.classList.add("busy");
+      try { await PR.uploadBackdrop(f); } catch (err) { PR.toast(PR.t("這張圖用不了：{msg}", { msg: PR.esc(err.message) })); }
+      if (st.tab === "look" && dlg().classList.contains("open")) render();
+      return;
+    }
     const t = PR.settingsTabs[st.tab];
     if (t && t.change && t.change(e, st, dlg())) render();
   });

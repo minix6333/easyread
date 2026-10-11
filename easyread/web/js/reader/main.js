@@ -46,6 +46,7 @@
       const h = PR.blockById[PR.currentHeading()];
       PR.$(".bar-section").textContent = h ? (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id) || h.zh) : "";
       PR.syncPage(false);
+      PR.navMark && PR.navMark();
     }
     saveProgress();
   }, 120);
@@ -88,7 +89,7 @@
     if (busy()) return refreshNotes();
     PR.applyMarks(); PR.renderMargin();
     if (PR.notesPanelOpen()) PR.renderNotesPanel();
-    if (body.classList.contains("drawer-open")) PR.renderDrawer();
+    if (body.classList.contains("drawer-open") || body.classList.contains("nav-open")) PR.renderDrawer();
   }, 80);
   PR.on("reader", (op) => { if (op && op.op === "progress") return; if (!busy()) refreshNotes(); });
 
@@ -106,7 +107,7 @@
       }
       PR.applyMarks(); PR.renderMargin();
       if (PR.notesPanelOpen()) PR.renderNotesPanel();
-      if (body.classList.contains("drawer-open")) PR.renderDrawer();
+      if (body.classList.contains("drawer-open") || body.classList.contains("nav-open")) PR.renderDrawer();
       if (changed.includes("discussion")) announceNew();
     };
     if (busy()) { const t = setInterval(() => { if (!busy()) { clearInterval(t); after(); } }, 800); } else after();

@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="/web/css/usage.css">
 <link rel="stylesheet" href="/web/css/apple.css">
 <link rel="stylesheet" href="/web/css/craft.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear);if(p.paper&&p.paper!=="white")document.documentElement.dataset.paper=p.paper;if(p.tint)document.documentElement.style.setProperty("--tint",p.tint);if(p.hl)document.documentElement.style.setProperty("--hl-k",p.hl/100)}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){};if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only");if(/[?&]notes=1(&|$)/.test(location.search))document.documentElement.classList.add("notes-only")</script>
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";if(p.accent&&p.accent!=="violet")document.documentElement.dataset.accent=p.accent;if(p.clear!=null)document.documentElement.style.setProperty("--clear",p.clear);if(p.paper&&p.paper!=="white")document.documentElement.dataset.paper=p.paper;if(p.tint)document.documentElement.style.setProperty("--tint",p.tint);if(p.hl)document.documentElement.style.setProperty("--hl-k",p.hl/100);var b=p.backdrop||"mist";if(b==="image"&&location.protocol==="file:")b="mist";if(b!=="none"){document.documentElement.dataset.backdrop=b;if(b==="image"){var u="?v="+(p.backdropV||0);document.documentElement.style.setProperty("--bd",'url("/backdrop.jpg'+u+'") center / cover no-repeat');document.documentElement.style.setProperty("--bd-s",'url("/backdrop-s.jpg'+u+'") center / cover no-repeat')}}}catch(e){}if(/Electron/i.test(navigator.userAgent)&&/Mac/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");try{if(window.parent!==window)document.documentElement.classList.add("framed")}catch(e){};if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only");if(/[?&]notes=1(&|$)/.test(location.search))document.documentElement.classList.add("notes-only")</script>
 </head>
 <body>
 <div id="canvas" aria-hidden="true"></div>
@@ -55,11 +55,13 @@
 </header>
 
 <aside id="drawer" aria-label="目录">
-  <div class="drawer-tabs" role="tablist">
-    <button data-tab="toc" class="on">目录</button>
-    <button data-tab="terms">术语</button>
-    <button data-tab="about">说明</button>
-    <button data-tab="recent" class="server-only">最近</button>
+  <div class="nav-doc"></div>
+  <div class="drawer-tabs seg" role="tablist">
+    <button data-tab="toc" class="on" role="tab" title="目录"></button>
+    <button data-tab="pages" role="tab" title="頁面"></button>
+    <button data-tab="terms" role="tab" title="术语"></button>
+    <button data-tab="recent" role="tab" class="server-only" title="最近"></button>
+    <button data-tab="about" role="tab" title="说明"></button>
   </div>
   <div class="drawer-body"></div>
 </aside>
@@ -95,6 +97,7 @@
 
 <section id="notespanel" class="side-panel" aria-label="笔记"></section>
 <section id="chatpanel" class="side-panel" aria-label="问 AI"></section>
+<section id="infopanel" class="side-panel" aria-label="資訊"></section>
 <div class="dialog-backdrop" id="readerDlg"><div class="dialog" role="dialog"></div></div>
 <div class="dialog-backdrop" id="settingsDlg"><div class="dialog" role="dialog" aria-label="设置"></div></div>
 <div class="dialog-backdrop" id="textDlg"><div class="dialog wide" role="dialog"></div></div>
@@ -136,6 +139,8 @@
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
+<script src="/web/js/common/cite.js"></script>
+<script src="/web/js/reader/info.js"></script>
 <script src="/web/js/reader/inspector.js"></script>
 <script src="/web/js/reader/pdftext.js"></script>
 <script src="/web/js/reader/pdfmode.js"></script>
