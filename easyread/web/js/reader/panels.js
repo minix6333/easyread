@@ -106,7 +106,7 @@
   PR.resetType = () => { ["fs", "measure", "lh"].forEach((k) => (PR.prefs[k] = DEF[k])); PR.setPref("fs", DEF.fs, true); PR.toast(PR.t("已恢复默认字号和版心"), null, 1200); };
 
   /* ---------- 顶栏 ---------- */
-  PR.$("#backBtn").innerHTML = PR.icon("back", "sm") + PR.logo();
+  PR.$("#backBtn").innerHTML = PR.icon("back");
   /* 在线演示：左上角回演示主页，顶栏多一个“在线演示”标记 */
   PR.setupDemo = function () {
     if (!S.demo) return;

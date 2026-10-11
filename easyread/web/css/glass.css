@@ -1,0 +1,47 @@
+/* FOLI · 液態玻璃的材質（光學在 js/common/glass.js）。
+   一塊玻璃 = 很淡的色（讓字有對比）＋上緣一道亮邊（光打在玻璃上）＋下緣一點內光＋一圈很細的內框＋外面一圈髮線（白底上才看得出邊）＋影。
+   淺色是乳白的玻璃，深色是煙灰的玻璃；都半透明，底下的內容捲過去會隱約看見、邊緣會折射。 */
+:root {
+  --lg-tint: linear-gradient(180deg, rgba(255, 255, 255, .64), rgba(255, 255, 255, .46));
+  --lg-tint-2: linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .64));   /* 大浮層（選單、提示）：厚一點，字要讀得清 */
+  --lg-spec: rgba(255, 255, 255, .95);     /* 上緣亮邊 */
+  --lg-glow: rgba(255, 255, 255, .32);     /* 下緣內光 */
+  --lg-line: rgba(255, 255, 255, .75);     /* 內框 */
+  --lg-edge: rgba(0, 0, 0, .1);            /* 外框髮線 */
+  --lg-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px -6px rgba(0, 0, 0, .14);
+  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .05), 0 24px 56px -16px rgba(0, 0, 0, .28);
+  --lg-hover: rgba(255, 255, 255, .5);     /* 滑過去：玻璃再亮一階 */
+  --lg-press: rgba(0, 0, 0, .05);
+}
+:root[data-theme="dark"] {
+  --lg-tint: linear-gradient(180deg, rgba(64, 64, 72, .5), rgba(34, 34, 40, .56));
+  --lg-tint-2: linear-gradient(180deg, rgba(50, 50, 57, .78), rgba(30, 30, 35, .84));
+  --lg-spec: rgba(255, 255, 255, .22);
+  --lg-glow: rgba(255, 255, 255, .04);
+  --lg-line: rgba(255, 255, 255, .12);
+  --lg-edge: rgba(0, 0, 0, .55);
+  --lg-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px -6px rgba(0, 0, 0, .6);
+  --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .5), 0 24px 56px -16px rgba(0, 0, 0, .8);
+  --lg-hover: rgba(255, 255, 255, .08);
+  --lg-press: rgba(0, 0, 0, .25);
+}
+/* 通用的一塊玻璃；各元件在 apple.css 裡再決定圓角和大小 */
+.lg {
+  background: var(--lg-tint);
+  box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -6px 16px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow);
+}
+.lg[data-glass="strong"] { background: var(--lg-tint-2); box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -10px 24px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow-lg); }
+/* 退回毛玻璃（Safari）或實色（減少透明度）：少了折射也要像一塊材質 */
+.lg.lg-frost { background: var(--lg-tint-2); }
+.lg.lg-flat { background: var(--surface) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
+@media (prefers-reduced-transparency: reduce) { .lg { background: var(--surface) !important; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); } }
+
+/* 捲動邊緣：透明的頂欄底下、內容捲上來的地方，一段越往下越淡的模糊（Apple 的 scroll edge effect），不畫硬線 */
+.scroll-edge { position: relative; }
+.scroll-edge::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 28px); z-index: -1; pointer-events: none;
+  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
+  -webkit-mask-image: linear-gradient(#000 48%, transparent); mask-image: linear-gradient(#000 48%, transparent);
+  background: linear-gradient(var(--bg) 20%, color-mix(in srgb, var(--bg) 55%, transparent) 60%, transparent);
+}
+@media (prefers-reduced-transparency: reduce) { .scroll-edge::before { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg); mask-image: none; -webkit-mask-image: none; height: 100%; } }

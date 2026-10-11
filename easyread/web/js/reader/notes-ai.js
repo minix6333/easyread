@@ -17,7 +17,7 @@
       if (!on()) return "";
       const busy = !!st.streaming;
       return '<div class="nai" data-nai-key="' + key + '"><div class="nai-quick">' + QUICK().map(([l, q], i) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.esc(l) + "</button>").join("") + "</div>" +
-        '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("要 AI 怎麼改？選幾塊就改那幾塊，沒選就寫在最後…") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
+        '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
         '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
         (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
     },

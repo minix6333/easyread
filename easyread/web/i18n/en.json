@@ -1531,5 +1531,10 @@
  "潤飾": "Polish",
  "複製成 Markdown": "Copy as Markdown",
  "讀不到這份筆記：{msg}": "Could not load this note: {msg}",
- "（這條只有畫線，沒有寫字）": "(Only a highlight, nothing written)"
+ "（這條只有畫線，沒有寫字）": "(Only a highlight, nothing written)",
+ "側欄": "Sidebar",
+ "想怎麼改？": "What should change?",
+ "搜尋": "Search",
+ "自動：橫向頁或字很少的當投影片": "Auto: landscape or sparse pages count as slides",
+ "選取文字就能畫線、寫筆記、問 AI": "Select text to highlight, write a note or ask AI"
 }

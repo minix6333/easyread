@@ -38,9 +38,8 @@
         '<select class="input imp-target" id="impTarget" title="' + PR.t("译成哪种语言") + '"' + (after === "translate" ? "" : " hidden") + ">" + PR.opt(PR.TARGETS, PR.target) + "</select></div>" +
       '<p class="hint" id="originalModelHint"' + (after === "read" ? "" : " hidden") + '>' + PR.t("读英文原文仍需可用模型整理段落、公式和表格，会消耗模型额度；只看 PDF 可选“先不处理”。") + "</p>" +
       '<div class="imp-opts" id="kindRow"><span class="imp-lbl">' + PR.t("類型") + '</span><div class="seg" id="kindSeg">' + KINDS.map(([k, l]) => '<button data-kind="' + k + '" class="' + ((p.kind || "auto") === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
-      '<span class="hint">' + PR.t("投影片一頁一張、講義按章節整理；自動判斷時橫向頁或每頁字很少會當成投影片") + "</span></div>" +
-      '<div class="imp-opts" id="catRow"><span class="imp-lbl">' + PR.t("分類") + '</span><select class="input imp-cat" id="impCat" title="' + PR.t("匯入後直接放進哪個分類") + '">' + catOptions(p.cat) + "</select>" +
-      '<span class="hint">' + PR.t("正在看某個分類時預設放進那裡；把 PDF 拖進視窗也一樣") + "</span></div>" +
+      '<span class="hint">' + PR.t("自動：橫向頁或字很少的當投影片") + "</span></div>" +
+      '<div class="imp-opts" id="catRow"><span class="imp-lbl">' + PR.t("分類") + '</span><select class="input imp-cat" id="impCat" title="' + PR.t("匯入後直接放進哪個分類") + '">' + catOptions(p.cat) + "</select></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">' + PR.t("模型") + '</span><select class="input" id="impModel">' +

@@ -44,7 +44,7 @@
       v.tone = "warn";
       v.action = { kind: "join", label: PR.t("改用它"),
         text: (a.split ? PR.t("這台和另一台用的不是同一個資料夾。") : "") +
-          (who ? PR.t("{label} 裡已經有文獻庫（{n} 篇，{who} 在用）。", { label: a.label, n: a.count, who }) : PR.t("{label} 裡已經有文獻庫（{n} 篇）。", { label: a.label, n: a.count })) +
+          PR.t("{label} 裡已經有文獻庫（{n} 篇）。", { label: a.label, n: a.count }) +
           (a.mine ? PR.t("這台的 {n} 篇會一起併過去。", { n: a.mine }) : "") };
     } else if (a && a.kind === "absorb") {
       v.tone = "warn";

@@ -115,7 +115,7 @@
       if (pnPages.includes(p)) h += '<div class="card pnote" data-pnote="' + p + '"><div class="hd"><span class="ic">' + PR.icon("notebook", "sm") + '</span><span class="lbl">' + PR.t("本頁筆記") + '</span></div><div class="body">' + PR.mdBlocks(pageNote(p)) + "</div></div>";
       for (const it of list) if (it.page === p) h += PR.cardHtml(it, editing);
     }
-    if (!pages.length) h = '<p class="hint np-empty">' + (filter === "all" && !query && !color ? PR.t("還沒有標記。選字可以畫線、寫筆記、問 AI；選不到字的地方用框選。") : PR.t("这个分类下没有内容。")) + "</p>";
+    if (!pages.length) h = '<p class="hint np-empty">' + (filter === "all" && !query && !color ? PR.t("選取文字就能畫線、寫筆記、問 AI") : PR.t("这个分类下没有内容。")) + "</p>";
     return h;
   }
 
@@ -139,7 +139,7 @@
       (canAsk() ? '<button class="btn sm line" data-np-act="explain">' + PR.icon("help", "sm") + PR.t("解釋這一頁") + "</button>" : "") +
       (pdf() ? '<button class="btn sm line" data-np-act="region">' + PR.icon("region", "sm") + PR.t("框選") + "</button>" : "") + "</div>" +
       '<div class="np-sub">' + PR.t("這一頁的標記") + (items.length ? " · " + items.length : "") + "</div>" +
-      '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選字可以畫線、寫筆記、問 AI；選不到字的地方用框選。") + "</p>") + "</div>" +
+      '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選取文字就能畫線、寫筆記、問 AI") + "</p>") + "</div>" +
       (PR.notesAi ? PR.notesAi.bar("page") : "") + "</div>";
   }
 

@@ -196,7 +196,7 @@
         PR.ls.set("easyread-hint-seen", true);
         const touch = matchMedia("(pointer: coarse)").matches;  // 手机上没有右键和键盘
         const tip = S.demo ? PR.t("在线演示：点段落、选中文字试试划线和笔记；顶栏“问 AI”里有一段真实的 AI 对话。")
-          : pdfFirst ? PR.t("選字可以畫線、寫筆記、翻譯、問 AI；選不到字的地方按右下角的框選。")
+          : pdfFirst ? PR.t("選取文字就能畫線、寫筆記、問 AI")
           : touch ? PR.t("点一下段落出现操作条；长按选中文字，可以划线、写笔记。")
           : PR.t("点一下段落出现操作条，右键有完整菜单；选中文字可以划线、写笔记。") + (PR.keysOn ? PR.t("<kbd>=</kbd> <kbd>-</kbd> 调字号") : "");
         setTimeout(() => PR.toast(tip, null, 9000), 800);

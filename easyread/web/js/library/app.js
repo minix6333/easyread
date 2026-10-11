@@ -6,7 +6,8 @@
   PR.applyTheme(prefs.theme);
 
 
-  PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>" + PR.t("导入论文") + "</span>";
+  PR.$("#importBtn").innerHTML = PR.icon("plus");
+  PR.$("#importBtn").title = PR.t("导入论文");
   PR.$("#settingsBtn").innerHTML = PR.icon("gear");
   PR.$(".search .si").outerHTML = PR.icon("search", "sm");
   PR.$("#sort").value = L.sort;
@@ -154,6 +155,10 @@
     }
     chip.classList.toggle("bad", L.engineReady === false);
     chip.title = L.engineReady === false ? PR.t("翻译引擎还不能用：{hint}（点这里设置）", { hint: L.engineHint || "" }) : PR.t("翻译引擎（点这里设置）");
+    // 頂欄不放文字狀態：引擎不能用時設定的齒輪上一顆紅點，滑鼠提示說原因
+    const gear = PR.$("#settingsBtn");
+    gear.classList.toggle("bad", L.engineReady === false);
+    gear.title = L.engineReady === false ? chip.title : PR.t("设置");
   }
   PR.$("#engineChip").onclick = () => PR.openSettings();
 

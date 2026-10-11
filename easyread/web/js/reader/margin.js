@@ -111,7 +111,7 @@
         (isQ ? "" : colorDots(d)) + '<span class="grow"></span>' +
         (isQ && canAsk ? '<button class="ask-model" data-a="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
           '<button class="send" data-a="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("arrowUp", "sm") + "</button>"
-          : '<span class="hint">' + PR.t("Esc 收起") + "</span>") + "</div>"
+          : "") + "</div>"
       : (d.body ? '<div class="body">' + PR.mdBlocks(d.body) + "</div>" : "");
     return '<div class="card mine k-' + (d.kind || "note") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       head + quote + body + replies.map(replyHtml).join("") + liveHtml(d.id) + linksHtml + "</div>";

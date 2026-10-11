@@ -119,7 +119,8 @@
   }
 
   PR.renderSide = function () {
-    const box = PR.$("#side");
+    let box = PR.$("#side > .side-in");
+    if (!box) { box = PR.el("div", { class: "side-in" }); PR.$("#side").append(box); }
     if (box.contains(document.activeElement) && document.activeElement.matches(".side-input")) return;  // 正在输入分类名
     const cats = L.cats();
     const pinned = L.side.pinned.map((key) => {
@@ -135,7 +136,7 @@
       AUTO.filter(([k, , , fn]) => count(fn) && !L.side.hidden.includes(k)).map((v) => viewRow(v)).join("") +
       cats.filter((c) => !isPinned("c:" + c) && !L.side.hidden.includes("c:" + c)).map((c) => catRow(c)).join("") +
       (ui.adding ? '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-new placeholder="' + PR.t("分类名，回车") + '" maxlength="30"></div>' : "") +
-      (!ui.adding ? '<button class="srow hint-row" data-add>' + PR.icon("plus", "sm") + '<span class="t">' + (cats.length ? PR.t("新建分类") : PR.t("新建分类，把论文拖进来")) + "</span></button>" : "") + "</div>";
+      (!ui.adding ? '<button class="srow hint-row" data-add>' + PR.icon("plus", "sm") + '<span class="t">' + PR.t("新建分类") + "</span></button>" : "") + "</div>";
     const recent = L.items.filter((i) => i.last_opened && !isPinned("p:" + i.id)).sort((a, b) => String(b.last_opened).localeCompare(String(a.last_opened)));
     if (recent.length) {
       const shown = recent.slice(0, ui.recentOpen ? RECENT_MAX : RECENT_SHORT);
@@ -146,7 +147,7 @@
     h += '<h3>' + PR.t("筆記") + '<button class="h-add" data-newnote title="' + PR.t("新筆記") + '">' + PR.icon("plus", "sm") + '</button></h3><div class="sgroup">' +
       notes.slice(0, ui.notesOpen ? 40 : 6).map((n) => '<a class="srow recent" href="/note/' + PR.esc(n.id) + '" title="' + PR.esc(n.preview || "") + '">' + PR.icon("notebook", "sm") + '<span class="t">' + PR.esc(n.title || PR.t("未命名筆記")) + "</span></a>").join("") +
       (notes.length > 6 ? '<button class="srow toggle-more" data-notes-more>' + (ui.notesOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: notes.length - 6 })) + "</button>" : "") +
-      (!notes.length ? '<button class="srow hint-row" data-newnote>' + PR.icon("plus", "sm") + '<span class="t">' + PR.t("新筆記：不掛在哪一篇底下的") + "</span></button>" : "") + "</div>";
+      (!notes.length ? '<button class="srow hint-row" data-newnote>' + PR.icon("plus", "sm") + '<span class="t">' + PR.t("新筆記") + "</span></button>" : "") + "</div>";
     if (L.trashCount) h += '<div class="sgroup side-trash"><button class="srow" data-trash>' + PR.icon("trash", "sm") + '<span class="t">' + PR.t("回收站") + '</span><span class="n">' + L.trashCount + "</span></button></div>";
     box.innerHTML = h;
     const inp = PR.$(".side-input", box);

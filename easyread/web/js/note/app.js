@@ -10,7 +10,7 @@
   const QUICK = () => [[PR.t("整理成條列"), PR.t("把這段整理成條列，每點一句，保留所有重點。")], [PR.t("補充說明"), PR.t("把這段補充完整：定義、原因、例子。")],
     [PR.t("改短"), PR.t("把這段改短一半，只留關鍵。")], [PR.t("改成表格"), PR.t("把這段的內容整理成一個 Markdown 表格。")], [PR.t("潤飾"), PR.t("把這段的語句理順，意思不變。")]];
 
-  $("#backBtn").innerHTML = PR.icon("back", "sm") + PR.logo();
+  $("#backBtn").innerHTML = PR.icon("back");
   $("#noteMore").innerHTML = PR.icon("more", "sm");
 
   function setState(s, msg) {
@@ -55,7 +55,7 @@
     const ta = $("#noteAi .nai-in");
     if (ta) st.draft = ta.value;
     $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q]) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.esc(l) + "</button>").join("") + "</div>" +
-      '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("要 AI 怎麼改？選幾塊就改那幾塊，沒選就寫在最後…") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
+      '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
       '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc(modelLabel()) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
       (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
   }

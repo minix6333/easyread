@@ -49,7 +49,7 @@ test("這台在本機、雲端已有文獻庫：橘燈，建議改用它", () =>
   assert.equal(v.show, true);
   assert.equal(v.tone, "warn");
   assert.equal(v.action.kind, "join");
-  assert.match(v.action.text, /Google Drive 裡已經有文獻庫（8 篇，Mac 在用）/);
+  assert.match(v.action.text, /Google Drive 裡已經有文獻庫（8 篇）/);
   assert.match(v.action.text, /這台的 2 篇會一起併過去/);
 });
 

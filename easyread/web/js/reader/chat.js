@@ -273,7 +273,7 @@
     if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
     const ICONS = ["bulb", "question", "list", "sparkle", "book"];
     const overview = PR.canChat() ? '<button data-c="overview" class="ov"><span class="ic">' + PR.icon("book", "sm") + '</span><span class="tx">' + PR.esc(PR.t("整份在講什麼？各部分的主題、要懂的觀念、先備知識和數學——上課前先看")) + "</span></button>" : "";
-    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3><p>" + PR.t("AI 讀過整份文件，也知道你正在看哪裡；在文件上選一句，就是在問那一句。可以貼圖片，回答裡選字可以「問這句」。") + "</p>" +
+    return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3>" +
       '<div class="chips">' + overview + sug.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(ICONS[i % ICONS.length], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
   }
   function composerHtml() {

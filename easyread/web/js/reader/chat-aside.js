@@ -103,7 +103,7 @@
     a.box.innerHTML = '<div class="ca-head"><span class="ca-quote" title="' + PR.esc(a.quote) + '"><b>' + PR.t("問這句") + "</b>" + PR.esc(q.length > 60 ? q.slice(0, 60) + "…" : q) + "</span>" +
       '<button class="btn icon" data-ca="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button></div>" +
       '<div class="ca-body">' + (a.msgs.length ? a.msgs.map(msgHtml).join("")
-        : '<p class="hint">' + PR.t("針對這句另外問，原本的對話不會動。") + '</p><div class="qchips">' + CHIPS().map(([l, m]) => '<button data-cq="' + PR.esc(l) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>") + "</div>" +
+        : '<div class="qchips">' + CHIPS().map(([l, m]) => '<button data-cq="' + PR.esc(l) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>") + "</div>" +
       '<div class="ca-compose"><textarea rows="1" placeholder="' + PR.t("想問什麼？") + '">' + PR.esc(a.draft) + "</textarea>" +
       (a.streaming ? '<button class="ch-send stop" data-ca="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-ca="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div>";

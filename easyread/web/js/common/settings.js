@@ -44,7 +44,7 @@
     dlg().querySelector(".dialog").innerHTML =
       '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" + (st.tab === "chat" ? saveStatusHtml() : "") + "</div>" +
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
-      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button><span class="grow"></span><button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";
+      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button>' + (PR.$("#langBtn") && location.protocol !== "file:" ? '<button class="linkish lang-link" id="setLang">' + (PR.lang === "en" ? "中文介面" : "English") + "</button>" : "") + '<span class="grow"></span>  // i18n-ok 寫的是要切換到的語言<button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";
   }
 
   function saveStatusHtml() {
@@ -120,6 +120,7 @@
     if (e.target === dlg() || e.target.closest("#setCancel")) { st.recording = null; return dlg().classList.remove("open"); }
     const tb = e.target.closest("[data-set-tab]");
     if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
+    if (e.target.closest("#setLang")) { PR.$("#langBtn").click(); return; }  // 介面語言：還是頂欄那顆（藏著的）按鈕在做
     if (e.target.closest("#showLog")) { const r = await PR.api("/api/log"); PR.showText(PR.t("运行日志"), r.text + "\n\n" + PR.t("（完整日志：{path}）", { path: r.path })); return; }
     if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(err.message) })); } return; }
     const t = PR.settingsTabs[st.tab];
