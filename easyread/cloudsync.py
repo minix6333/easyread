@@ -423,7 +423,7 @@ def join(current: Path, target: str) -> dict:
         config.save({"library_dir": str(dst)})
         paths.forget()
         return {"ok": True, "path": str(dst), "old_path": str(current), "copied": len(done["copied"]), "merged": len(done["merged"]), "skipped": [],
-                "restart_required": True, "message": tr("文献库位置已更改，需要重启 EasyRead 才能生效")}
+                "restart_required": True, "message": tr("文献库位置已更改，需要重启 FOLI 才能生效")}
     result = cloudlib.move(current, dst, advice["mode"])
     after_move(result, advice["mode"])
     return result

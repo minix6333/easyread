@@ -44,7 +44,7 @@ test("cloud merge requires confirmation and locks further changes until restart"
   assert.equal(move[1].body.path, "D:/sync/EasyRead");
   assert.ok(calls.findIndex(([url]) => url === "confirm") < calls.indexOf(move));
   assert.equal(s.cloud.restart_required, true);
-  assert.match(PR.settingsTabs.cloud.render(s), /Close|请关掉 EasyRead/);
+  assert.match(PR.settingsTabs.cloud.render(s), /Close|请关掉 FOLI/);
   await click("copy");
   assert.equal(calls.filter(([url]) => url.endsWith("/move")).length, 1);
 });

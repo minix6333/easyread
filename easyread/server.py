@@ -29,6 +29,17 @@ mimetypes.add_type("text/javascript", ".js")
 MAX_UPLOAD = 200 * 1024 * 1024
 
 
+def _tags(value) -> list[str]:
+    """匯入時要放進的分類：逗號分隔的字串或陣列；每個最多 30 字、最多 8 個。"""
+    items = value if isinstance(value, list) else str(value or "").split(",")
+    out: list[str] = []
+    for t in items:
+        t = str(t).strip()[:30]
+        if t and t not in out:
+            out.append(t)
+    return out[:8]
+
+
 def _safe(base: Path, rel: str) -> Path | None:
     target = (base / rel).resolve()
     return target if target.is_relative_to(base.resolve()) and target.is_file() else None
@@ -242,9 +253,12 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError(tr("文件太大"))
         return self.rfile.read(n) if n else b""
 
-    def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target="", kind=""):
+    def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target="", kind="", tags=None):
         # A failed first preparation still leaves a library entry. Re-importing
         # that PDF must retry preparation instead of silently skipping it.
+        if tags:  # 匯入框裡選的分類（或正在看的那個分類）：直接放進去；已經在庫裡的也加上
+            have = list((ws.load("item") or {}).get("tags") or [])
+            ws.patch_item({"tags": have + [t for t in tags if t not in have]})
         paper = ws.load("paper") or {}
         active = (ws.load("job") or {}).get("state") in ("queued", "running")
         queued = fresh or (not paper.get("meta", {}).get("pages") and not active)
@@ -452,13 +466,13 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
             return self._import_result(ws, fresh, q.get("translate", "1") == "1", q.get("scope"),
-                                       read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""), kind=q.get("kind", ""))
+                                       read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""), kind=q.get("kind", ""), tags=_tags(q.get("tags", "")))
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400
             ws, fresh = lib.create_from_pdf(data, name, meta)
             return self._import_result(ws, fresh, bool(body.get("translate", True)), body.get("scope"),
-                                       read=bool(body.get("read")), model=str(body.get("model") or ""), target=str(body.get("target") or ""), kind=str(body.get("kind") or ""))
+                                       read=bool(body.get("read")), model=str(body.get("model") or ""), target=str(body.get("target") or ""), kind=str(body.get("kind") or ""), tags=_tags(body.get("tags")))
         if path in settings_api.POST:  # 设置页：保存配置、模型名单、试一下、取模型列表
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":

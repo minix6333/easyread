@@ -151,7 +151,7 @@
       '<span class="grow"></span>' + (st.panes.length > 1 ? '<button class="btn icon" data-act="closepane" title="' + PR.t("收起這一格") + '">' + PR.icon("x", "sm") + "</button>" : "") +
       '<button class="btn icon" data-act="split" title="' + PR.t("分割視窗：並排再開一格（⌘\\）") + '"' + (st.panes.length >= 3 ? " disabled" : "") + ">" + PR.icon("panel", "sm") + "</button>" +
       (PR.dock ? PR.dock.button() : "");
-    document.title = (cur === LIB ? "" : tabTitle(st.tabs.find((t) => t.id === cur) || {}) + " · ") + "EasyRead";
+    document.title = (cur === LIB ? "" : tabTitle(st.tabs.find((t) => t.id === cur) || {}) + " · ") + "FOLI";
   }
   function renderPanes() {
     document.body.classList.toggle("split", st.panes.length > 1);
@@ -215,7 +215,7 @@
     const from = tabOfSource(e.source), d = e.data;
     if (d.type === "open") openUrl(String(d.url || ""));
     else if (d.type === "home") goHome(String(d.url || ""));
-    else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*EasyRead$/, ""); renderTabs(); save(); }
+    else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*FOLI$/, ""); renderTabs(); save(); }
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
     else if (d.type === "key") key(String(d.key), !!d.shift);
     else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方

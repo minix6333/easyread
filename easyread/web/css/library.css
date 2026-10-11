@@ -1,10 +1,10 @@
 /* 文献库页 */
 .topbar .search {
   display: flex; align-items: center; gap: 8px; width: min(520px, 46vw); height: 34px; margin-left: 28px;
-  padding: 0 10px; border-radius: 9px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule);
-  color: var(--ink-3);
+  padding: 0 10px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink-3); transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }
-.topbar .search:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.topbar .search:focus-within { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft-2); }
 .topbar .search input { flex: 1; border: 0; outline: 0; background: none; height: 100%; color: var(--ink); font-size: 13.5px; }
 .topbar .search input::-webkit-search-cancel-button { display: none; }
 
@@ -13,7 +13,7 @@
 
 /* 侧栏 */
 .side { border-right: 1px solid var(--rule); padding: 16px 10px 40px; overflow-y: auto; }
-.side h3 { font-size: 11.5px; font-weight: 500; letter-spacing: .14em; color: var(--ink-3); margin: 18px 10px 6px; }
+.side h3 { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--ink-3); margin: 18px 10px 6px; }
 .side h3:first-child { margin-top: 2px; }
 .side button { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13.5px; text-align: left; }
 .side button:hover { background: var(--accent-soft); color: var(--ink); }
@@ -30,17 +30,18 @@
 .list-head .grow { flex: 1; }
 .sort { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); }
 .sort select { width: auto; height: 30px; font-size: 13px; }
-.list { padding: 0 20px 60px; outline: 0; }
+.list { padding: 2px 24px 60px; outline: 0; }
 
+/* 一篇一張卡：白卡放在米色底上，滑過去微微浮起，選中的描一圈強調色 */
 .row {
   display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 16px; align-items: start;
-  padding: 14px 10px; border-radius: 10px; cursor: default; position: relative;
+  margin: 0 0 8px; padding: 14px 14px; border-radius: 14px; cursor: default; position: relative;
+  background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 2px rgba(43, 36, 32, .04);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast);
 }
-.row + .row::before { content: ""; position: absolute; left: 78px; right: 10px; top: 0; border-top: 1px solid var(--rule); }
-.row:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
-.row.on { background: var(--surface); box-shadow: 0 0 0 1px var(--rule); }
-.row.on::before, .row.on + .row::before { display: none; }
-.thumb { width: 52px; height: 68px; border-radius: 3px; background: #fff center top / cover no-repeat; box-shadow: 0 0 0 1px var(--rule), 0 1px 3px rgba(0,0,0,.08); }
+.row:hover { box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); transform: translateY(-1px); }
+.row.on { box-shadow: 0 0 0 1.5px var(--accent), var(--shadow); }
+.thumb { width: 52px; height: 68px; border-radius: 5px; background: #fff center top / cover no-repeat; box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 3px rgba(43, 36, 32, .1); }
 :root[data-theme="dark"] .thumb { filter: invert(.88) hue-rotate(180deg); }
 .thumb.blank { background: var(--surface-2); display: grid; place-items: center; color: var(--ink-3); }
 .row .t1 { font: 600 15.5px/1.5 var(--ui); color: var(--ink); display: flex; gap: 6px; align-items: baseline; }
@@ -61,7 +62,7 @@
 .empty-state .btn { margin-top: 18px; }
 
 /* 详情 */
-.detail { border-left: 1px solid var(--rule); background: var(--surface); overflow-y: auto; overflow-x: hidden; }
+.detail { border-left: .5px solid var(--rule-2); background: var(--surface); overflow-y: auto; overflow-x: hidden; box-shadow: -12px 0 32px -20px rgba(43, 36, 32, .18); }
 .detail-inner { padding: 22px 24px 50px; width: 400px; }
 .detail .cover { display: flex; gap: 16px; }
 .detail .cover .thumb { width: 92px; height: 120px; flex: none; }

@@ -14,7 +14,9 @@
   },
   "devDependencies": {
     "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.5"
   },
   "build": {
     "publish": [
@@ -25,10 +27,10 @@
       }
     ],
     "appId": "com.edwardxlai.easyread",
-    "productName": "EasyRead",
+    "productName": "FOLI",
     "protocols": [
       {
-        "name": "EasyRead",
+        "name": "FOLI",
         "schemes": [
           "easyread"
         ]
@@ -74,7 +76,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "artifactName": "EasyRead-Setup-${version}.exe"
+      "artifactName": "FOLI-Setup-${version}.exe"
     },
     "mac": {
       "icon": "electron/assets/icon.png",

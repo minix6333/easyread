@@ -149,7 +149,7 @@
       PR.chatHello && PR.chatHello();
       return;
     }
-    document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · EasyRead";
+    document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · FOLI";
     PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));

@@ -1,12 +1,12 @@
 /* 外殼右邊的「外部工具」欄：把 ChatGPT、Claude、Gemini 這類網頁版的工具嵌在視窗右側，邊讀邊用，不用切視窗。
    - 只有桌面版有（用 Electron 的 <webview>：一個獨立的瀏覽器分頁，一般網站不准被 iframe 嵌，這個可以）。
-   - 它只是「放在那裡」：有自己的儲存區（登入狀態留著），拿不到 EasyRead 的任何內容，也連不到本機的後端（electron/main.cjs 收緊）。
+   - 它只是「放在那裡」：有自己的儲存區（登入狀態留著），拿不到 FOLI 的任何內容，也連不到本機的後端（electron/main.cjs 收緊）。
    - 怎麼加：把網址、連結從瀏覽器拖進視窗（右緣會出現放下的地方）；欄開著時也可以把 App 圖示（ChatGPT.app…）或 .webloc 拖到欄的上緣；
      或按「＋」從清單挑、自己輸入網址。可以放好幾個，上面一排圖示切換；切走的只是藏起來，對話都還在。
    - 欄寬可以拉（拖的時候只移動一條線，放開才重排，和分割格子一樣）；開關、寬度、放了哪些都記著。
    - 電腦上的應用程式（ChatGPT.app 這種）：macOS 不允許把別的程式的「視窗」放進另一個程式裡，能做的是「貼齊」——
-     EasyRead 的視窗讓出右邊，請系統把那個程式的視窗擺在旁邊，EasyRead 移動、改大小時跟著走（electron/native-dock.cjs）。
-     要你在「系統設定 → 隱私權與安全性 → 輔助使用」允許 EasyRead。把 App 圖示拖到欄的上緣，或按「＋ → 貼齊一個 App」。
+     FOLI 的視窗讓出右邊，請系統把那個程式的視窗擺在旁邊，FOLI 移動、改大小時跟著走（electron/native-dock.cjs）。
+     要你在「系統設定 → 隱私權與安全性 → 輔助使用」允許 FOLI。把 App 圖示拖到欄的上緣，或按「＋ → 貼齊一個 App」。
      貼齊的時候欄本身收起來（位置讓給那個視窗），切換的圖示和「＋」改放在分頁列右邊。
      分頁列那顆按鈕只管開關這一欄，不會自己去貼別的程式：要貼就點那個程式的圖示。所以貼過之後按兩下按鈕（收回、再打開）
      就回到可以挑網頁、輸入網址的畫面；貼著的時候按分頁列上的「＋」也可以直接加。重開 App 不會自動再貼。
@@ -179,7 +179,7 @@
     const box = PR.$(".dock-state", dock), cur = active();
     if (!cur || cur.kind === "app") {
       box.hidden = false;
-      box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("把外部工具嵌在這裡") + "</h3><p>" + PR.t("把網址或連結從瀏覽器拖進來，或從下面挑一個。它有自己的登入，讀不到 EasyRead 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 EasyRead 右邊。") : "") + "</p>" +
+      box.innerHTML = '<div class="dock-empty"><h3>' + PR.t("把外部工具嵌在這裡") + "</h3><p>" + PR.t("把網址或連結從瀏覽器拖進來，或從下面挑一個。它有自己的登入，讀不到 FOLI 裡的內容。") + (native ? " " + PR.t("電腦上的程式（例如 ChatGPT）也可以：把它的圖示從「應用程式」拖到這裡，視窗會貼在 FOLI 右邊。") : "") + "</p>" +
         '<div class="dock-presets">' + PRESETS.map((p, i) => '<button data-preset="' + i + '">' + PR.esc(p.name) + "</button>").join("") +
         '<button data-d="url">' + PR.icon("link", "sm") + PR.t("輸入網址…") + "</button>" + (native ? '<button data-d="pickapp">' + PR.icon("panel", "sm") + PR.t("貼齊一個 App…") + "</button>" : "") + "</div>" +
         (cur && cur.kind === "app" ? '<p class="again">' + PR.t("要再把「{name}」貼在旁邊：點上面它的圖示。", { name: PR.esc(cur.name) }) + "</p>" : "") + "</div>";
@@ -203,11 +203,11 @@
   dock.innerHTML = '<div class="dock-head"></div><div class="dock-body"><div class="dock-state" hidden></div></div>';
 
   /* ---------- 貼齊電腦上的應用程式（macOS） ---------- */
-  const WHY = { fullscreen: PR.t("全螢幕時沒辦法貼齊，先離開全螢幕。"), narrow: PR.t("視窗太窄，放不下兩個並排；把 EasyRead 的視窗拉寬一點再試。"), nowindow: PR.t("那個程式沒有開出視窗。"),
+  const WHY = { fullscreen: PR.t("全螢幕時沒辦法貼齊，先離開全螢幕。"), narrow: PR.t("視窗太窄，放不下兩個並排；把 FOLI 的視窗拉寬一點再試。"), nowindow: PR.t("那個程式沒有開出視窗。"),
     launch: PR.t("那個程式開不起來。"), path: PR.t("找不到那個程式。"), platform: PR.t("貼齊別的程式的視窗目前只有 macOS 版做得到。"), helper: PR.t("貼齊用的幫手程式沒有回應。"), timeout: PR.t("等太久了，那個程式沒有回應。") };
   async function permissionGuide(app, at) {
-    const ok = await PR.confirm({ title: PR.t("要先允許 EasyRead「輔助使用」"), ok: PR.t("打開系統設定"), at,
-      body: PR.t("macOS 不讓一個程式把別的程式的視窗放進自己裡面。EasyRead 能做的是讓出右邊，請系統把「{name}」的視窗貼在旁邊、跟著一起移動——這需要你在「系統設定 → 隱私權與安全性 → 輔助使用」把 EasyRead 打開。開好之後回來，再點一次它的圖示。", { name: app.name }) });
+    const ok = await PR.confirm({ title: PR.t("要先允許 FOLI「輔助使用」"), ok: PR.t("打開系統設定"), at,
+      body: PR.t("macOS 不讓一個程式把別的程式的視窗放進自己裡面。FOLI 能做的是讓出右邊，請系統把「{name}」的視窗貼在旁邊、跟著一起移動——這需要你在「系統設定 → 隱私權與安全性 → 輔助使用」把 FOLI 打開。開好之後回來，再點一次它的圖示。", { name: app.name }) });
     if (!ok) return;
     try { await native("request"); await native("settings"); } catch (e) { PR.toast(PR.esc(e.message)); }
   }
@@ -246,7 +246,7 @@
   }
   if (native && window.easyreadDesktop.onNativeDock) {
     window.easyreadDesktop.onNativeDock((msg) => {
-      if (msg.type === "gone" && nativeOn) { nativeOn = null; st.open = false; render(); PR.toast(PR.t("貼在旁邊的程式關了，EasyRead 的視窗變回原來的寬度。"), null, 3500); }
+      if (msg.type === "gone" && nativeOn) { nativeOn = null; st.open = false; render(); PR.toast(PR.t("貼在旁邊的程式關了，FOLI 的視窗變回原來的寬度。"), null, 3500); }
       else if (msg.type === "width" && msg.width) { st.nw = msg.width; save(); }
     });
   }
@@ -309,7 +309,7 @@
         "-",
         { label: PR.t("從這一欄拿掉"), icon: "x", fn: () => { M.remove(st, cur.id); render(); } },
         { label: PR.t("登出並清除所有外部工具的資料…"), icon: "trash", fn: async () => {
-          if (!(await PR.confirm({ title: PR.t("清除外部工具的資料？"), body: PR.t("嵌在這一欄的網站會全部登出，快取也會清掉；EasyRead 自己的論文和筆記不受影響。"), ok: PR.t("清除"), danger: true, at: b }))) return;
+          if (!(await PR.confirm({ title: PR.t("清除外部工具的資料？"), body: PR.t("嵌在這一欄的網站會全部登出，快取也會清掉；FOLI 自己的論文和筆記不受影響。"), ok: PR.t("清除"), danger: true, at: b }))) return;
           try { if (desktop && window.easyreadDesktop.clearEmbedData) await window.easyreadDesktop.clearEmbedData(); } catch (err) { return PR.toast(PR.esc(err.message)); }
           for (const id of Object.keys(views)) { views[id].remove(); delete views[id]; }
           render();

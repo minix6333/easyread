@@ -135,8 +135,17 @@ table.tbl td .sub { color: var(--ink-3); }
 .caption .en { width: fit-content; margin-left: auto; margin-right: auto; }
 .caption .label { font-weight: 600; color: var(--ink); margin-right: .15em; }
 .blk-figure img { display: block; max-width: 100%; margin: 0 auto; border-radius: 2px; mix-blend-mode: multiply; }
-:root[data-theme="dark"] .blk-figure img { mix-blend-mode: normal; filter: invert(.88) hue-rotate(180deg); }
+/* 深色模式的圖跟著閱讀設定的「夜間頁面」走（反相／調暗／原色，base.css 的 --night-filter），和 PDF 頁一樣；以前寫死反相，設定改了圖不變 */
+:root[data-theme="dark"] .blk-figure img { mix-blend-mode: normal; filter: var(--night-filter, none); border-radius: 6px; }
+:root[data-theme="dark"] body.night-none .blk-figure img { background: #fff; padding: 6px; }
 .figure-media { margin: 0 auto; }
+/* 圖內文字：一顆小按鈕，點了才展開（展開的框最多 12 行，在裡面捲） */
+.figure-text { margin: .55em auto 0; max-width: 42em; }
+.figure-text > summary { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 999px; font: 12px var(--ui); color: var(--ink-3); background: var(--surface-2); cursor: pointer; list-style: none; user-select: none; transition: background var(--dur-fast), color var(--dur-fast); }
+.figure-text > summary::-webkit-details-marker { display: none; }
+.figure-text > summary svg { width: 13px; height: 13px; }
+.figure-text > summary:hover, .figure-text[open] > summary { color: var(--accent); background: var(--accent-soft); }
+.figure-text .figure-translation { margin-top: .5em; max-height: 12em; overflow-y: auto; scrollbar-width: thin; }
 .figure-translation { margin: .8em auto 0; padding: .65em .85em .7em; max-width: 42em; border-left: 2px solid var(--accent); border-radius: 4px; background: var(--accent-soft); font-size: .86em; line-height: 1.7; }
 .figure-translation-label { margin-bottom: .2em; font: 11.5px/1.4 var(--ui); letter-spacing: .06em; color: var(--accent); }
 .figure-translation .zh { text-align: left; }

@@ -38,7 +38,7 @@ def figure_box(value) -> list[float] | None:
 
 def _crop_path(root, page: int, box: list[float]) -> str:
     source = (root / "source.pdf").stat()
-    identity = json.dumps([page, box, source.st_size, source.st_mtime_ns])
+    identity = json.dumps([page, box, source.st_size, source.st_mtime_ns, "v2"])  # v2：按框的寬度決定倍率，舊的 3 倍截圖在 Retina 上糊
     name = f"crop-{page}-{hashlib.sha256(identity.encode()).hexdigest()[:20]}"
     return f"figures/{name}.webp"
 
@@ -84,16 +84,19 @@ def prepare_figures(root, blocks: list[dict], total_pages: int) -> None:
 
 
 def _pending(ws):
-    """没有截图或自动裁剪范围已变化的图块；保留显式 box 和自定义 src。"""
+    """没有截图、自动裁剪范围已变化、或截图是旧倍率的图块。自定义 src（不是 figures/crop-）不动；
+    模型给的显式 box 不改框，但截图名对不上现在的算法（_crop_path 里的版本）时重新截。"""
     layout = ws.load("layout") or {}
     out = []
     for b in (ws.load("paper") or {}).get("blocks", []):
         src = b.get("src", "")
-        if b.get("type") != "figure" or src and (b.get("box") or not src.startswith("figures/crop-")):
+        if b.get("type") != "figure" or (src and not src.startswith("figures/crop-")):
             continue
-        loc = layout.get(b.get("id")) or {}
-        box = figure_box(loc.get("box"))
-        page = loc.get("page")
+        if b.get("box"):
+            box, page = figure_box(b.get("box")), b.get("page")
+        else:
+            loc = layout.get(b.get("id")) or {}
+            box, page = figure_box(loc.get("box")), loc.get("page")
         if not box or not isinstance(page, int) or page < 1:
             continue
         x0, y0, x1, y1 = box

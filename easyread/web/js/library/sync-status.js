@@ -28,13 +28,13 @@
         const name = x.legacy ? PR.t("另一台電腦") : x.name + (os ? " · " + os : "");  // 舊版只留下一串代號，不拿來當名字
         let text, dot;
         if (x.me) { text = PR.t("這台"); dot = "me"; }
-        else if (x.legacy) { text = PR.t("舊版 EasyRead，最後寫入 {t}（更新後這裡才看得到它的狀態）", { t: rel(x.at) }); dot = "away"; }
+        else if (x.legacy) { text = PR.t("舊版 FOLI，最後寫入 {t}（更新後這裡才看得到它的狀態）", { t: rel(x.at) }); dot = "away"; }
         else if (x.state === "ok") { text = PR.t("{t}上線 · 雙向同步正常", { t: rel(x.at) }); dot = "ok"; }
         else if (x.state === "waiting") { text = PR.t("{t}上線", { t: rel(x.at) }); dot = "ok"; }
         else { text = PR.t("上次上線 {t}", { t: rel(x.at) }); dot = "away"; }
         v.lines.push({ dot, name, text });
       }
-      if (!others.length) v.hint = PR.t("還沒有別的電腦連上這個文獻庫。在另一台打開 EasyRead（要是同一版），它會自己找到這裡。");
+      if (!others.length) v.hint = PR.t("還沒有別的電腦連上這個文獻庫。在另一台打開 FOLI（要是同一版），它會自己找到這裡。");
       else if (d.last_remote_at) v.hint = PR.t("上次收到別台的修改：{t}", { t: rel(d.last_remote_at) });
     } else {
       v.title = PR.t("這台的文獻庫在本機資料夾，不會同步");
@@ -142,19 +142,19 @@
       }
       if (kind === "absorb") {
         if (!(await PR.confirm({ title: PR.t("把別的 EasyRead 資料夾合併進來？"), ok: PR.t("合併"), at,
-          body: PR.t("那邊有、這裡沒有的論文會複製過來；兩邊都有的，筆記、對話會併在一起。舊資料夾不會刪，只留一個路標：還在用舊資料夾的電腦，下次打開 EasyRead 會自己換到這裡。") }))) return;
+          body: PR.t("那邊有、這裡沒有的論文會複製過來；兩邊都有的，筆記、對話會併在一起。舊資料夾不會刪，只留一個路標：還在用舊資料夾的電腦，下次打開 FOLI 會自己換到這裡。") }))) return;
         busy = true; paint();
         const r = await PR.api("/api/sync/absorb", { method: "POST", body: {} });
         data = r;
         if (PR.lib && PR.lib.load) await PR.lib.load();
-        PR.toast(PR.t("合併好了：複製 {a} 篇，併入筆記 {b} 篇。另一台電腦更新 EasyRead 後會自己跟過來。", { a: r.copied || 0, b: r.merged || 0 }), null, 8000);
+        PR.toast(PR.t("合併好了：複製 {a} 篇，併入筆記 {b} 篇。另一台電腦更新 FOLI 後會自己跟過來。", { a: r.copied || 0, b: r.merged || 0 }), null, 8000);
         return;
       }
       if (kind === "join" || kind === "start") {
         const mode = kind === "start" ? "copy" : a.mode;
         if (!(await PR.confirm({ title: kind === "start" ? PR.t("把文獻庫放進雲端硬碟？") : PR.t("改用雲端硬碟裡的文獻庫？"), ok: kind === "start" ? PR.t("放進去") : PR.t("改用它"), at,
           body: (mode === "use" ? PR.t("以後這台直接用那裡的論文和筆記。") : mode === "merge" ? PR.t("這台的論文會複製過去（那邊已經有的跳過，筆記併在一起），以後兩台用同一個資料夾。") : PR.t("這台的論文會複製過去，以後都存在那裡。")) +
-            PR.t("原來的資料夾保留不刪。完成後 EasyRead 會重新啟動。") }))) return;
+            PR.t("原來的資料夾保留不刪。完成後 FOLI 會重新啟動。") }))) return;
         busy = true; paint();
         // 換文獻庫位置前別的閱讀頁要先關：在分頁外殼裡就請它把論文分頁收掉（shell.js），等它們斷線
         if (PR.framed) { window.parent.postMessage({ easyread: true, type: "close-papers" }, location.origin); await new Promise((r) => setTimeout(r, 900)); }
@@ -162,7 +162,7 @@
           : await PR.api("/api/library/move", { method: "POST", body: { path: a.path, mode } });
         if (r.ok === false) throw new Error(r.message);
         if (window.easyreadDesktop && window.easyreadDesktop.relaunch) await window.easyreadDesktop.relaunch();
-        else { if (PR.libraryLocationNotice) PR.libraryLocationNotice({ library_status: "restart_required" }); PR.toast(PR.t("請關掉 EasyRead 再重新打開"), null, 8000); }
+        else { if (PR.libraryLocationNotice) PR.libraryLocationNotice({ library_status: "restart_required" }); PR.toast(PR.t("請關掉 FOLI 再重新打開"), null, 8000); }
         return;
       }
     } catch (e) {

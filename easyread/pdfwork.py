@@ -100,9 +100,19 @@ def _char_box(box, bounds, rotation: int) -> list[float] | None:
     return [round(v, 4) for v in (x0, y0, x1, y1)]
 
 
-def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 3.0) -> str:
-    """box 是按页宽高归一化的 [x0, y0, x1, y1]；输出到 figures/，返回相对路径。"""
+CROP_TARGET = 1800  # 截出來的圖至少這麼多像素寬：文章裡最寬約 735px，Retina 是 1470 裝置像素，再留一點放大的餘裕
+CROP_SCALE = (3.0, 8.0)  # 倍率的下限、上限（整頁渲染的記憶體：612pt 的頁 8 倍是 4900px 寬，還好）
+
+
+def crop(root: Path, page: int, box: list[float], out_name: str, scale: float | None = None) -> str:
+    """box 是按页宽高归一化的 [x0, y0, x1, y1]；输出到 figures/，返回相对路径。
+    scale 不給就按框的寬度算：小圖倍率高、整頁的圖倍率低，截出來都接近 CROP_TARGET 像素寬（以前固定 3 倍，窄一點的圖在 Retina 上糊）。"""
     with open_pdf(root / "source.pdf") as doc:
+        with closing(doc[page - 1]) as pdf_page:
+            if scale is None:
+                width_pt, _ = pdf_page.get_size()
+                want = max(1.0, (box[2] - box[0]) * width_pt)
+                scale = max(CROP_SCALE[0], min(CROP_SCALE[1], CROP_TARGET / want))
         with closing(doc[page - 1]) as pdf_page, closing(pdf_page.render(scale=scale)) as bitmap:
             with bitmap.to_pil() as raw, raw.convert("RGB") as img:
                 W, H = img.size

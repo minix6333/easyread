@@ -2,7 +2,7 @@
 #chatpanel { background: var(--bg); }
 body.ch-open #chatpanel { transform: none; }
 
-.ch-head { position: relative; display: flex; align-items: center; gap: 4px; height: 50px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); flex: none; background: var(--surface); }
+.ch-head { position: relative; display: flex; align-items: center; gap: 4px; height: 50px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); flex: none; background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
 .ch-head .grow { flex: 1; }
 .ch-title { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 8px; max-width: 72%; font-size: 14px; font-weight: 500; color: var(--ink); }
 .ch-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

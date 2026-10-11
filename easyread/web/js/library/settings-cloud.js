@@ -49,14 +49,14 @@
   function result(s) {
     const r = s.cloudResult;
     if (!r && !(s.cloud && s.cloud.restart_required)) return "";
-    return '<div class="cloud-result" role="status"><b>' + PR.t("需要重启 EasyRead 才能生效") + '</b><p class="cloud-path">' +
+    return '<div class="cloud-result" role="status"><b>' + PR.t("需要重启 FOLI 才能生效") + '</b><p class="cloud-path">' +
       PR.esc(r ? r.message : PR.t("文献库位置已更改，请先重启再继续阅读。")) + "</p>" +
       (r ? '<p>' + PR.t("已复制 {copied} 篇，跳过 {skipped} 项", { copied: r.copied || 0, skipped: (r.skipped || []).length }) + "</p>" +
         ((r.skipped || []).length ? '<details><summary>' + PR.t("查看跳过的项目") + '</summary><ul>' +
           r.skipped.map((x) => '<li class="cloud-path">' + PR.esc(x.id + ": " + x.reason) + '</li>').join("") + '</ul></details>' : "") : "") +
       (r && r.old_path ? '<p class="hint cloud-path">' + PR.esc(PR.t("原文献库保留在：{path}", { path: r.old_path })) + "</p>" : "") +
       (window.easyreadDesktop && window.easyreadDesktop.relaunch ? button("restart", PR.t("现在重启"), "", busy)
-        : '<p class="hint">' + PR.t("请关掉 EasyRead 再重新打开") + "</p>") + "</div>";
+        : '<p class="hint">' + PR.t("请关掉 FOLI 再重新打开") + "</p>") + "</div>";
   }
 
   PR.settingsTabs.cloud = {
@@ -76,7 +76,7 @@
         '<div class="cloud-cards">' + others.map((c) => target(s, c)).join("") + (s.cloudCustom && s.cloudCustom.path !== d.path ? target(s, Object.assign({ custom: true }, s.cloudCustom)) : "") +
         card("plus", "", PR.t("其他网盘"), "", (d.candidates || []).length ? PR.t("坚果云、Google Drive 等：选它们的同步文件夹") : PR.t("没检测到 Google Drive、OneDrive、Dropbox、iCloud。坚果云等：选它们的同步文件夹"),
           button("custom", PR.t("选择文件夹…"), "", disabled(s)), "ghost") + "</div>" +
-        (busy ? '<p class="cloud-progress" role="status"><span class="spin"></span> ' + PR.t("正在处理文献库，请不要关闭 EasyRead…") + "</p>" : "") +
+        (busy ? '<p class="cloud-progress" role="status"><span class="spin"></span> ' + PR.t("正在处理文献库，请不要关闭 FOLI…") + "</p>" : "") +
         '<h4 class="set-h">' + PR.t("注意") + '</h4><ul class="cloud-notes"><li>' +
         PR.t("迁移是复制，原来的文件夹保留不删。") + "</li><li>" +
         PR.t("两台电脑可以同时开着：笔记各自记录、自动合并；翻译时另一台会看到“另一台电脑正在翻译”。") + "</li><li>" +
@@ -93,7 +93,7 @@
         if (action === "reveal") { await PR.api("/api/library/reveal", { method: "POST", body: {} }); return true; }
         if (action === "restart") {
           if (window.easyreadDesktop && window.easyreadDesktop.relaunch) await window.easyreadDesktop.relaunch();
-          else PR.toast(PR.t("请关掉 EasyRead 再重新打开"));
+          else PR.toast(PR.t("请关掉 FOLI 再重新打开"));
           return true;
         }
         if (action === "forget") { s.cloudCustom = null; redraw(); return true; }

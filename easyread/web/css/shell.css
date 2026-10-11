@@ -2,10 +2,10 @@
    iframe 不放在格子裡（搬動會重新載入），都平鋪在 #frames 裡，用座標蓋到格子上；藏起來的只是看不見，狀態都在。 */
 html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
 :root { --tabs-h: 36px; }
-#tabs { position: fixed; inset: 0 0 auto 0; height: var(--tabs-h); z-index: 6; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 6px; background: var(--surface); border-bottom: 1px solid var(--rule); user-select: none; }
-.tab { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 220px; margin-top: 5px; padding: 0 6px 0 10px; border-radius: 9px 9px 0 0; font: 12.5px var(--ui); color: var(--ink-3); cursor: default; }
-.tab:hover { color: var(--ink-2); background: var(--surface-2); }
-.tab.on { color: var(--ink); background: var(--bg); box-shadow: 0 0 0 1px var(--rule), 0 1px 0 var(--bg); }
+#tabs { position: fixed; inset: 0 0 auto 0; height: var(--tabs-h); z-index: 6; display: flex; align-items: center; gap: 3px; padding: 0 8px 0 6px; background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--rule); user-select: none; }
+.tab { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 220px; height: 28px; padding: 0 6px 0 10px; border-radius: 8px; font: 500 12.5px var(--ui); color: var(--ink-3); cursor: default; transition: background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast); }
+.tab:hover { color: var(--ink-2); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.tab.on { color: var(--ink); background: var(--surface); box-shadow: 0 1px 2px rgba(43, 36, 32, .1), 0 0 0 .5px var(--rule-2); }
 .tab.shown:not(.on) { color: var(--ink-2); }
 .tab.shown:not(.on)::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 2px; background: var(--rule-2); }
 .tab > svg { flex: none; color: var(--ink-3); }

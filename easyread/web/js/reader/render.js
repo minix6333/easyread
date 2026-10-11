@@ -102,8 +102,9 @@
       const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
         : '<button class="fig-missing" data-t="page">' + PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) + "</button>";
       const key = b.id + "#image";
-      const imageText = b.image_zh || b.image_en ? '<div class="figure-translation"><div class="figure-translation-label">' + PR.t("图内文字") + '</div>' + zhDiv(key) + enIfZh(key, b.image_en) + '</div>' : "";
-      return '<div class="figure-media">' + img + '</div>' + imageText + captionHtml(b);
+      // 圖內文字（圖裡的字、座標軸、圖例的譯文）：平常收成一顆小按鈕，點了才展開；展開的框有高度上限，在裡面捲，不把下面的段落推遠
+      const imageText = b.image_zh || b.image_en ? '<details class="figure-text"><summary>' + (PR.icon ? PR.icon("type", "sm") : "") + "<span>" + PR.t("图内文字") + '</span></summary><div class="figure-translation">' + zhDiv(key) + enIfZh(key, b.image_en) + "</div></details>" : "";
+      return '<div class="figure-media">' + img + "</div>" + imageText + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {
@@ -132,7 +133,7 @@
 
   function blockErrorHtml(b, error) {
     const id = PR.esc(b && b.id ? b.id : "unknown");
-    console.error("EasyRead block render failed", b && b.id, error);
+    console.error("FOLI block render failed", b && b.id, error);
     return '<section class="blk blk-error" id="b-' + id + '" data-id="' + id + '">' +
       '<div class="inline-note"><div class="lbl">' + PR.t("这一块没能显示") + '</div><p>' + PR.t("块 {id} 的数据格式有问题，其他内容仍可阅读。", { id }) + '</p></div></section>';
   }

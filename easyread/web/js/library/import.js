@@ -39,6 +39,8 @@
       '<p class="hint" id="originalModelHint"' + (after === "read" ? "" : " hidden") + '>' + PR.t("读英文原文仍需可用模型整理段落、公式和表格，会消耗模型额度；只看 PDF 可选“先不处理”。") + "</p>" +
       '<div class="imp-opts" id="kindRow"><span class="imp-lbl">' + PR.t("類型") + '</span><div class="seg" id="kindSeg">' + KINDS.map(([k, l]) => '<button data-kind="' + k + '" class="' + ((p.kind || "auto") === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="hint">' + PR.t("投影片一頁一張、講義按章節整理；自動判斷時橫向頁或每頁字很少會當成投影片") + "</span></div>" +
+      '<div class="imp-opts" id="catRow"><span class="imp-lbl">' + PR.t("分類") + '</span><select class="input imp-cat" id="impCat" title="' + PR.t("匯入後直接放進哪個分類") + '">' + catOptions(p.cat) + "</select>" +
+      '<span class="hint">' + PR.t("正在看某個分類時預設放進那裡；把 PDF 拖進視窗也一樣") + "</span></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">' + PR.t("模型") + '</span><select class="input" id="impModel">' +
@@ -63,6 +65,13 @@
     const ok = (r.models || []).some((m) => m.id === want && m.id !== r.translate && m.ready);
     sel.value = ok ? want : "";
   }
+  /* 分類：正在看的那個分類排第一、預設選它；沒有就選上次用的（還在的話）；最後一項是新建 */
+  function catOptions(want) {
+    const cats = L.cats();
+    const cur = L.tag && cats.includes(L.tag) ? L.tag : cats.includes(want) ? want : "";
+    return '<option value="">' + PR.t("不放進分類") + "</option>" + cats.map((c) => '<option value="' + PR.esc(c) + '"' + (c === cur ? " selected" : "") + ">" + PR.esc(c) + "</option>").join("") +
+      '<option value="__new">' + PR.t("新分類…") + "</option>";
+  }
   const close = () => { dlg.classList.remove("open"); chosen = null; };
   function opts() {
     const p = pref();
@@ -70,8 +79,10 @@
     const from = Math.max(1, +p.from || 1), to = Math.max(1, +p.to || from);
     const scope = p.scope === "range" ? "range:" + Math.min(from, to) + "-" + Math.max(from, to) : p.scope;
     const sel = PR.$("#impModel"), tgt = PR.$("#impTarget");  // 拖进来导入时对话框没开，用设置里的译文语言
+    const catSel = PR.$("#impCat");  // 對話框開著就照裡面選的；拖進來的用正在看的分類
+    const cat = catSel && dlg.classList.contains("open") ? (catSel.value === "__new" ? "" : catSel.value) : L.tag || "";
     return { translate: after !== "none", read: after === "read", scope, model: after === "none" ? "" : sel ? sel.value : "",
-      target: after === "translate" ? (tgt ? tgt.value : PR.target) : "", kind: p.kind && p.kind !== "auto" ? p.kind : "" };
+      target: after === "translate" ? (tgt ? tgt.value : PR.target) : "", kind: p.kind && p.kind !== "auto" ? p.kind : "", tags: cat ? [cat] : [] };
   }
 
   dlg.addEventListener("click", (e) => {
@@ -100,7 +111,19 @@
       PR.$$("[data-kind]", dlg).forEach((b) => b.classList.toggle("on", b === k));
     }
   });
-  dlg.addEventListener("change", (e) => { if (e.target.id === "impModel") savePref({ model: e.target.value }); });
+  dlg.addEventListener("change", async (e) => {
+    if (e.target.id === "impModel") savePref({ model: e.target.value });
+    if (e.target.id === "impCat") {
+      const sel = e.target;
+      if (sel.value === "__new") {
+        const name = ((await PR.promptText({ title: PR.t("新建分类"), placeholder: PR.t("分类名"), ok: PR.t("建好"), max: 30, at: sel })) || "").trim().slice(0, 30);
+        if (name) L.addCat(name);
+        sel.innerHTML = catOptions(name || pref().cat);
+        if (name) sel.value = name;
+      }
+      savePref({ cat: sel.value === "__new" ? "" : sel.value });
+    }
+  });
   dlg.addEventListener("input", (e) => {  // 边输边存：输完直接点“导入”也用新的页码
     if (e.target.id === "pgFrom") savePref({ from: +e.target.value || 1 });
     if (e.target.id === "pgTo") savePref({ to: +e.target.value || 1 });
@@ -118,7 +141,7 @@
     for (const [k, f] of pdfs.entries()) {
       PR.toast(PR.t("正在导入 {i}/{n}：{name}", { i: k + 1, n: pdfs.length, name: PR.esc(f.name) }), null, 60000);
       try {
-        const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&read=" + (o.read ? 1 : 0) + "&model=" + encodeURIComponent(o.model) + "&target=" + encodeURIComponent(o.target) + "&scope=" + encodeURIComponent(o.scope) + "&kind=" + encodeURIComponent(o.kind) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
+        const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&read=" + (o.read ? 1 : 0) + "&model=" + encodeURIComponent(o.model) + "&target=" + encodeURIComponent(o.target) + "&scope=" + encodeURIComponent(o.scope) + "&kind=" + encodeURIComponent(o.kind) + "&tags=" + encodeURIComponent(o.tags.join(",")) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
         last = r.id;
         if (!r.new) PR.toast(r.queued ? PR.t("《{name}》已重新加入准备队列", { name: PR.esc(f.name) }) : PR.t("《{name}》已经在库里了", { name: PR.esc(f.name) }));
       } catch (e) { PR.toast(PR.t("导入失败：{msg}", { msg: PR.esc(e.message) })); }
@@ -135,7 +158,7 @@
     else PR.toast('<span class="spin"></span> ' + PR.t("正在查找并下载 {ref}", { ref: PR.esc(ref) }), null, 60000);
     const o = opts();
     try {
-      const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope, target: o.target, kind: o.kind } });
+      const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope, target: o.target, kind: o.kind, tags: o.tags } });
       close();
       await L.load();
       L.select(r.id);

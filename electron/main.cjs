@@ -47,7 +47,7 @@ function backendCommand() {
   if (app.isPackaged) {
     const executable = packagedBackend();
     if (!fs.existsSync(executable)) {
-      throw new Error(isZh() ? `找不到打包後的 EasyRead 後端：${executable}` : `Bundled EasyRead backend not found: ${executable}`);
+      throw new Error(isZh() ? `找不到打包後的 FOLI 後端：${executable}` : `Bundled FOLI backend not found: ${executable}`);
     }
     return { command: executable, args: ["serve", "--port", DESKTOP_PORT], cwd: os.homedir() };
   }
@@ -91,7 +91,7 @@ function startBackend() {
       fn(value);
     };
     const timer = setTimeout(() => {
-      finish(reject, new Error((isZh() ? "EasyRead 後端啟動超時。" : "EasyRead backend timed out while starting. ") + output.slice(-500)));
+      finish(reject, new Error((isZh() ? "FOLI 後端啟動超時。" : "FOLI backend timed out while starting. ") + output.slice(-500)));
       stopBackend();
     }, 30000);
 
@@ -112,7 +112,7 @@ function startBackend() {
     });
     backend.once("error", (error) => finish(reject, error));
     backend.once("exit", (code, signal) => {
-      if (!settled) finish(reject, new Error((isZh() ? `EasyRead 後端退出（code=${code}, signal=${signal}）。` : `EasyRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
+      if (!settled) finish(reject, new Error((isZh() ? `FOLI 後端退出（code=${code}, signal=${signal}）。` : `FOLI backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
       backendReady = undefined;
       backendUrl = undefined;
@@ -415,7 +415,7 @@ async function createWindow() {
   } catch (error) {
     if (mainWindow !== openingWindow || quitting) return;
     startup.mark(app, "startup-failed");
-    dialog.showErrorBox(isZh() ? "EasyRead 啟動失敗" : "EasyRead failed to start", error.message);
+    dialog.showErrorBox(isZh() ? "FOLI 啟動失敗" : "FOLI failed to start", error.message);
     app.quit();
   } finally {
     windowOpening = false;

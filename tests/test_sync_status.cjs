@@ -60,7 +60,7 @@ test("雲端硬碟裡還有別的 EasyRead 資料夾：建議合併；舊版裝�
   assert.equal(v.tone, "warn");
   assert.equal(v.action.kind, "absorb");
   assert.match(v.action.text, /還有 2 個 EasyRead 資料夾（共 3 篇，其中 2 篇這裡沒有）/);
-  assert.match(v.lines[1].text, /舊版 EasyRead/);
+  assert.match(v.lines[1].text, /舊版 FOLI/);
   assert.equal(v.lines[1].name, "另一台電腦");
   assert.equal(PR.syncView({ enabled: true, path: "/d/EasyRead", devices: [me], conflicts: ["a/x (1).json"] }, rel).tone, "warn");
 });
