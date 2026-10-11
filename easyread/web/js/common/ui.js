@@ -14,9 +14,15 @@
     const segs = host.querySelectorAll(".seg");
     return host.id + "#" + Array.prototype.indexOf.call(segs, seg);
   }
+  /* 大小變了就重擺滑塊：畫的時候藏著（display: none，量不到）的分段控制，之後顯示出來時補上——
+     閱讀頁頂欄的「原文／譯文／雙語」在 PDF 優先時是藏著的，打開譯文才出現，以前那時候滑塊沒擺上去，看不出選了哪個。
+     字型載好、換語言讓每一格變寬變窄時也靠這個對回去。 */
+  const watched = new WeakSet();
+  const ro = window.ResizeObserver ? new ResizeObserver((entries) => { for (const e of entries) if (e.target.isConnected) placeKnob(e.target, true); }) : null;
   function placeKnob(seg, instant) {
     let k = seg.querySelector(":scope > .seg-knob");
     const on = seg.querySelector(":scope > button.on");
+    if (ro && !watched.has(seg)) { watched.add(seg); ro.observe(seg); }
     if (!k) { k = document.createElement("i"); k.className = "seg-knob"; seg.prepend(k); instant = true; }
     if (!on) { k.style.opacity = "0"; return; }
     const r = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight };

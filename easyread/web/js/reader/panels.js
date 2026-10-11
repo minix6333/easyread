@@ -60,8 +60,10 @@
   function segHtml(key, opts) {
     return '<div class="seg">' + opts.map(([v, label]) => '<button data-p="' + key + '" data-v="' + v + '" class="' + (String(PR.prefs[key]) === String(v) ? "on" : "") + '">' + label + "</button>").join("") + "</div>";
   }
+  const pct = (v, min, max) => Math.round(((Number(v) - min) / (max - min)) * 100);
   function slider(key, label, min, max, step, unit) {
-    return '<div class="row slider"><span>' + label + '</span><input type="range" data-r="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + PR.prefs[key] + '"><b data-rv="' + key + '">' + PR.prefs[key] + unit + "</b></div>";
+    // 和設定 → 外觀同一種滑桿（細軌道、白色圓鈕；--p 是填到哪裡）
+    return '<div class="row slider"><span>' + label + '</span><input type="range" class="look-range" data-r="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + PR.prefs[key] + '" style="--p:' + pct(PR.prefs[key], min, max) + '%"><b data-rv="' + key + '">' + PR.prefs[key] + unit + "</b></div>";
   }
   PR.renderSettings = function () {
     PR.$("#settings").innerHTML =
@@ -76,12 +78,12 @@
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">' + PR.t("更多设置…") + "</button>" : "") + "</div>";
   };
   function syncSettings() {
-    PR.$$("#settings [data-r]").forEach((r) => { r.value = PR.prefs[r.dataset.r]; });
+    PR.$$("#settings [data-r]").forEach((r) => { r.value = PR.prefs[r.dataset.r]; r.style.setProperty("--p", pct(r.value, +r.min, +r.max) + "%"); });
     PR.$$("#settings [data-rv]").forEach((b) => { const k = b.dataset.rv; b.textContent = PR.prefs[k] + ({ fs: " px", measure: PR.t(" 字") }[k] || ""); });
   }
   PR.$("#settings").addEventListener("input", (e) => {
     const r = e.target.closest("[data-r]");
-    if (r) PR.setPref(r.dataset.r, +r.value, true);
+    if (r) { r.style.setProperty("--p", pct(r.value, +r.min, +r.max) + "%"); PR.setPref(r.dataset.r, +r.value, true); }
   });
   PR.$("#settings").addEventListener("click", (e) => {
     const os = e.target.closest("[data-open-settings]");

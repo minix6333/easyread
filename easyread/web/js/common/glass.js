@@ -51,8 +51,34 @@
       const g = liquidGlass(el, o);
       live.set(el, g);
       if (!g.supported) el.classList.add("lg-frost");
+      else bake(el, o);
       return g;
     } catch (e) { el.classList.add("lg-flat"); return null; }
+  }
+  /* 模組把 backdrop-filter 設成 url(#濾鏡) blur() saturate()，但 Chromium 不會把 url() 後面那兩個套上去（實測：底下的字透上來還是清清楚楚的，
+     蓋在文字上的工具列、膠囊看起來很花）。所以把模糊和飽和做進模組建的那個 SVG 濾鏡裡——先模糊、再折射、最後加飽和——backdrop-filter 只留 url()。
+     模組之後只會改 feImage（折射的 map），加進去的這兩個節點不受影響；destroy() 是整個濾鏡一起拿掉。 */
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function bake(el, o) {
+    const m = /url\(["']?#([\w-]+)["']?\)/.exec(el.style.backdropFilter || "");
+    const f = m && document.getElementById(m[1]);
+    if (!f || f.querySelector("feGaussianBlur")) return;
+    if (o.blur > 0) {
+      const b = document.createElementNS(SVG_NS, "feGaussianBlur");
+      b.setAttribute("in", "SourceGraphic");
+      b.setAttribute("stdDeviation", String(o.blur));
+      b.setAttribute("edgeMode", "duplicate");  // 邊上的顏色往外延伸，邊緣才不會糊成半透明
+      b.setAttribute("result", "soft");
+      f.insertBefore(b, f.firstChild);
+      f.querySelectorAll("feDisplacementMap").forEach((d) => d.setAttribute("in", "soft"));
+    }
+    if (o.saturate && o.saturate !== 1) {
+      const c = document.createElementNS(SVG_NS, "feColorMatrix");
+      c.setAttribute("type", "saturate");
+      c.setAttribute("values", String(o.saturate));
+      f.appendChild(c);  // 接在最後一個節點（三個色版疊回來的結果）後面
+    }
+    el.style.backdropFilter = "url(#" + m[1] + ")";
   }
   PR.glass = (el, opts) => apply(el, (el && el.dataset.glass) || (opts && opts.kind) || "", opts);
   PR.glassRefresh = (el) => { const g = live.get(el); if (g) g.refresh(); };

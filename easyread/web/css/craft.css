@@ -393,10 +393,21 @@ body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.ico
   .lib.has-detail .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
 }
 @media (max-width: 760px) {
-  .list-head .count, .lib-view { display: none; }
+  .list-head .count { display: none; }
   .topbar > .search { min-width: 0; flex: 0 1 140px; }
   .list, .list.grid { margin-left: 12px; margin-right: 12px; }
   .list.grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+}
+/* 很窄的時候（分割視窗裡的一格）：舊版在這個寬度把排序的圖示、卡片底下那一排狀態藏掉了（那是清單列的做法），格子卡片要留著 */
+@media (max-width: 640px) {
+  .sort.btn.icon > svg.i { display: block; }
+  .list.grid .row .side-info { display: flex; }
+}
+@media (max-width: 540px) { .lib-view { display: none; } }
+/* 勾選框：有滑鼠的裝置滑過去才出現（舊版在窄的時候一律顯示，是給觸控用的） */
+@media (max-width: 640px) and (hover: hover) {
+  .row .pick { opacity: 0; }
+  .row:hover .pick, .list.picking .row .pick, .row.picked .pick { opacity: 1; }
 }
 
 /* ============ 閱讀頁：畫布 ============ */
@@ -494,7 +505,9 @@ body:not(.insp-col) #inspTabs { top: var(--bar-h); width: min(600px, 100vw); hei
 body.side-open:not(.insp-col) #notespanel, body.side-open:not(.insp-col) #chatpanel, body.side-open:not(.insp-col) #infopanel, body.side-open:not(.insp-col):not(.pdf-main) #pageview { top: calc(var(--bar-h) + var(--insp-h)); background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: -18px 0 40px -24px rgba(0, 0, 0, .4); }
 body.side-open:not(.insp-col):not(.pdf-main) #pageview { width: min(600px, 100vw); }
 body.side-open:not(.insp-col) .panel-grip { top: var(--bar-h); }
-@media (max-width: 760px) { body:not(.insp-col) #inspTabs { width: 100vw; border-radius: 0; } }
+/* 蓋在內容上的時候，分頁列和面板一樣寬（min(600px, 100vw)）；以前 760 以下分頁列是整個視窗寬，600–760 之間會比面板多凸出一截 */
+@media (max-width: 1179px) { #infopanel { width: min(600px, 100vw); } }
+@media (max-width: 600px) { body:not(.insp-col) #inspTabs { border-radius: 0; } }
 /* ============ 右側面板的「資訊」（info.js）：屬性一列一列、操作一排一排，像 Craft 檢閱器的「資訊」 ============ */
 #infopanel { overflow-y: auto; }
 .in-body { padding: 10px 18px 40px; font: 13px/1.6 var(--ui); color: var(--ink); }
@@ -775,6 +788,7 @@ input[type=range].look-range::-moz-range-track { height: 5px; border-radius: 3px
 input[type=range].look-range::-moz-range-progress { height: 5px; border-radius: 3px; background: var(--accent); }
 input[type=range].look-range::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .14), 0 1px 4px rgba(0, 0, 0, .3); }
 input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 6px; }
+#settings .row.slider .look-range { flex: 1 1 auto; min-width: 90px; }
 /* 強調色的圓點、紙張的小卡 */
 .swatches { display: flex; align-items: center; gap: 10px; height: var(--ctl); }
 .sw { width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .18); transition: transform .12s ease-out, box-shadow var(--dur-fast); }
