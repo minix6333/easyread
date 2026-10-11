@@ -341,6 +341,21 @@ app.whenReady().then(async () => {
     const a = +(s1.n.split(" / ")[0] || 0), b = +(String(s2).split(" / ")[0] || 0);  // 從畫面上看得到的第一處開始（不一定是第 1 處）
     check(name, s1.open && s1.marks === 4 && s1.cur && s1.editing === 0 && / \/ 4$/.test(s1.n) && b === (a % 4) + 1 && !s3.open && !s3.marks, { s1, s2, s3 });
   });
+  await run("公式：點兩下進去改 TeX，下面即時排出來", async (name) => {
+    const p = await js("(() => { const el = document.querySelector('.bk-b.t-math .katex-display'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+    mouse("mouseMove", p.x, p.y); mouse("mouseDown", p.x, p.y, { clickCount: 1 }); mouse("mouseUp", p.x, p.y, { clickCount: 1 });
+    await sleep(60);
+    mouse("mouseDown", p.x, p.y, { clickCount: 2 }); mouse("mouseUp", p.x, p.y, { clickCount: 2 });
+    await sleep(200);
+    const s1 = await st();
+    const live0 = await js("!!document.querySelector('.bk-b.editing .bk-live .katex')");
+    await type(" + \\alpha^2");
+    await sleep(120);
+    const live1 = await js("(document.querySelector('.bk-b.editing .bk-live') || {}).textContent || ''");
+    await key("Escape");
+    const s2 = await st();
+    check(name, s1.tag === "TEXTAREA" && /t-math/.test(s1.cls) && live0 && /α/.test(live1) && /\\alpha\^2\n\$\$/.test(s2.md), { tag: s1.tag, cls: s1.cls, live0, live1: live1.slice(-24), md: (s2.md.match(/\$\$[\s\S]*?\$\$/) || [])[0] });
+  });
   await run("存檔：改的內容真的寫回伺服器", async (name) => {
     await click(await end("最後一段"));
     await type("存檔測試");

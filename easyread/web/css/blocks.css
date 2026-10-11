@@ -158,3 +158,8 @@ mark.md-hl { background: var(--hl-yellow); color: inherit; border-radius: 3px; p
 .bk table.tbl td, .card table.tbl td, .np-pview table.tbl td { padding: 7px 12px; border-bottom: .5px solid var(--rule); vertical-align: top; }
 .bk table.tbl tr:last-child td, .card table.tbl tr:last-child td, .np-pview table.tbl tr:last-child td { border-bottom: 0; }
 .bk table.tbl th + th, .bk table.tbl td + td, .card table.tbl th + th, .card table.tbl td + td, .np-pview table.tbl th + th, .np-pview table.tbl td + td { border-left: .5px solid var(--rule); }
+/* 正在編的公式：上面是 TeX，下面即時排出來 */
+.bk-math.ed { flex: 1; min-width: 0; text-align: left; overflow: visible; }
+.bk-live { margin-top: 6px; text-align: center; overflow-x: auto; color: var(--ink); }
+.bk-live:empty { display: none; }
+.bk-live .katex-display { margin: .2em 0; }

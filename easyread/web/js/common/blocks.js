@@ -323,6 +323,8 @@
       if (b.type === "code") return '<div class="bk-code ed"><input class="bk-lang-in" value="' + esc(b.lang || "") + '" placeholder="' + t("語言") + '" spellcheck="false">' + ta + "</div>";
       if (b.type === "callout" && b.kind !== "ref") return '<div class="bk-callout ed k-' + b.kind + ' open"><div class="bk-ch">' + calloutIcon(b).replace(' data-bk="toggle-open"', "") + ta + "</div></div>";
       if (b.type === "callout") return '<span class="bk-kind">' + t("出處") + "</span>" + ta;
+      // 公式：上面打 TeX、下面即時排出來（打錯一眼就看得到，不用離開這一塊才知道）
+      if (b.type === "math") return '<div class="bk-math ed">' + ta + '<div class="bk-live">' + ((b.text || "").trim() ? blocksHtml("$$\n" + b.text + "\n$$") : "") + "</div></div>";
       return ta;
     }
     /* 一塊畫出來長怎樣取決於這些；沒變就整個元素留著不動（公式、流程圖不用重畫，正在打字的輸入框不會被換掉） */
@@ -713,7 +715,18 @@
       else if (state.menu) closeMenu();
       if (convertByPrefix(id)) return;
       b.text = ta.value;
+      if (b.type === "math") liveMath(ta);
       changeSoon();
+    }
+    let liveQueued = false;
+    function liveMath(ta) {  // 公式的即時預覽：一格畫面最多重排一次
+      if (liveQueued) return;
+      liveQueued = true;
+      requestAnimationFrame(() => {
+        liveQueued = false;
+        const box = ta.isConnected && ta.parentElement.querySelector(".bk-live");
+        if (box) box.innerHTML = ta.value.trim() ? blocksHtml("$$\n" + ta.value + "\n$$") : "";
+      });
     }
 
     /* ---------- 「/」的區塊選單 ---------- */
