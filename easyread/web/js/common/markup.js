@@ -109,6 +109,8 @@
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+    s = s.replace(/\+\+([^+\n]+)\+\+/g, "<u>$1</u>");                 // 底線（Craft 的 ⌘U）
+    s = s.replace(/==([^=\n]+)==/g, '<mark class="md-hl">$1</mark>');  // 螢光（Craft 的 ==…== ／ ⌘⇧B）
     if (opts.cite !== false) s = citeLinks(s);
     if (opts.xref !== false) s = xrefLinks(s);
     return s.replace(/\n/g, "<br>");

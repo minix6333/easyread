@@ -1538,5 +1538,20 @@
  "自動：橫向頁或字很少的當投影片": "Auto: landscape or sparse pages count as slides",
  "選取文字就能畫線、寫筆記、問 AI": "Select text to highlight, write a note or ask AI",
  "玻璃折射": "Glass refraction",
- "左邊是只有毛玻璃": "far left is frosted only"
+ "左邊是只有毛玻璃": "far left is frosted only",
+ "原頁": "Pages",
+ "右側面板": "Side panel",
+ "右側面板：原頁、筆記、問 AI": "Side panel: pages, notes, Ask AI",
+ "問 AI 改這段（⌘↩）": "Ask AI to change this (⌘↩)",
+ "底線（⌘U）": "Underline (⌘U)",
+ "斜體（⌘I）": "Italic (⌘I)",
+ "格子": "Grid",
+ "檢視": "View",
+ "程式碼（⌘⇧C）": "Code (⌘⇧C)",
+ "粗體（⌘B）": "Bold (⌘B)",
+ "螢光（⌘⇧B）": "Highlight (⌘⇧B)",
+ "連結（⌘K）": "Link (⌘K)",
+ "關閉": "Close",
+ "刪除線（⌘⇧-）": "Strikethrough (⌘⇧-)",
+ "公式（⌘⇧E）": "Equation (⌘⇧E)"
 }

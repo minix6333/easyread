@@ -11,6 +11,14 @@
   PR.$("#settingsBtn").innerHTML = PR.icon("gear");
   PR.$(".search .si").outerHTML = PR.icon("search", "sm");
   PR.$("#sort").value = L.sort;
+  /* 清單／格子（像 Craft 的檢視切換）：只是換個樣子，列還是同一批 */
+  (function libView() {
+    const seg = PR.$("#libView"); if (!seg) return;
+    const paint = () => { const v = PR.ls.get("easyread-lib-view", "list"); PR.$("#list").classList.toggle("grid", v === "grid"); PR.$$("button", seg).forEach((b) => b.classList.toggle("on", b.dataset.lv === v)); };
+    PR.$$("button", seg).forEach((b) => { b.innerHTML = PR.icon(b.dataset.lv === "grid" ? "grid" : "list", "sm"); b.title = b.dataset.lv === "grid" ? PR.t("格子") : PR.t("清單"); });
+    seg.addEventListener("click", (e) => { const b = e.target.closest("[data-lv]"); if (!b) return; PR.ls.set("easyread-lib-view", b.dataset.lv); paint(); });
+    paint();
+  })();
 
   L.byId = (id) => L.items.find((i) => i.id === id);
   function readerUrl(id) {

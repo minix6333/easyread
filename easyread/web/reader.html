@@ -20,7 +20,8 @@
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
 <link rel="stylesheet" href="/web/css/apple.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only");if(/[?&]notes=1(&|$)/.test(location.search))document.documentElement.classList.add("notes-only")</script>
+<link rel="stylesheet" href="/web/css/craft.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/Electron/i.test(navigator.userAgent))document.documentElement.classList.add("desktop");if(/[?&]chat=1(&|$)/.test(location.search))document.documentElement.classList.add("chat-only");if(/[?&]notes=1(&|$)/.test(location.search))document.documentElement.classList.add("notes-only")</script>
 </head>
 <body>
 <div id="progress" aria-hidden="true"><i></i></div>
@@ -46,6 +47,7 @@
   <button class="btn icon" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn icon" data-act="chat" title="边读边问 AI（A）"></button>
   <button class="btn icon" data-act="settings" title="字号、版心、字体（=、- 调字号）"></button>
+  <button class="btn icon" data-act="insp" title="右側面板"></button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
 
@@ -133,6 +135,7 @@
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
+<script src="/web/js/reader/inspector.js"></script>
 <script src="/web/js/reader/pdftext.js"></script>
 <script src="/web/js/reader/pdfmode.js"></script>
 <script src="/web/js/reader/sticky.js"></script>

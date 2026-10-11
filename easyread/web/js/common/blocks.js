@@ -159,6 +159,34 @@
     const idx = (id) => state.blocks.findIndex((b) => b.id === id);
     const blockEl = (id) => list.querySelector('.bk-b[data-id="' + id + '"]');
 
+    /* 選字工具列（像 Craft）：正在編的那一塊裡選了字，上面浮出一排：問 AI、粗、斜、底線、刪除線、程式碼、螢光、公式、連結 */
+    const tools = document.createElement("div");
+    tools.className = "bk-tools";
+    const TOOLS = [["ai", "sparkle", PR.t("問 AI 改這段（⌘↩）")], ["**", "bold", PR.t("粗體（⌘B）")], ["*", "italic", PR.t("斜體（⌘I）")], ["++", "underline", PR.t("底線（⌘U）")],
+      ["~~", "strike", PR.t("刪除線（⌘⇧-）")], ["\x60", "code", PR.t("程式碼（⌘⇧C）")], ["==", "marker", PR.t("螢光（⌘⇧B）")], ["$", "sigma", PR.t("公式（⌘⇧E）")], ["link", "link", PR.t("連結（⌘K）")]];
+    tools.innerHTML = TOOLS.map(([k, ic, t]) => '<button type="button" data-t="' + k + '" title="' + t + '">' + (PR.icon ? PR.icon(ic, "sm") : k) + "</button>").join("");
+    root.append(tools);
+    tools.addEventListener("mousedown", (e) => e.preventDefault());  // 別把輸入框的焦點搶走
+    tools.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-t]");
+      if (!b || !state.editing) return;
+      const el = blockEl(state.editing), ta = el && el.querySelector(".bk-in");
+      if (!ta) return;
+      const k = b.dataset.t;
+      if (k === "ai") { const i = idx(state.editing); pullText(state.editing); stopEdit(); api.askAi(i); return; }
+      if (k === "link") wrap(ta, "[", "](url)"); else wrap(ta, k);
+    });
+    function placeTools() {
+      const ta = document.activeElement;
+      const on = ta && ta.classList && ta.classList.contains("bk-in") && root.contains(ta) && ta.selectionStart !== ta.selectionEnd;
+      tools.classList.toggle("open", !!on);
+      if (!on) return;
+      const el = ta.closest(".bk-b");
+      tools.style.top = Math.max(0, el.offsetTop - 40) + "px";
+      tools.style.left = Math.max(0, Math.min(el.offsetLeft + ta.offsetLeft, root.clientWidth - tools.offsetWidth - 4)) + "px";
+    }
+    document.addEventListener("selectionchange", placeTools);
+
     /* ---------- 畫 ---------- */
     function numberOf(i) {
       let n = 1;
@@ -301,6 +329,7 @@
       pullText(id);
       state.editing = null;
       closeMenu();
+      tools.classList.remove("open");
       repaint(id);
       changeSoon.flush();
       if (state.pendingValue != null) { const md = state.pendingValue; state.pendingValue = null; if (md !== getValue()) load(md, false); }  // 打字時外面改了內容：現在才換上
@@ -376,9 +405,32 @@
       if (e.key === "Escape") { e.preventDefault(); stopEdit(); state.selected.add(id); repaint(id); return; }
       if (mod && !e.shiftKey && e.key.toLowerCase() === "z") { if (state.history.length && ta.value === b.text) { e.preventDefault(); undo(); } return; }
       if (mod && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) { if (state.future.length) { e.preventDefault(); redo(); } return; }
-      if (mod && !e.shiftKey && "bie".includes(e.key.toLowerCase())) { e.preventDefault(); wrap(ta, { b: "**", i: "*", e: "$" }[e.key.toLowerCase()]); return; }
-      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); wrap(ta, "[", "](url)"); return; }
-      if (mod && e.key === "Enter") { e.preventDefault(); pullText(id); stopEdit(); insertAfter(i, { type: "p", text: "" }, true); return; }
+      // Craft 的快捷鍵：⌘B 粗、⌘I 斜、⌘U 底線、⌘⇧C 程式碼、⌘⇧- 刪除線、⌘⇧B 螢光、⌘⇧E 公式、⌘K 連結、⌘↩ 問 AI、⌘⇧↩ 插入選單
+      if (mod && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const inl = !e.shiftKey ? { b: "**", i: "*", u: "++" }[k] : { c: "\x60", "-": "~~", _: "~~", b: "==", e: "$" }[k];
+        if (inl) { e.preventDefault(); wrap(ta, inl); return; }
+        if (!e.shiftKey && k === "k") { e.preventDefault(); wrap(ta, "[", "](url)"); return; }
+        if (e.shiftKey && e.key === "Enter") { e.preventDefault(); openMenu(id, ""); return; }
+        if (!e.shiftKey && e.key === "Enter") { e.preventDefault(); pullText(id); stopEdit(); api.askAi(i); return; }
+      }
+      // Ctrl+1–6 文字樣式（大標題、副標題、標題、強調、內文、說明）；⌘⌥6–0 清單（待辦、收合、項目、編號、取消）；⌘⌥T 開關收合；⌘⌥↑↓ 搬這一塊
+      if (e.ctrlKey && !e.metaKey && !e.altKey && /^[1-6]$/.test(e.key)) {
+        e.preventDefault(); pullText(id);
+        const t = { 1: "h1", 2: "h2", 3: "h3", 4: "strong", 5: "p", 6: "p" }[e.key];
+        setType(id, t === "strong" ? "p" : t);
+        if (t === "strong") { const t2 = blockEl(id).querySelector(".bk-in"); if (t2 && t2.value && !/^\*\*.*\*\*$/.test(t2.value)) { t2.select(); wrap(t2, "**"); } }
+        return;
+      }
+      if (mod && e.altKey && /^[06789]$/.test(e.key)) { e.preventDefault(); pullText(id); setType(id, { 6: "todo", 7: "toggle", 8: "bullet", 9: "number", 0: "p" }[e.key]); return; }
+      if (mod && e.altKey && e.key.toLowerCase() === "t" && b.type === "callout" && b.kind === "toggle") { e.preventDefault(); pullText(id); b.open = !b.open; repaint(id); focusEdit(id); changeSoon(); return; }
+      if (mod && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        const j = e.key === "ArrowUp" ? i - 1 : i + 2;
+        if (j < 0 || j > state.blocks.length) return;
+        e.preventDefault(); const at = ta.selectionStart; pullText(id);
+        moveBlocks(i, i, j); state.selected.clear(); state.editing = id; render(); focusEdit(id, at);
+        return;
+      }
       if (e.key === "Enter" && !e.shiftKey && b.type !== "code" && b.type !== "math" && b.type !== "table" && !(b.type === "callout" && b.kind !== "ref") && b.type !== "quote") {
         e.preventDefault();
         pullText(id);
@@ -580,6 +632,7 @@
       if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); deleteSelected(); }
       else if (e.key === "Escape") { state.selected.clear(); render(); }
       else if (e.key === "Enter") { const r = selectedRange(); e.preventDefault(); const b = state.blocks[r.from]; if (b.type !== "divider") startEdit(b.id, "end"); }
+      else if (e.key === " ") { const r = selectedRange(); e.preventDefault(); snapshot(); state.selected.clear(); insertAfter(e.shiftKey ? r.from - 1 : r.to, { type: "p", text: "" }, true); }  // Craft：空白鍵在下面插一塊、⇧空白在上面
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") { const r = selectedRange(); e.preventDefault(); snapshot(); const copy = state.blocks.slice(r.from, r.to + 1).map((b) => Object.assign({}, b, { id: bid() })); state.blocks.splice(r.to + 1, 0, ...copy); state.selected = new Set(copy.map((b) => b.id)); render(); changeSoon(); }
       else if (e.key === "ArrowUp" || e.key === "ArrowDown") { const r = selectedRange(); const i = e.key === "ArrowUp" ? Math.max(0, r.from - 1) : Math.min(state.blocks.length - 1, r.to + 1); e.preventDefault(); if (e.altKey) { moveBlocks(r.from, r.to, e.key === "ArrowUp" ? i : i + 1); } else select(state.blocks[i].id); }

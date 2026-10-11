@@ -18,7 +18,7 @@
   // 哪些東西是玻璃（JS 畫出來的也算）：選擇器 → 預設
   const AUTO = [
     [".topbar > .btn.icon, .topbar > .brand-back, .topbar > .save-state, .topbar > .job-state, .topbar > .search, .topbar > .seg, .topbar > .pv-head, .topbar > .btn.accent, .topbar > .btn.line, #tabs .btn.icon", "soft"],
-    [".pv-fabs .fab, .askline, .jump-back, #findbar", "soft"],
+    [".pv-fabs, .askline, .jump-back, #findbar", "soft"],
     [".menu, .popover, .bk-menu, .ch-list, .ch-menu, .ch-docpop, #toast, .ch-aside, .ch-compose, .nai-box, .sync-pop, #dockDrop", "strong"],
   ];
   const live = new WeakMap();   // 元素 → 模組給的把手

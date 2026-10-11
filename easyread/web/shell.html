@@ -9,7 +9,8 @@
 <link rel="stylesheet" href="/web/css/glass.css">
 <link rel="stylesheet" href="/web/css/shell.css">
 <link rel="stylesheet" href="/web/css/apple.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+<link rel="stylesheet" href="/web/css/craft.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/Electron/i.test(navigator.userAgent))document.documentElement.classList.add("desktop")</script>
 </head>
 <body>
 <div id="tabs" role="tablist"></div>

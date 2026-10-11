@@ -176,15 +176,37 @@
   PR.on("ui-changed", () => PR.applyLayout());
 
   /* ---------- 縮放 ---------- */
+  /* 縮放要順：寬度一改整份文件都要重排，所以（1）看不到的頁不排（pdfview.css 的 content-visibility），
+     （2）換清晰的圖等手停下來再換（連按、捏合時不會每一步都重抓圖），（3）捏合（trackpad 的 ctrl+wheel）一格一格跟著手走。 */
+  let reloadT = null;
   PR.setPdfZoom = function (z) {
     z = Math.round(Math.max(0.5, Math.min(4, z)) * 100) / 100;
+    if (z === ((PR.prefs || {}).pdfZoom || 1)) return;
     const scroller = PR.$(".pv-scroll");
     const yr = scroller.scrollTop / Math.max(1, scroller.scrollHeight), xr = scroller.scrollLeft / Math.max(1, scroller.scrollWidth);
     PR.prefs.pdfZoom = z;
     PR.applyPrefs();  // 會存偏好並呼叫 applyLayout（更新 --pv-zoom 和縮放標籤）
     scroller.scrollTop = yr * scroller.scrollHeight; scroller.scrollLeft = xr * scroller.scrollWidth;
-    PR.reloadPages && PR.reloadPages();
+    clearTimeout(reloadT);
+    reloadT = setTimeout(() => PR.reloadPages && PR.reloadPages(), 260);
   };
+  (function pinch() {
+    const scroller = PR.$(".pv-scroll");
+    if (!scroller) return;
+    let pending = 0, raf = 0;
+    scroller.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;  // 捏合在 Chromium 裡是帶 ctrlKey 的 wheel；一般捲動不管
+      e.preventDefault();
+      pending += e.deltaY;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const d = pending; pending = 0;
+        const z = (PR.prefs || {}).pdfZoom || 1;
+        PR.setPdfZoom(z * Math.exp(-d * 0.01));
+      });
+    }, { passive: false });
+  })();
   /* 工具列和浮動按鈕的圖示（reader.html 裡只留空按鈕） */
   [["[data-pv='prev']", "back"], ["[data-pv='next']", "next"], ["[data-pv='zoom-out']", "zoomOut"], ["[data-pv='zoom-in']", "zoomIn"], ["[data-pv='pdf']", "download"], ["[data-pv='close']", "x"],
     ["[data-fab='region']", "region"], ["[data-fab='notes']", "notebook"], ["[data-fab='chat']", "sparkle"]].forEach(([sel, name]) => {

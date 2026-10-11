@@ -15,7 +15,8 @@
 <link rel="stylesheet" href="/web/css/settings-cloud.css">
 <link rel="stylesheet" href="/web/css/usage.css">
 <link rel="stylesheet" href="/web/css/apple.css">
-<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+<link rel="stylesheet" href="/web/css/craft.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}if(/Electron/i.test(navigator.userAgent))document.documentElement.classList.add("desktop")</script>
 </head>
 <body>
 <header class="topbar">
@@ -42,6 +43,7 @@
       <span class="grow"></span>
       <button class="btn sm line" id="pickBtn" disabled></button>
       <div class="batch-bar" id="batchBar"></div>
+      <div class="seg lib-view" id="libView" role="group" aria-label="檢視"><button data-lv="list" title="清單"></button><button data-lv="grid" title="格子"></button></div>
       <label class="sort">排序
         <select id="sort" class="input">
           <option value="opened">最近打开</option>

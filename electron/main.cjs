@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, shell, ipcMain, session } = require("electron");
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain, session, nativeTheme } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -167,6 +167,11 @@ function trustedWindow(event) {
   }
 }
 
+// 介面主題跟著 App 的設定走：視窗材質（vibrancy）的明暗由系統外觀決定，所以要一起切
+ipcMain.handle("easyread:theme", (event, theme) => {
+  nativeTheme.themeSource = theme === "dark" || theme === "light" ? theme : "system";
+  return nativeTheme.shouldUseDarkColors;
+});
 ipcMain.handle("easyread:pick-folder", async event => {
   trustedWindow(event);
   const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
@@ -360,6 +365,9 @@ async function createWindow() {
     minHeight: MIN_WINDOW[1],
     icon: path.join(__dirname, "assets", "icon.ico"),
     show: false,
+    // macOS：視窗底是半透明的材質（桌面透過來、糊掉），像 Craft；標題列藏起來，紅黃綠放在分頁列左邊。
+    // 網頁那邊 html.desktop 的底色是半透明的（base.css），材質才透得出來。
+    ...(process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active", backgroundColor: "#00000000", titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 13 } } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

@@ -1,0 +1,75 @@
+/* FOLI · Craft 文件視圖的那一層（排在 apple.css 後面，蓋過去）。
+   桌面版的視窗底是半透明材質（electron/main.cjs 的 vibrancy；頁面掛 html.desktop），桌面透過來、糊掉；
+   內容放在不透明的圓角卡片上——文章是一張卡、PDF 的每一頁是一張卡、筆記頁是一張卡、文獻庫的清單是一張卡。
+   右側面板像 Craft 的檢閱器：最上面一排文字分頁（原頁／譯文、筆記、問 AI）；PDF 底部正中一顆浮動膠囊放工具。 */
+:root { --insp-h: 40px; --card-pad: min(48px, var(--gutter, 48px)); --on-ink: #ffffff; }
+:root[data-theme="dark"] { --on-ink: #141418; }
+
+/* ---------------- 桌面版：底是透的，材質從底下透出來 ---------------- */
+html.desktop { --bg: rgba(247, 247, 248, .6); --bg-2: rgba(240, 240, 242, .5); --glass-sidebar: rgba(246, 246, 247, .55); --canvas: transparent; }
+html.desktop[data-theme="dark"] { --bg: rgba(20, 20, 23, .62); --bg-2: rgba(26, 26, 29, .55); --glass-sidebar: rgba(22, 22, 25, .62); --canvas: transparent; }
+html.desktop body { background: var(--bg); }
+/* 外殼本身全透明（底色由裡面的 iframe 各自上），分頁列留紅黃綠的位置、可以拖視窗 */
+html.desktop body:has(> #frames) { background: transparent; }
+html.desktop #frames iframe { background: transparent; }
+html.desktop #tabs { padding-left: 84px; -webkit-app-region: drag; }
+html.desktop #tabs .tab, html.desktop #tabs .btn, html.desktop #tabs .dock-rail, html.desktop #tabs .dock-app { -webkit-app-region: no-drag; }
+/* 字印在石墨黑上的地方：底色透了，字不能跟著透 */
+.btn.icon.lg.on, .btn.icon.lg.on:hover, #tabs .btn.icon.on, .pv-fabs .fab.primary, .pv-fabs .fab.primary:hover, #selbar > button.primary, .np-filters > button.on, .ch-pill.on, .ch-send, .nai-send,
+.cm.user .bubble, .editor-bar button.primary, #askline, .askline { color: var(--on-ink); }
+.ch-send.stop, .nai-send.stop { color: #fff; }
+
+/* ---------------- 閱讀頁：文章是一張卡 ---------------- */
+:root { --gap: 60px; }
+#paper { background: var(--surface); border-radius: 20px; padding: 40px var(--card-pad) 60px; margin: 0 calc(-1 * var(--card-pad)); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
+#paper .blk::before { left: -14px; }
+#paper .edited-dot { left: -22px; }
+.pv-page { border-radius: 10px; }
+.pv-page > img { border-radius: 10px; }
+body.pdf-main .pv-scroll { padding-top: 18px; }
+/* 頂欄：三顆面板鈕收起來，只留一顆「右側面板」；PDF 優先時「譯文」那顆留著 */
+#bar [data-act="pages"], #bar [data-act="notes"], #bar [data-act="chat"] { display: none !important; }
+body.pdf-main #bar [data-act="pages"] { display: inline-flex !important; }
+/* 右側面板的分頁列（檢閱器） */
+#inspTabs { display: none; position: fixed; top: var(--bar-h); right: 0; z-index: 41; width: var(--side-w-live, var(--side-w)); height: var(--insp-h); align-items: center; gap: 2px; padding: 0 6px 0 10px; background: var(--bg); border-left: .5px solid var(--rule-2); }
+body.side-open #inspTabs { display: flex; }
+html.chat-only #inspTabs, html.notes-only #inspTabs { display: none !important; }
+#inspTabs > button[role="tab"] { height: 28px; padding: 0 10px; border-radius: 8px; font: 500 13.5px var(--ui); color: var(--ink-3); transition: color var(--dur-fast), background var(--dur-fast), transform .1s ease-out; }
+#inspTabs > button[role="tab"]:hover { color: var(--ink); background: var(--surface-2); }
+#inspTabs > button[role="tab"]:active { transform: scale(.96); }
+#inspTabs > button[role="tab"].on { color: var(--ink); font-weight: 700; }
+#inspTabs .grow { flex: 1; }
+#inspTabs .insp-x { width: 26px; height: 26px; border-radius: 50%; color: var(--ink-3); }
+body.side-open #notespanel, body.side-open #chatpanel, body.side-open:not(.pdf-main) #pageview { top: calc(var(--bar-h) + var(--insp-h)); }
+body.side-open .panel-grip { top: calc(var(--bar-h) + var(--insp-h)); }
+.side-panel, #inspTabs { background: var(--bg); }
+@media (max-width: 1179px) { #inspTabs { width: min(600px, 100vw); } }
+@media (max-width: 760px) { #inspTabs { width: 100vw; } }
+/* 底部正中的膠囊：框選、筆記、問 AI */
+.pv-fabs { right: auto; left: 50%; bottom: 18px; transform: translateX(-50%); flex-direction: row; gap: 2px; padding: 4px; border-radius: 999px; }
+.pv-fabs .fab { width: 38px; height: 38px; background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.pv-fabs .fab:hover { background: var(--lg-hover) !important; }
+.pv-fabs .fab.on { color: var(--accent); }
+.pv-fabs .fab.primary { background: var(--ink) !important; color: var(--on-ink); }
+.pv-fabs .fab svg.i { width: 18px; height: 18px; }
+/* 跳回剛才讀的地方：膠囊放左下 */
+body.pdf-main .jump-back { left: 20px; }
+
+/* ---------------- 文獻庫：清單／格子 ---------------- */
+.lib-view { margin-right: 4px; }
+.lib-view > button { width: 30px; padding: 0; justify-content: center; }
+.list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; padding: 2px; background: transparent; box-shadow: none; overflow: visible; }
+.list.grid .row { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow-page); overflow: hidden; transform: none !important; transition: box-shadow var(--dur-fast), background var(--dur-fast); }
+.list.grid .row:hover { box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
+.list.grid .row::before { display: none; }
+.list.grid .thumb { width: 100%; height: 150px; border-radius: 0; box-shadow: inset 0 -.5px 0 var(--rule); background-size: cover; background-position: center top; }
+.list.grid .row > :not(.thumb):not(.pick) { padding: 0 14px; }
+.list.grid .row .t1 { font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.list.grid .row .t2 { display: none; }
+.list.grid .row .t3 { margin-top: 4px; }
+.list.grid .row .side-info { flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; padding-top: 0; }
+.list.grid .row .pick { left: 8px; top: 8px; }
+
+/* ---------------- 獨立筆記：一張卡 ---------------- */
+.note-page .note-main { max-width: 860px; margin: calc(var(--bar-h) + 10px) auto 170px; padding: 44px 56px 80px; background: var(--surface); border-radius: 20px; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }
+@media (max-width: 600px) { .note-page .note-main { margin: calc(var(--bar-h) + 6px) 8px 170px; padding: 24px 16px 60px; border-radius: 14px; } }

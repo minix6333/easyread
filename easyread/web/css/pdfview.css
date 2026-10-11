@@ -47,7 +47,7 @@ body.pdf-main .pv-scroll { padding: 22px 24px 40vh; }
 /* 頁面不要撐滿整個寬螢幕：最寬約一張 A4 的閱讀寬度，置中；縮放是在這個基礎上放大 */
 body.pdf-main .pv-page { max-width: calc(min(100%, 920px) * var(--pv-zoom)); }
 .pv-head [hidden] { display: none !important; }
-.pv-page { width: calc(100% * var(--pv-zoom)); }
+.pv-page { width: calc(100% * var(--pv-zoom)); content-visibility: auto; contain-intrinsic-size: auto 900px; }  /* 看不到的頁不排版：縮放、拉面板時只重排眼前幾頁 */
 .pv-page.pickable { cursor: pointer; }
 
 /* 文字層：透明的字鋪在原頁圖上，可以選、可以拖 */

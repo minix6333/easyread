@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 contextBridge.exposeInMainWorld("easyreadDesktop", {
   isElectron: true,
   platform: process.platform,
+  setTheme: (theme) => ipcRenderer.invoke("easyread:theme", theme),  // "dark" / "light" / 其他＝跟隨系統（視窗材質的明暗）
   pickFolder: () => ipcRenderer.invoke("easyread:pick-folder"),
   relaunch: () => ipcRenderer.invoke("easyread:relaunch"),
   clearEmbedData: () => ipcRenderer.invoke("easyread:embed-clear"),

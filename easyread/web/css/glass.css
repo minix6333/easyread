@@ -7,7 +7,7 @@
   --lg-spec: rgba(255, 255, 255, .95);     /* 上緣亮邊 */
   --lg-glow: rgba(255, 255, 255, .32);     /* 下緣內光 */
   --lg-line: rgba(255, 255, 255, .75);     /* 內框 */
-  --lg-edge: rgba(0, 0, 0, .1);            /* 外框髮線 */
+  --lg-edge: rgba(0, 0, 0, .07);           /* 外框髮線（淡，玻璃才不會像畫了框） */
   --lg-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px -6px rgba(0, 0, 0, .14);
   --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .05), 0 24px 56px -16px rgba(0, 0, 0, .28);
   --lg-hover: rgba(255, 255, 255, .5);     /* 滑過去：玻璃再亮一階 */
@@ -19,7 +19,7 @@
   --lg-spec: rgba(255, 255, 255, .22);
   --lg-glow: rgba(255, 255, 255, .04);
   --lg-line: rgba(255, 255, 255, .12);
-  --lg-edge: rgba(0, 0, 0, .55);
+  --lg-edge: rgba(0, 0, 0, .35);
   --lg-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px -6px rgba(0, 0, 0, .6);
   --lg-shadow-lg: 0 2px 6px rgba(0, 0, 0, .5), 0 24px 56px -16px rgba(0, 0, 0, .8);
   --lg-hover: rgba(255, 255, 255, .08);
@@ -31,6 +31,10 @@
   box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -6px 16px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow);
 }
 .lg[data-glass="strong"] { background: var(--lg-tint-2); box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -10px 24px var(--lg-glow), inset 0 0 0 .5px var(--lg-line), 0 0 0 .5px var(--lg-edge), var(--lg-shadow-lg); }
+/* 玻璃鈕要活：滑過去微微放大、亮一階；按下去縮一下（彈簧） */
+.btn.icon.lg, .pv-fabs .fab, .bk-tools button { transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur) var(--spring-bounce), box-shadow var(--dur-fast); }
+.btn.icon.lg:hover { transform: scale(1.06); }
+.btn.icon.lg:active { transform: scale(.92); transition-duration: .08s; }
 /* 退回毛玻璃（Safari）或實色（減少透明度）：少了折射也要像一塊材質 */
 .lg.lg-frost { background: var(--lg-tint-2); }
 .lg.lg-flat { background: var(--surface) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); }

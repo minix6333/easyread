@@ -146,6 +146,7 @@
     if (act === "notes") PR.toggleNotesPanel();
     if (act === "chat") PR.toggleChat();
     if (act === "settings") { PR.renderSettings(); PR.$("#settings").classList.toggle("open"); }
+    if (act === "insp" && PR.toggleInspector) PR.toggleInspector();
     if (act === "about") PR.toggleDrawer(true, "about");
     if (act === "job" && PR.jobPopover) PR.jobPopover(a);
     if (act === "find" && PR.openFind) PR.findOpen() ? PR.closeFind() : PR.openFind();

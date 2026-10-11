@@ -151,6 +151,10 @@ window.PR = window.PR || {};
     book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
     panel: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>',
     sidebar: '<rect width="18" height="18" x="3" y="3" rx="4"/><path d="M9 3v18"/><path d="M5.5 8h1.5M5.5 11h1.5"/>',
+    panelright: '<rect width="18" height="18" x="3" y="3" rx="4"/><path d="M15 3v18"/>',
+    strike: '<path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><path d="M4 12h16"/>',
+    code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+    grid: '<rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/>',
     upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
@@ -236,7 +240,10 @@ window.PR = window.PR || {};
   PR.applyTheme = function (theme) {
     const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    // 桌面版：視窗的半透明材質要跟著亮暗（只有最外層那一頁拿得到橋；iframe 裡改了主題，外殼靠下面的 storage 事件跟上）
+    try { const d = window.easyreadDesktop; if (d && d.setTheme) d.setTheme(theme === "dark" || theme === "light" ? theme : "system"); } catch (e) { /* 不是桌面版 */ }
   };
+  addEventListener("storage", (e) => { if (e.key === "easyread-prefs") PR.applyTheme((PR.ls.get("easyread-prefs", {}) || {}).theme); });
 
   /* 简单事件总线 */
   const subs = {};
