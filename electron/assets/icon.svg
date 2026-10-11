@@ -1,27 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- FOLI 的 App 圖示：藍色的圓角方塊（系統藍，上亮下深），上面一本折開的白紙——書脊、兩頁掀向右邊。
+  <!-- FOLI 的 App 圖示：石墨黑的圓角方塊（上亮下深），上面一本折開的白紙——書脊、兩頁掀向右邊。
        做成 PNG／ICO 的是 scripts/build_icons.js；App 裡的小標誌是 web/logo.svg 和 PR.logo()（同一個形狀）。
        只用漸層、不用濾鏡：產圖用的 librsvg 畫不好 feDropShadow。 -->
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5fb0ff"/>
-      <stop offset="1" stop-color="#1468f0"/>
+      <stop offset="0" stop-color="#3b3b42"/>
+      <stop offset="1" stop-color="#121215"/>
     </linearGradient>
     <linearGradient id="top" x1="0" y1="0" x2="1" y2="0.25">
-      <stop offset="0" stop-color="#e6f0ff"/>
+      <stop offset="0" stop-color="#e9e9ee"/>
       <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
     <linearGradient id="low" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#cfe2ff"/>
-      <stop offset="1" stop-color="#a9ccff"/>
+      <stop offset="0" stop-color="#c9c9d1"/>
+      <stop offset="1" stop-color="#a3a3ad"/>
     </linearGradient>
     <linearGradient id="fold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#0b3f9e" stop-opacity=".28"/>
-      <stop offset="1" stop-color="#0b3f9e" stop-opacity="0"/>
+      <stop offset="0" stop-color="#000000" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#tile)"/>
-  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228" fill="none" stroke="#ffffff" stroke-opacity=".18"/>
+  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228" fill="none" stroke="#ffffff" stroke-opacity=".12"/>
   <g transform="translate(512 506) scale(16) translate(-33.7 -32.9)">
     <!-- 書脊 -->
     <path d="M20.4 24.4 C20.4 22.3 22.1 20.6 24.2 20.6 L28.4 20.6 L28.4 47.6 C25 47.6 20.4 46.8 20.4 43.2 Z" fill="#ffffff"/>

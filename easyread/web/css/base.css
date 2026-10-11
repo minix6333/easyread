@@ -10,47 +10,48 @@
 :root {
   color-scheme: light;
   --bg: #ffffff;                         /* 視窗的底 */
-  --bg-2: #f5f5f7;                       /* 分組的底：側欄、設定的區塊、清單的外框 */
+  --bg-2: #f6f6f7;                       /* 分組的底：側欄、設定的區塊、清單的外框 */
   --surface: #ffffff;                    /* 面板、卡片、對話框 */
-  --surface-2: rgba(0, 0, 0, .05);       /* 懸停 */
-  --fill: rgba(120, 120, 128, .12);      /* 控制項的底（systemFill）：分段控制的槽、搜尋框、標籤 */
-  --fill-2: rgba(120, 120, 128, .2);
+  --surface-2: rgba(0, 0, 0, .045);      /* 懸停 */
+  --fill: rgba(0, 0, 0, .055);           /* 控制項的底：分段控制的槽、搜尋框、標籤 */
+  --fill-2: rgba(0, 0, 0, .1);
+  --select: rgba(0, 0, 0, .07);          /* 選中的一列（側欄、清單）：灰的，不用強調色——比較靜 */
   --card: #ffffff;
-  --ink: #1d1d1f;
-  --ink-2: #6e6e73;
-  --ink-3: #aeaeb2;
-  --rule: rgba(60, 60, 67, .12);         /* 髮線 */
-  --rule-2: rgba(60, 60, 67, .24);
-  --accent: #007aff;                     /* 系統藍：選取、連結、主要按鈕、AI */
+  --ink: #18181b;                        /* 石墨黑 */
+  --ink-2: #63636b;
+  --ink-3: #9b9ba3;
+  --rule: rgba(0, 0, 0, .075);           /* 髮線 */
+  --rule-2: rgba(0, 0, 0, .13);
+  --accent: #5e5bd1;                     /* 靛紫（壓低飽和）：連結、焦點環、AI；主要按鈕是石墨黑，不用它 */
   --accent-ink: #ffffff;
-  --accent-soft: rgba(0, 122, 255, .1);
-  --accent-soft-2: rgba(0, 122, 255, .18);
-  --mine: #5856d6;                       /* 靛藍：我的筆記、我改過的地方（和 AI 的藍分開） */
-  --mine-soft: rgba(88, 86, 214, .12);
-  --paper: #e5e5ea;                      /* 標誌的兩頁（淺色時用灰階） */
-  --paper-2: #c7c7cc;
-  --danger: #ff3b30;
-  --ok: #34c759;
-  --gold: #ff9f0a;
+  --accent-soft: rgba(94, 91, 209, .1);
+  --accent-soft-2: rgba(94, 91, 209, .17);
+  --mine: #15917f;                       /* 青綠：我的筆記、我改過的地方（和 AI 的靛紫分開） */
+  --mine-soft: rgba(21, 145, 127, .12);
+  --paper: #e4e4e7;                      /* 標誌的兩頁（淺色時用灰階） */
+  --paper-2: #c9c9ce;
+  --danger: #d2392f;
+  --ok: #2f9e5c;
+  --gold: #d49a0b;
   /* 螢光筆：淡的粉彩（正片疊底，字不會變灰）——看得出劃過，但不搶字；--ul-* 是底線、小圓點、卡片色條用的同色系實色 */
-  --hl: rgba(255, 214, 10, .32);
-  --hl-yellow: rgba(255, 214, 10, .32);
-  --hl-green: rgba(52, 199, 89, .26);
-  --hl-blue: rgba(0, 122, 255, .2);
-  --hl-pink: rgba(255, 45, 85, .18);
-  --ul-yellow: #e0b000; --ul-green: #34c759; --ul-blue: #007aff; --ul-pink: #ff2d55;
-  --hl-q: rgba(0, 122, 255, .12);
-  --focus: rgba(0, 122, 255, .06);
-  --pair: rgba(0, 122, 255, .12);        /* 原頁框和對應段落的配對色 */
-  --pair-ring: rgba(0, 122, 255, .55);
-  --canvas: #e9e9ec;                     /* PDF 頁面底下（像「預覽程式」）：淺灰，頁是白的紙 */
-  --shadow: 0 0 0 .5px rgba(0, 0, 0, .08), 0 8px 24px rgba(0, 0, 0, .12);
-  --shadow-lg: 0 0 0 .5px rgba(0, 0, 0, .12), 0 24px 60px rgba(0, 0, 0, .22);
-  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .1), 0 2px 10px rgba(0, 0, 0, .12);
-  --glass: rgba(255, 255, 255, .74);     /* 工具列的材質（配 backdrop-filter） */
-  --glass-sidebar: rgba(243, 243, 245, .8);  /* 側欄：比工具列厚一點、暗一點（結構用深的材質） */
-  --glass-edge: rgba(255, 255, 255, .55);    /* 材質上緣那道亮邊：光打在玻璃上 */
-  --r-sm: 6px; --r: 10px; --r-lg: 12px; --r-xl: 16px;   /* 圓角：控制項、卡片、面板、對話框 */
+  --hl: rgba(250, 204, 21, .32);
+  --hl-yellow: rgba(250, 204, 21, .32);
+  --hl-green: rgba(52, 199, 89, .24);
+  --hl-blue: rgba(59, 130, 246, .2);
+  --hl-pink: rgba(244, 63, 94, .18);
+  --ul-yellow: #d9a400; --ul-green: #2fa05e; --ul-blue: #3b82f6; --ul-pink: #e0457a;
+  --hl-q: rgba(94, 91, 209, .12);
+  --focus: rgba(94, 91, 209, .06);
+  --pair: rgba(94, 91, 209, .12);        /* 原頁框和對應段落的配對色 */
+  --pair-ring: rgba(94, 91, 209, .55);
+  --canvas: #ececef;                     /* PDF 頁面底下：淺灰，頁是白的紙 */
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 32px -8px rgba(0, 0, 0, .14);
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, .06), 0 32px 64px -16px rgba(0, 0, 0, .26);
+  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px rgba(0, 0, 0, .1);
+  --glass: rgba(255, 255, 255, .76);     /* 工具列的材質（配 backdrop-filter） */
+  --glass-sidebar: rgba(246, 246, 247, .82);  /* 側欄：比工具列厚一點、暗一點（結構用深的材質） */
+  --glass-edge: rgba(255, 255, 255, .6);     /* 材質上緣那道亮邊：光打在玻璃上 */
+  --r-sm: 8px; --r: 12px; --r-lg: 14px; --r-xl: 18px;   /* 圓角：控制項、卡片、面板、對話框 */
   /* 動作：臨界阻尼的彈簧（response 0.35s，沒有過衝）當所有 UI 的預設；拖完放開的用帶一點彈的那條 */
   --spring: linear(0, 0.0547 4.2%, 0.1726 8.3%, 0.309 12.5%, 0.4408 16.7%, 0.5577 20.8%, 0.656 25%, 0.7361 29.2%, 0.7997 33.3%, 0.8493 37.5%, 0.8874 41.7%, 0.9164 45.8%, 0.9383 50%, 0.9547 54.2%, 0.9668 58.3%, 0.9758 62.5%, 0.9824 66.7%, 0.9872 70.8%, 0.9908 75%, 0.9934 79.2%, 0.9952 83.3%, 0.9966 87.5%, 0.9975 91.7%, 0.9982 95.8%, 1);
   --spring-bounce: linear(0, 0.0473 3.6%, 0.1576 7.1%, 0.295 10.7%, 0.4364 14.3%, 0.5678 17.9%, 0.6821 21.4%, 0.7763 25%, 0.8507 28.6%, 0.9071 32.1%, 0.9481 35.7%, 0.9765 39.3%, 0.9951 42.9%, 1.0064 46.4%, 1.0124 50%, 1.0149 53.6%, 1.015 57.1%, 1.0138 60.7%, 1.0119 64.3%, 1.0097 67.9%, 1.0076 71.4%, 1.0057 75%, 1.0041 78.6%, 1.0029 82.1%, 1.0019 85.7%, 1.0011 89.3%, 1.0006 92.9%, 1.0002 96.4%, 1);
@@ -87,47 +88,48 @@ html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", App
 html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* 深灰底、亮字、亮一階的藍；面板和卡片比底色亮一階，邊界不用只靠一條看不見的線 */
-  --bg: #1e1e1e;
-  --bg-2: #1c1c1e;
-  --surface: #2a2a2c;
-  --surface-2: rgba(255, 255, 255, .08);
-  --fill: rgba(120, 120, 128, .24);
-  --fill-2: rgba(120, 120, 128, .36);
-  --card: #2a2a2c;
-  --ink: #f5f5f7;
-  --ink-2: #a1a1a6;
-  --ink-3: #6e6e73;
-  --rule: rgba(84, 84, 88, .55);
-  --rule-2: rgba(84, 84, 88, .8);
-  --accent: #0a84ff;
-  --accent-ink: #ffffff;
-  --accent-soft: rgba(10, 132, 255, .16);
-  --accent-soft-2: rgba(10, 132, 255, .28);
-  --mine: #6e6cf0;
-  --mine-soft: rgba(110, 108, 240, .18);
+  /* 石墨黑的底、亮字、淡靛紫；面板和卡片比底色亮一階，邊界不用只靠一條看不見的線 */
+  --bg: #151517;
+  --bg-2: #1a1a1d;
+  --surface: #1f1f23;
+  --surface-2: rgba(255, 255, 255, .06);
+  --fill: rgba(255, 255, 255, .08);
+  --fill-2: rgba(255, 255, 255, .14);
+  --select: rgba(255, 255, 255, .09);
+  --card: #1f1f23;
+  --ink: #ededf0;
+  --ink-2: #a1a1a9;
+  --ink-3: #6c6c75;
+  --rule: rgba(255, 255, 255, .08);
+  --rule-2: rgba(255, 255, 255, .15);
+  --accent: #8d89f3;
+  --accent-ink: #15151a;
+  --accent-soft: rgba(141, 137, 243, .14);
+  --accent-soft-2: rgba(141, 137, 243, .24);
+  --mine: #4cc5b2;
+  --mine-soft: rgba(76, 197, 178, .16);
   --paper: #8e8e93;
   --paper-2: #636366;
-  --danger: #ff453a;
-  --ok: #30d158;
-  --gold: #ffd60a;
-  --hl: rgba(255, 214, 10, .24);
-  --hl-yellow: rgba(255, 214, 10, .24);
-  --hl-green: rgba(48, 209, 88, .24);
-  --hl-blue: rgba(10, 132, 255, .26);
-  --hl-pink: rgba(255, 55, 95, .24);
-  --ul-yellow: #d4b000; --ul-green: #30d158; --ul-blue: #0a84ff; --ul-pink: #ff375f;
-  --hl-q: rgba(10, 132, 255, .16);
-  --focus: rgba(10, 132, 255, .08);
-  --pair: rgba(10, 132, 255, .14);
-  --pair-ring: rgba(10, 132, 255, .6);
-  --canvas: #141414;
-  --shadow: 0 0 0 .5px rgba(0, 0, 0, .5), 0 10px 28px rgba(0, 0, 0, .55);
-  --shadow-lg: 0 0 0 .5px rgba(255, 255, 255, .1), 0 28px 70px rgba(0, 0, 0, .7);
-  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .5);
-  --glass: rgba(30, 30, 30, .72);
-  --glass-sidebar: rgba(28, 28, 30, .82);
-  --glass-edge: rgba(255, 255, 255, .08);
+  --danger: #ff6b61;
+  --ok: #4ccf82;
+  --gold: #f0b429;
+  --hl: rgba(250, 204, 21, .24);
+  --hl-yellow: rgba(250, 204, 21, .24);
+  --hl-green: rgba(74, 222, 128, .22);
+  --hl-blue: rgba(96, 165, 250, .26);
+  --hl-pink: rgba(251, 113, 133, .24);
+  --ul-yellow: #d9a400; --ul-green: #4ade80; --ul-blue: #60a5fa; --ul-pink: #fb7185;
+  --hl-q: rgba(141, 137, 243, .16);
+  --focus: rgba(141, 137, 243, .08);
+  --pair: rgba(141, 137, 243, .14);
+  --pair-ring: rgba(141, 137, 243, .6);
+  --canvas: #0f0f11;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px -8px rgba(0, 0, 0, .6);
+  --shadow-lg: 0 0 0 .5px rgba(255, 255, 255, .08), 0 32px 64px -16px rgba(0, 0, 0, .75);
+  --shadow-page: 0 0 0 .5px rgba(0, 0, 0, .6), 0 4px 14px rgba(0, 0, 0, .5);
+  --glass: rgba(21, 21, 23, .74);
+  --glass-sidebar: rgba(26, 26, 29, .84);
+  --glass-edge: rgba(255, 255, 255, .07);
   /* 夜間的原頁圖：預設「反相」（保留色相、只翻明暗，白底黑字變暗底亮字，彩圖的顏色不跑掉；飽和度壓一點免得螢光）。
      閱讀設定可以換「調暗」（照片、投影片不反相，只把亮度壓下來）或「原色」。 */
   --night-filter: invert(.888) hue-rotate(180deg) saturate(.9);
@@ -145,8 +147,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 var(-
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: default; }
 a { color: inherit; }
-::selection { background: rgba(0, 122, 255, .22); }
-:root[data-theme="dark"] ::selection { background: rgba(10, 132, 255, .36); }
+::selection { background: rgba(94, 91, 209, .22); }
+:root[data-theme="dark"] ::selection { background: rgba(141, 137, 243, .32); }
 /* 圖示：細線（像 SF Symbols 的 regular），顏色跟著文字 */
 svg.i { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 svg.i.sm { width: 15px; height: 15px; }
@@ -162,10 +164,14 @@ svg.i.sm { width: 15px; height: 15px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; font: 600 15px/1 var(--ui); letter-spacing: .06em; text-decoration: none; color: var(--ink); white-space: nowrap; }
 .brand .mark { width: 22px; height: 22px; flex: none; display: block; border-radius: 6px; }
 /* 標誌（PR.logo）：藍色的方塊、白色的折紙 */
-.mark .lg-tile, .hero .lg-tile { fill: var(--accent); }
+.mark .lg-tile, .hero .lg-tile { fill: #1f1f24; }
 .mark .lg-s, .hero .lg-s { fill: #ffffff; }
-.mark .lg-a, .hero .lg-a { fill: rgba(255, 255, 255, .82); }
-.mark .lg-b, .hero .lg-b { fill: rgba(255, 255, 255, .55); }
+.mark .lg-a, .hero .lg-a { fill: rgba(255, 255, 255, .84); }
+.mark .lg-b, .hero .lg-b { fill: rgba(255, 255, 255, .5); }
+:root[data-theme="dark"] .mark .lg-tile, :root[data-theme="dark"] .hero .lg-tile { fill: #ececf0; }
+:root[data-theme="dark"] .mark .lg-s, :root[data-theme="dark"] .hero .lg-s { fill: #1a1a1e; }
+:root[data-theme="dark"] .mark .lg-a, :root[data-theme="dark"] .hero .lg-a { fill: rgba(26, 26, 30, .82); }
+:root[data-theme="dark"] .mark .lg-b, :root[data-theme="dark"] .hero .lg-b { fill: rgba(26, 26, 30, .5); }
 .brand b { font-weight: 700; color: var(--ink); }
 .brand-back { gap: 4px; padding: 0 8px 0 6px; color: var(--ink-2); }
 .brand-back .mark { width: 20px; height: 20px; border-radius: 5px; }
@@ -180,13 +186,17 @@ svg.i.sm { width: 15px; height: 15px; }
 }
 .btn:hover { background: var(--surface-2); }
 .btn:active { transform: scale(.96); background: var(--fill-2); }
-.btn.on { background: var(--accent-soft-2); color: var(--accent); }
+.btn.on { background: var(--select); color: var(--ink); }
 .btn.line { background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 1px rgba(0, 0, 0, .05); }
 .btn.line:hover { background: var(--surface); box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 2px rgba(0, 0, 0, .1); }
 .btn.line:active { background: var(--fill); }
-.btn.primary, .btn.accent { color: var(--accent-ink); background: linear-gradient(var(--accent) 0%, color-mix(in srgb, var(--accent) 86%, #000) 100%); box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .35), 0 .5px 1px rgba(0, 0, 0, .2); }
-.btn.primary:hover, .btn.accent:hover { background: linear-gradient(color-mix(in srgb, var(--accent) 92%, #fff) 0%, var(--accent) 100%); color: var(--accent-ink); }
-.btn.primary:active, .btn.accent:active { background: color-mix(in srgb, var(--accent) 80%, #000); }
+/* 主要按鈕：石墨黑（深色模式是白的），不用強調色——像 Craft */
+.btn.primary, .btn.accent { color: #ffffff; background: linear-gradient(#34343a, #1c1c20); box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .14), 0 1px 2px rgba(0, 0, 0, .22); }
+.btn.primary:hover, .btn.accent:hover { background: linear-gradient(#3f3f46, #26262b); color: #ffffff; }
+.btn.primary:active, .btn.accent:active { background: #141418; }
+:root[data-theme="dark"] .btn.primary, :root[data-theme="dark"] .btn.accent { color: #141418; background: linear-gradient(#f6f6f8, #dcdce1); box-shadow: inset 0 .5px 0 #fff, 0 1px 2px rgba(0, 0, 0, .35); }
+:root[data-theme="dark"] .btn.primary:hover, :root[data-theme="dark"] .btn.accent:hover { background: linear-gradient(#ffffff, #e6e6ea); color: #141418; }
+:root[data-theme="dark"] .btn.primary:active, :root[data-theme="dark"] .btn.accent:active { background: #cfcfd5; }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
 .btn.sm { height: 24px; padding: 0 9px; font-size: 12px; border-radius: 6px; }
@@ -216,10 +226,10 @@ textarea.input { height: auto; padding: 6px 9px; resize: vertical; line-height: 
 .chip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 5px; font-size: 11.5px; font-weight: 500; color: var(--ink-2); background: var(--fill); white-space: nowrap; }
 .chip button { color: var(--ink-3); font-size: 13px; line-height: 1; }
 .chip button:hover { color: var(--danger); }
-.chip.kind { color: var(--accent); background: var(--accent-soft); }
+.chip.kind { color: var(--ink); background: var(--fill); }
 .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
 .pill.unread { color: var(--ink-2); background: var(--fill); }
-.pill.reading { color: var(--accent); background: var(--accent-soft); }
+.pill.reading { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .pill.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .spin { width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -243,9 +253,7 @@ textarea.input { height: auto; padding: 6px 9px; resize: vertical; line-height: 
 .btn.danger-fill { background: var(--danger); color: #fff; }
 .btn.danger-fill:hover { background: var(--danger); opacity: .9; }
 .menu-list button, .menu-list a { display: flex; align-items: center; gap: 8px; width: 100%; height: 26px; padding: 0 9px; border-radius: 6px; font-size: 13px; color: var(--ink); text-align: left; text-decoration: none; }
-.menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--accent); color: var(--accent-ink); }
-.menu-list button:hover svg, .menu-list a:hover svg { color: inherit; }
-.menu-list button:hover .kbd { color: inherit; opacity: .8; }
+.menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--select); color: var(--ink); }
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .menu-list hr { border: 0; border-top: .5px solid var(--rule-2); margin: 5px 6px; }
 
