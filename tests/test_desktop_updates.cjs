@@ -1,7 +1,19 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
+const fs = require("node:fs");
+const path = require("node:path");
 const { registerUpdates } = require("../electron/desktop-updates.cjs");
+
+// electron-updater 把版本的 prerelease 字首當成頻道：已經裝出去的 1.3.1-tw.N 只會去找下一個 -tw. 的 Release。
+// 字首一換（2.1 一度改成 -foli.N），那些電腦按「有新版本」只會得到「已是最新」，永遠更新不到。
+test("the version keeps the -tw. channel that installed Windows builds look for", () => {
+  const pkg = require("../package.json");
+  assert.match(pkg.version, /^\d+\.\d+\.\d+-tw\.\d+$/);
+  const init = fs.readFileSync(path.join(__dirname, "../easyread/__init__.py"), "utf8");
+  const upstream = /__version__ = "([^"]+)"/.exec(init)[1], fork = /__fork__ = "([^"]+)"/.exec(init)[1];
+  assert.equal(upstream + "-" + fork, pkg.version);  // 兩個地方的版本要一致（發版時由標籤一起改，見 release.yml）
+});
 
 function fixture() {
   const handlers = {};
