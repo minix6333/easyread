@@ -72,7 +72,7 @@ def main():
                     time.sleep(0.1)
                 assert url, "frozen service failed to start"
                 with urllib.request.urlopen(url, timeout=10) as response:
-                    assert b"EasyRead" in response.read()
+                    assert b"FOLI" in response.read()  # 外殼頁的標題（產品名）
                 rel = paper["meta"]["pages"][0]["img"]
                 for width in (1000, 1200, 1400, 1600):
                     with urllib.request.urlopen(f"{url}/p/{ws.name}/{rel}?w={width}", timeout=15) as response:
