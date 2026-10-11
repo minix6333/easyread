@@ -192,8 +192,10 @@
   const navShown = () => body.classList.contains("nav-open") || body.classList.contains("drawer-open");
   PR.navWidth = () => (body.classList.contains("nav-open") ? NAV_W : 0);
   let navT = 0;
-  function syncNav() {
-    const col = navCol(), was = body.classList.contains("nav-open"), now = col && pinned;
+  /* redraw：內容要重畫（自己按了開關、換了分頁）。別的原因叫進來的（版面的 class 變了、視窗大小變了）只在「剛出現」時畫一次——
+     不然每次開關右側面板都把整欄重畫一遍：縮圖閃一下、術語表打到一半的字也沒了 */
+  function syncNav(redraw) {
+    const col = navCol(), was = body.classList.contains("nav-open"), shown = navShown(), now = col && pinned;
     body.classList.toggle("nav-col", col);
     body.classList.toggle("nav-open", now);
     body.classList.toggle("drawer-open", !col && over);
@@ -204,11 +206,11 @@
       clearTimeout(navT);
       navT = setTimeout(() => { PR.reloadPages && PR.reloadPages(); PR.renderPvMargin && PR.renderPvMargin(); }, 280);
     }
-    if (navShown()) PR.renderDrawer();
+    if (navShown() && (redraw || !shown)) PR.renderDrawer();
   }
   PR.toggleNav = function () {
     if (navCol()) { pinned = !pinned; PR.ls.set("easyread-nav", pinned); over = false; } else over = !over;
-    syncNav();
+    syncNav(true);
   };
   /* 舊的入口：打開某一頁（說明…）、Esc 或跳走之後收起來。釘著的那一欄不會被 force=false 收掉 */
   PR.toggleDrawer = function (force, which) {
@@ -217,7 +219,7 @@
       if (force === true && !pinned) { pinned = true; PR.ls.set("easyread-nav", true); }
       else if (force == null) { pinned = !pinned; PR.ls.set("easyread-nav", pinned); }
     } else over = force != null ? !!force : !over;
-    syncNav();
+    syncNav(force !== false);
   };
   PR.$("#scrim").onclick = () => PR.toggleDrawer(false);
   const TAB_ICON = { toc: "list", pages: "grid", terms: "type", recent: "clock", about: "info" };
@@ -225,19 +227,24 @@
   if (PR.store.mode !== "server") PR.$('[data-tab="recent"]').hidden = true;  // 离线单文件版没有文献库
   PR.$(".drawer-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; PR.ls.set("easyread-nav-tab", tab); PR.renderDrawer(); } });
   // 版面變了（開關右側面板、譯文、換版面）、視窗大小變了：放不放得下重新算
-  new MutationObserver(() => syncNav()).observe(body, { attributes: true, attributeFilter: ["class"] });
-  addEventListener("resize", PR.debounce(syncNav, 120));
-  PR.on("pages-built", () => setTimeout(syncNav, 0));  // PDF 那一格準備好了：上次釘著的欄這時候才出來
+  new MutationObserver(() => syncNav(false)).observe(body, { attributes: true, attributeFilter: ["class"] });
+  addEventListener("resize", PR.debounce(() => syncNav(false), 120));
+  PR.on("pages-built", () => setTimeout(() => syncNav(false), 0));  // PDF 那一格準備好了：上次釘著的欄這時候才出來
 
   PR.renderDrawer = function () {
-    PR.$$(".drawer-tabs button").forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
-    if (!PR.pdfMain || !PR.pdfMain()) { const pg = PR.$('.drawer-tabs [data-tab="pages"]'); if (pg) pg.hidden = PR.store.mode === "static"; }
     const m = S.paper.meta || {}, n = (m.pages || []).length, first = (m.pages || [])[0];
+    // 「頁面」：還沒有頁面圖時不出現；文章優先時點縮圖開的是右邊的原頁面板，那個功能關了也不出現
+    const pg = PR.$('.drawer-tabs [data-tab="pages"]');
+    if (pg) pg.hidden = !n || (!(PR.pdfMain && PR.pdfMain()) && PR.feature && PR.feature("pages") === false);
+    if (pg && pg.hidden && tab === "pages") tab = "toc";
+    PR.$$(".drawer-tabs button").forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     const doc = PR.$(".nav-doc");
     const head = (first ? '<i class="nd-thumb" style="background-image:url(' + thumbUrl(first) + ')"></i>' : "") + "<span><b>" + PR.esc(m.short_zh || m.title_zh || m.title_en || "") + "</b>" +
       (n ? "<small>" + PR.t("{n} 页", { n }) + "</small>" : "") + "</span>";
     if (doc && doc._html !== head) { doc._html = head; doc.innerHTML = head; }
     const box = PR.$(".drawer-body"), keep = box.className === "drawer-body " + tab ? box.scrollTop : 0;
+    // 欄釘著的時候，別處一有變動（畫了線、背景同步）就會叫這裡重畫：正在術語表裡打字就先不動，免得字和游標不見
+    if (keep !== 0 || box.className === "drawer-body " + tab) { const a = document.activeElement; if (a && box.contains(a) && a.matches("input, textarea")) return; }
     box.innerHTML = ({ toc: tocHtml, pages: pagesHtml, terms: termsHtml, about: aboutHtml, recent: recentHtml })[tab]();
     box.className = "drawer-body " + tab;
     box.scrollTop = keep;
