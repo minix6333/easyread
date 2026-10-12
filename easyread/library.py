@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import paths
+from . import covers, paths
 from . import sources
 from .i18n import tr
 from .log import log
@@ -19,6 +19,15 @@ from .store import SCHEMA, Workspace, empty_discussion, empty_reader, now_iso, r
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _progress(p: dict, pages: int) -> float:
+    """讀到多少（0–1）。文章優先時記的是譯文捲到的比例；PDF 優先時譯文沒在捲（比例一直是 0），用讀到第幾頁算。"""
+    ratio = float(p.get("ratio") or 0)
+    page = int(p.get("page") or 0)
+    if pages and page > 1:
+        ratio = max(ratio, min(1.0, page / pages))
+    return round(ratio, 2)
 
 
 class Library:
@@ -61,7 +70,7 @@ class Library:
             "meta_override": item.get("meta_override") or {},
             "tags": item.get("tags", []), "status": item.get("status", "unread"), "starred": bool(item.get("starred")),
             "added": item.get("added", ""), "last_opened": item.get("last_opened", ""),
-            "progress": (reader.get("progress") or {}).get("ratio", 0),
+            "progress": _progress(reader.get("progress") or {}, meta.get("page_count", 0)),
             "notes": len([n for n in notes if n.get("kind") != "highlight"]),
             "highlights": len([n for n in notes if n.get("kind") == "highlight"]),
             "open_questions": len([n for n in notes if n.get("kind") == "question" and n["id"] not in replied]),
@@ -69,6 +78,9 @@ class Library:
             "has_paper_note": bool((reader.get("paper_note") or {}).get("body")),
             "job": {k: job.get(k) for k in ("type", "state", "message", "done", "total", "updated", "error", "failed", "scope", "read", "model", "target", "pages", "cap_check", "page_cap", "usage", "usage_total")} if job else None,
             # 這台的快取還沒有第一頁的圖（另一台匯入的論文）也給網址：伺服器收到請求時從 PDF 做出來（derive.py）
+            # 卡片上的封面（covers.py 裁好的橫圖）；c 是版本，封面換了網址就變。清單那種小縮圖還是用整頁（thumb）
+            "cover": f"/p/{ws.id}/cover.webp?c={covers.stamp(ws.root, covers.clean(item.get('cover')))}" if (ws.root / "source.pdf").exists() or (paths.derived(ws.root, "pages") / "page-001.webp").exists() else "",
+            "cover_custom": bool(covers.clean(item.get("cover"))),
             "thumb": f"/p/{ws.id}/pages/page-001.webp?v=2" if (paths.derived(ws.root, "pages") / "page-001.webp").exists() or (ws.root / "source.pdf").exists() else "",
         }
 

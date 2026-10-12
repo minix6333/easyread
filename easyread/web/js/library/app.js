@@ -163,7 +163,9 @@
     const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
     const kind = i.kind && i.kind !== "paper" ? '<span class="chip kind">' + PR.esc(PR.kindName(i.kind)) + "</span>" : "";  // 投影片、講義標一下
     const tags = kind + (i.tags || []).map((t) => '<span class="chip cat">' + (L.catIcon ? L.catIcon(t) : PR.icon("folder", "sm")) + PR.esc(t) + "</span>").join("");
-    const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
+    // 縮圖有兩張：清單用整頁的小圖（--t），卡片用伺服器裁好的橫的封面（--c，covers.py）；用哪一張由 CSS 決定，沒用到的那張不會去載
+    const kindTag = i.kind && i.kind !== "paper" ? '<span class="cv-kind">' + PR.esc(PR.kindName(i.kind)) + "</span>" : "";
+    const thumb = i.thumb ? '<div class="thumb" style="--t:url(' + i.thumb + ")" + (i.cover ? ";--c:url(" + i.cover + ")" : "") + '">' + kindTag + "</div>" : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
     const picked = L.picked.has(i.id);

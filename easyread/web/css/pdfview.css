@@ -140,3 +140,24 @@ body.pdf-main .pv-fabs { display: flex; }
 .fab.primary:hover, .fab.primary.on { background: var(--accent); color: var(--accent-ink); filter: brightness(1.1); }
 .fab.has-note::after { content: ""; position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--mine); box-shadow: 0 0 0 2px var(--surface); }
 .fab svg.i { width: 19px; height: 19px; }
+
+/* ---------- 釘住的一塊（pins.js）：浮在 PDF 這一格的角落，往下讀的時候一直在 ---------- */
+.pin { position: absolute; z-index: 7; border-radius: 12px; background: var(--sheet, var(--surface)); overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none;
+  box-shadow: 0 0 0 .5px var(--rule-2), 0 2px 8px rgba(0, 0, 0, .12), 0 14px 34px -12px rgba(0, 0, 0, .38); }
+.pin-hd { display: flex; align-items: center; gap: 2px; height: 30px; padding: 0 4px; cursor: grab; }
+.pin.dragging, .pin.dragging .pin-hd { cursor: grabbing; }
+.pin-hd .grow { flex: 1; }
+.pin-hd button { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 6px; border-radius: 7px; font: 500 11.5px var(--ui); color: var(--ink-2); transition: background var(--dur-fast), transform .1s ease-out; }
+.pin-hd button svg { width: 13px; height: 13px; }
+.pin-hd button:hover { background: var(--row-hover, var(--fill)); color: var(--ink); }
+.pin-hd button:active { transform: scale(.95); }
+.pin-img { width: 100%; background-color: #fff; background-repeat: no-repeat; pointer-events: none; }
+:root[data-theme="dark"] .pin-img { filter: var(--night-filter, none); background-color: var(--night-page-bg, #fff); }  /* 和頁面同一個「夜間頁面」設定 */
+.pin-size { position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+.pin-size::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 7px; height: 7px; border: solid var(--ink-3); border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; opacity: .5; mix-blend-mode: difference; }
+/* 剛框好那張草稿上方的兩顆小鈕：釘住、設為封面 */
+.st-extras { position: absolute; right: 0; bottom: calc(100% + 6px); display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--lg-tint-2, var(--glass)); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: inset 0 1px 0 var(--lg-spec, var(--glass-edge)), 0 0 0 .5px var(--lg-edge, var(--rule-2)), 0 6px 18px -8px rgba(0, 0, 0, .3); }
+.st-extras button { width: 28px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-2); transition: background var(--dur-fast), transform .1s ease-out; }
+.st-extras button:hover { background: var(--row-hover, var(--fill)); color: var(--ink); }
+.st-extras button:active { transform: scale(.94); }

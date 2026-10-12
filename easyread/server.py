@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -452,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
             ws = lib.ws(pid)
+            if ws and rel == "cover.webp":  # 文獻庫卡片上的封面（covers.py：第一頁最上面那一塊，或自己框的）
+                return self._file(covers.cover(ws.root, covers.spec_of(ws)) if app.location.status == "idle" else None, cache=True)
             if ws and app.location.status == "idle" and rel.startswith("pages/") and derive.page_of(rel):
                 derive.page_image(ws.root, derive.page_of(rel))  # 這台的快取沒有這一頁：先從 PDF 做出來
             if ws and app.location.status == "idle" and rel.startswith("pages/") and "w=" in url.query:  # 原页面板用的小一号图，第一次请求时生成
@@ -656,6 +658,8 @@ class Handler(BaseHTTPRequestHandler):
                 res["versions"] = ws.versions()
                 return self._json(200, res)
             if action == "item":
+                if "cover" in body:  # 封面：{page, box} 是自己框的那一塊，其他的（null）＝恢復自動
+                    body["cover"] = covers.clean(body["cover"])
                 return self._json(200, ws.patch_item(body))
             if action == "translate":
                 return self._json(200, translate_api.enqueue(app.jobs, ws, body))

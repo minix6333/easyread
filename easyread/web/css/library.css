@@ -41,7 +41,7 @@
 }
 .row:hover { box-shadow: 0 0 0 .5px var(--rule-2), var(--shadow); transform: translateY(-1px); }
 .row.on { box-shadow: 0 0 0 1.5px var(--accent), var(--shadow); }
-.thumb { width: 52px; height: 68px; border-radius: 5px; background: #fff center top / cover no-repeat; box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 3px rgba(43, 36, 32, .1); }
+.thumb { position: relative; width: 52px; height: 68px; border-radius: 5px; background: #fff var(--t, none) center top / cover no-repeat; box-shadow: 0 0 0 .5px var(--rule-2), 0 1px 3px rgba(43, 36, 32, .1); }
 :root[data-theme="dark"] .thumb { filter: invert(.88) hue-rotate(180deg); }
 .thumb.blank { background: var(--surface-2); display: grid; place-items: center; color: var(--ink-3); }
 .row .t1 { font: 600 15.5px/1.5 var(--ui); color: var(--ink); display: flex; gap: 6px; align-items: baseline; }

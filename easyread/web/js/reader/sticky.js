@@ -63,8 +63,20 @@
     if (box.parentNode !== entry.node) entry.node.append(box);
     box.innerHTML = PR.cardHtml({ src: "mine", data: n, anchor: PR.blockById[n.anchor] ? n.anchor : "page:" + n.page }, cur.edit ? n.id : null);
     PR.prepCard(box.firstChild);
+    // 剛框好的一塊（還沒寫字的草稿）：除了問 AI、寫筆記，還可以把它釘在旁邊對照著讀，或設成這份文件的封面（pins.js）
+    if (cur.draft && n.region && !n.spans && PR.pinRegion) box.insertAdjacentHTML("beforeend", '<div class="st-extras">' +
+      '<button data-rx="pin" title="' + PR.esc(PR.t("釘在旁邊：往下讀的時候它一直在")) + '">' + PR.icon("pin", "sm") + "</button>" +
+      (PR.store.mode === "server" ? '<button data-rx="cover" title="' + PR.esc(PR.t("設為這份文件的封面")) + '">' + PR.icon("image", "sm") + "</button>" : "") + "</div>");
     place();
   }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".st-extras [data-rx]");
+    if (!b || !cur || !cur.draft || !cur.draft.region) return;
+    const page = cur.page, rect = cur.draft.region.slice();
+    PR.closeSticky({ discard: true });
+    if (b.dataset.rx === "pin") PR.pinRegion(page, rect);
+    else if (PR.setCover) PR.setCover(page, rect);
+  });
   PR.renderSticky = () => { if (cur && !cur.tr && !cur.edit) render(); else if (cur && cur.edit) place(); };
   /* 整張要看得到：超出去就把頁面捲一點 */
   function reveal() {

@@ -1723,5 +1723,10 @@
  "，第 {page} 頁": ", p. {page}",
  "已加到「{t}」": "Added to “{t}”",
  "{t} 的摘錄": "Excerpts from {t}",
- "已建一份筆記，摘錄放進去了": "Created a note with the excerpt"
+ "已建一份筆記，摘錄放進去了": "Created a note with the excerpt",
+ "回到這一頁": "Back to this page",
+ "釘在旁邊：往下讀的時候它一直在": "Pin beside: stays in view while you read on",
+ "設為這份文件的封面": "Use as this document’s cover",
+ "已設為封面（在文獻庫的卡片上）": "Set as cover (shown on the library card)",
+ "封面改回自動的": "Reset cover to automatic"
 }

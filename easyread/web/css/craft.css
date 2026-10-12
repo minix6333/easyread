@@ -954,3 +954,30 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 /* ---------- 小的過渡 ---------- */
 /* 刪掉的筆記卡片、文獻的列：先淡出去再把清單重畫（library/notes.js、detail.js 加 .leaving）。不然是瞬間不見、後面的一起跳上來 */
 .ncard.leaving, .row.leaving, .srow.leaving { opacity: 0 !important; transform: scale(.97) !important; pointer-events: none; transition: opacity .15s cubic-bezier(.23, 1, .32, 1), transform .15s cubic-bezier(.23, 1, .32, 1) !important; }
+
+/* ---------- 文獻庫的卡片（格狀）：短的 ----------
+   以前一張卡片是 1 : 1.8 的長條，上面三分之二是整頁縮小的圖（字小到只剩一片灰，深色時還反相成一團）。
+   現在：上面一張橫的封面（16:10）——伺服器裁好的第一頁最上面那一塊（標題、作者、摘要的開頭），投影片是第一張，
+   也可以在閱讀頁框一塊「設為封面」；下面兩行標題、一行作者和年份、一列狀態。高度大約是原來的六成。
+   筆記的卡片跟著變短：標題、三四行內文、一列時間。 */
+.list.grid { grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 18px; }
+.list.grid .row { gap: 0; padding: 0 0 12px; border-radius: 14px; }
+.list.grid .thumb { aspect-ratio: 16 / 10; background-image: var(--c, var(--t, none)); background-color: #fff; background-position: center top; }
+:root[data-theme="dark"] .list.grid .thumb { filter: brightness(.9); }  /* 深色時不反相（反相的頁面糊成一團）：照原樣、壓暗一點，白紙不刺眼 */
+.cv-kind { display: none; }
+.list.grid .cv-kind { display: block; position: absolute; left: 9px; bottom: 9px; height: 21px; padding: 0 8px; border-radius: 7px; font: 500 11px/21px var(--ui); color: #fff; background: rgba(28, 28, 30, .62); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.list.grid .row > .row-main { margin-top: 11px; }
+.list.grid .row > .row-main, .list.grid .row > .side-info { align-self: stretch; min-width: 0; box-sizing: border-box; }  /* 不這樣的話會被那一行不折行的作者撐得比卡片還寬，標題就不折行了 */
+.list.grid .row .t1 { font: 600 13.5px/1.4 var(--ui); }
+.list.grid .row .t3 { margin-top: 4px; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; gap: 5px; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
+.list.grid .row .t3 > * { flex: none; }
+.list.grid .row .t3 .chip { display: none; }  /* 類型的標在封面角上；分類在側欄和清單檢視裡看 */
+.list.grid .row .side-info { margin-top: auto; padding-top: 10px; gap: 8px; min-height: 22px; }  /* 同一排的卡片一樣高：這一列都貼在卡片底 */
+.list.grid .row .side-info .meter { flex: 1 1 40px; min-width: 24px; }
+/* 筆記的卡片 */
+.list.grid .nc-page { aspect-ratio: 16 / 10.4; padding: 14px 15px 0; gap: 7px; }
+.list.grid .nc-t > span:last-child { -webkit-line-clamp: 2; }
+.list.grid .nc-cover { height: 46%; }
+.list.grid .nc-foot { height: 38px; }
+.list.grid .ncard.new { aspect-ratio: auto; min-height: 0; }
+@media (max-width: 760px) { .list.grid { grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 12px; } }
