@@ -52,6 +52,9 @@
   window.addEventListener("focus", () => post({ type: "focus" }));
   document.addEventListener("keydown", (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && (e.key === "[" || e.key === "]" || e.key === "{" || e.key === "}"))) { e.preventDefault(); post({ type: "key", key: e.key, shift: e.shiftKey }); }
+    const low = e.key.toLowerCase();
+    // ⌘W 關分頁、⌘⇧T 重開、⌘T／⌘K 快速開啟。⌘K 在筆記的編輯框裡是「插入連結」（那邊先處理、已經 preventDefault）：這裡就不搶
+    const shellKey = (low === "w" && !e.shiftKey) || low === "t" || (low === "k" && !e.shiftKey && !e.defaultPrevented);
+    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && (e.key === "[" || e.key === "]" || e.key === "{" || e.key === "}")) || shellKey) { e.preventDefault(); post({ type: "key", key: e.key, shift: e.shiftKey }); }
   });
 })(window.PR);

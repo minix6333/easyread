@@ -303,7 +303,7 @@
   };
   const pvsc = PR.$(".pv-scroll");
   if (pvsc) pvsc.addEventListener("scroll", PR.throttle(() => PR.navMark(), 160), { passive: true });
-  const thumbUrl = (p) => PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=400" : "");
+  const thumbUrl = (p) => PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=400&v=2" : "");  // v：見 pageview.js 的 srcOf
   /* 頁面：兩欄縮圖（要用到才載入）；有筆記、畫線的頁右下角有它們的顏色 */
   function pagesHtml() {
     const pages = (S.paper.meta || {}).pages || [], cur = PR.pdfPage ? PR.pdfPage() : 1, marks = {};

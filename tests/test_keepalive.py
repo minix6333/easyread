@@ -91,6 +91,25 @@ class KeepAliveTest(unittest.TestCase):
         token = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{self.port}/api/library").read())["token"]
         self.assertEqual(token, self.app.token)
 
+    def test_cached_files_are_revalidated_not_trusted_for_a_day(self):
+        # 可以快取的檔案：帶 ETag、要瀏覽器每次對一下；沒變回 304（不重傳），變了就給新的
+        head = f"GET /web/vendor/lucide.LICENSE HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\n"
+        self.sock.sendall((head + "\r\n").encode())
+        code, headers, body = _read_response(self.f)
+        self.assertEqual(code, 200)
+        self.assertEqual(headers.get("cache-control"), "no-cache")
+        etag = headers.get("etag")
+        self.assertTrue(etag and len(body) > 100)
+        self.sock.sendall((head + f"If-None-Match: {etag}\r\n\r\n").encode())
+        status = self.f.readline()
+        self.assertIn(b"304", status)
+        while self.f.readline() not in (b"\r\n", b"\n", b""):
+            pass
+        self.sock.sendall((head + 'If-None-Match: "something-else"\r\n\r\n').encode())
+        code, _, again = _read_response(self.f)
+        self.assertEqual((code, again), (200, body))
+        self.assert_still_usable()
+
     def test_normal_posts_still_work_back_to_back(self):
         for i in range(3):
             code, _, body = self.send("POST", "/api/prefs", json.dumps({"reader": {"fs": 20 + i}}).encode(), token=self.app.token)

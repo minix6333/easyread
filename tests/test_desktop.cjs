@@ -72,7 +72,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
 
 test("macOS keeps native editing roles and offers input context actions", async () => {
   const d = await desktop();
-  assert.deepEqual(Array.from(d.app.menu.items, x => x.role), ["appMenu", "editMenu", "windowMenu"]);
+  assert.deepEqual(Array.from(d.app.menu.items, x => x.role), ["appMenu", "editMenu", "window"]);
   d.windows[0].webContents.emit("context-menu", {}, { isEditable: true, selectionText: "", editFlags: { canPaste: true } });
   assert.ok(d.menus[0].some(x => x.role === "paste" && x.enabled));
   d.app.quit();
@@ -251,5 +251,36 @@ test("macOS open-url links are handled and unknown links ignored", async () => {
   assert.equal(d.windows[0].url, "http://127.0.0.1:9876");
   d.app.emit("open-url", { preventDefault() {} }, `easyread://open?sha256=${SHA}&block=<x>`);
   assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}`);
+  d.app.quit();
+});
+
+
+test("⌘W on macOS closes a tab, not the whole window: the Window menu sends it to the shell", async () => {
+  const d = await desktop();
+  const win = d.windows[0], sent = [];
+  win.webContents.send = (channel, msg) => sent.push([channel, msg]);
+  win.isDestroyed = () => false;
+  const items = Array.from(d.app.menu.items.find(x => x.role === "window").submenu);
+  const close = items.find(x => x.accelerator === "CmdOrCtrl+W"), reopen = items.find(x => x.accelerator === "CmdOrCtrl+Shift+T");
+  assert.ok(close && reopen && items.some(x => x.role === "minimize") && !items.some(x => x.role === "close"));
+  // 外殼還沒載進來（啟動畫面）：照舊關視窗
+  win.webContents.getURL = () => "file:///tmp/electron/starting.html";
+  reopen.click({}, win);
+  assert.equal(win.closed, undefined);
+  // 外殼在：送給它，視窗不關
+  win.webContents.getURL = () => "http://127.0.0.1:9876/";
+  close.click({}, win);
+  reopen.click({}, win);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent)), [["easyread:shell-key", { key: "w", shift: false }], ["easyread:shell-key", { key: "t", shift: true }]]);
+  assert.equal(win.closed, undefined);
+  // 別的視窗（獨立的問 AI）：關那個視窗，不動主視窗的分頁
+  const other = { close() { this.closed = true; } };
+  close.click({}, other);
+  assert.equal(other.closed, true);
+  assert.equal(sent.length, 2);
+  // 啟動畫面上按 ⌘W：關視窗
+  win.webContents.getURL = () => "file:///tmp/electron/starting.html";
+  close.click({}, win);
+  assert.equal(win.closed, true);
   d.app.quit();
 });

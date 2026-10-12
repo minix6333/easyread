@@ -1702,5 +1702,20 @@
  "「{t}」已經不在文獻庫裡，分頁關掉了": "“{t}” is no longer in the library, so its tab was closed",
  "那份文件已經不在文獻庫裡，分頁關掉了": "That document is no longer in the library, so its tab was closed",
  "這份筆記已經刪除": "This note has been deleted",
- "這份筆記已經刪除，之後打的字不會存。可以到文獻庫的回收站把它復原。": "This note has been deleted, so anything you type now won’t be saved. You can restore it from the Trash in the library."
+ "這份筆記已經刪除，之後打的字不會存。可以到文獻庫的回收站把它復原。": "This note has been deleted, so anything you type now won’t be saved. You can restore it from the Trash in the library.",
+ "分割視窗": "Split view",
+ "分頁": "Tabs",
+ "動作": "Actions",
+ "文件": "Documents",
+ "在旁邊並排打開": "Open side by side",
+ "已開啟": "Open",
+ "快速開啟": "Quick open",
+ "我的筆記": "My note",
+ "找不到「{q}」": "Nothing found for “{q}”",
+ "搜尋文件、筆記，或內文裡的字": "Search documents, notes, or text inside them",
+ "還沒有文件": "No documents yet",
+ "重新開啟關掉的分頁": "Reopen closed tab",
+ "關閉其他分頁": "Close other tabs",
+ "關閉分頁": "Close tab",
+ "關閉右邊的分頁": "Close tabs to the right"
 }

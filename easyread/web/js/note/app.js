@@ -73,6 +73,9 @@
     try { fetch(url, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" }, body: JSON.stringify(body) }); } catch (e) { /* 送不出去也沒辦法了 */ }
   }
   window.addEventListener("pagehide", flushNow);
+  // 這一格重新拿到焦點（切回這個分頁、切回 App）：看一下這份筆記還在不在——在別處被刪掉的，不用等到下一次存檔失敗才發現
+  let lookedAt = 0;
+  window.addEventListener("focus", () => { if (st.note && !dead && Date.now() - lookedAt > 5000) { lookedAt = Date.now(); isGone(); } });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSoon.flush(); });
   function patch(o) {
     Object.assign(st.note, o);

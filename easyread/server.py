@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -133,12 +133,16 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
 
     # ---------- 输出 ----------
-    def _send(self, code: int, body: bytes, ctype: str, cache: bool = False):
+    def _send(self, code: int, body: bytes, ctype: str, cache: bool = False, etag: str = ""):
         self._settle_body()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
+        # 可以快取的檔案（頁面的圖、附的程式庫）：瀏覽器留著，但每次用之前拿 ETag 來對一下（no-cache）。
+        # 以前是「一天內不用問」：萬一哪一次給出去的是壞的（寫到一半的圖），那一頁一整天怎麼開都是壞的
+        self.send_header("Cache-Control", ("no-cache" if etag else "max-age=86400") if cache else "no-store")
+        if etag:
+            self.send_header("ETag", etag)
         if self.close_connection:
             self.send_header("Connection", "close")
         self.end_headers()
@@ -154,7 +158,21 @@ class Handler(BaseHTTPRequestHandler):
         ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
-        self._send(200, path.read_bytes(), ctype, cache)
+        if not cache:
+            return self._send(200, path.read_bytes(), ctype)
+        try:
+            st = path.stat()
+        except OSError:
+            return self._json(404, {"error": "not found"})
+        etag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'  # 檔案一變（重做、換過）就不一樣
+        if self.headers.get("If-None-Match") == etag:  # 瀏覽器手上那份還是對的：不用再傳一次
+            self._settle_body()
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
+        self._send(200, path.read_bytes(), ctype, True, etag)
 
     def _redirect(self, location: str):
         self._settle_body()
@@ -365,6 +383,13 @@ class Handler(BaseHTTPRequestHandler):
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg), "auto_translate": bool(cfg.get("auto_translate")),
                                     "first_run": config.is_first_run(), "version": VERSION, "trash": len(trash.items(lib.root))})
+        if path == "/api/search":  # 全文搜尋：文件的內文、文件上自己寫的筆記、獨立筆記（search.py；外殼的 ⌘K 用）
+            qs = parse_qs(url.query)
+            try:
+                limit = int((qs.get("limit") or ["12"])[0])
+            except ValueError:
+                limit = 12
+            return self._json(200, search.search(lib, (qs.get("q") or [""])[0][:200], limit))
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
             return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
         if path == "/api/trash":

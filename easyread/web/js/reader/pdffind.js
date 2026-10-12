@@ -81,7 +81,8 @@
   const searchSoon = PR.debounce((v) => search(v), 220);
 
   PR.findOpen = () => !!bar;
-  PR.openFind = function () {
+  /* text：直接找這個詞（從別處跳過來的：全文搜尋的結果、筆記裡的出處連結）；不給就是平常的 ⌘F */
+  PR.openFind = function (text) {
     if (!(PR.pdfMain && PR.pdfMain())) return false;
     if (!bar) {
       bar = PR.el("div", { id: "findbar" }, PR.icon("search", "sm") + '<input placeholder="' + PR.esc(PR.t("搜尋這份文件")) + '"><span class="n"></span>' +
@@ -97,6 +98,7 @@
     }
     const input = bar.querySelector("input");
     const sel = String(window.getSelection() || "").trim();
+    if (typeof text === "string" && text.trim()) { input.value = text.trim(); search(input.value); return true; }  // 不搶焦點：人是來看那一頁的，不是來改搜尋字
     if (sel && sel.length < 80 && !/\n/.test(sel)) { input.value = sel; search(sel); }  // 選著字按 ⌘F：直接找那個詞
     input.focus(); input.select();
     return true;

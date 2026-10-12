@@ -66,6 +66,28 @@
       gone.forEach((id) => M.close(st, id));
       return gone;
     },
+    /* 分頁的右鍵選單：只留這一個（文獻庫永遠在）、關掉它右邊的。回傳關掉的分頁（{id, url, title, kind}，重開用） */
+    closeOthers(st, keep) {
+      const gone = st.tabs.filter((t) => t.kind !== "library" && t.id !== keep).map((t) => Object.assign({}, t));
+      gone.forEach((t) => M.close(st, t.id));
+      if (st.tabs.some((t) => t.id === keep)) M.show(st, keep);
+      return gone;
+    },
+    closeRight(st, id) {
+      const at = st.tabs.findIndex((t) => t.id === id);
+      if (at < 0) return [];
+      const gone = st.tabs.slice(at + 1).filter((t) => t.kind !== "library").map((t) => Object.assign({}, t));
+      gone.forEach((t) => M.close(st, t.id));
+      return gone;
+    },
+    /* 把一個還沒顯示的分頁擺到目前這一格旁邊的新格子（最多三格） */
+    beside(st, tabId) {
+      if (st.panes.length >= 3 || M.paneOf(st, tabId) >= 0 || !st.tabs.some((t) => t.id === tabId)) return false;
+      st.panes.splice(st.focus + 1, 0, { tab: tabId, w: 1 });
+      st.panes.forEach((p) => (p.w = 1 / st.panes.length));
+      st.focus += 1;
+      return true;
+    },
     split(st) {
       if (st.panes.length >= 3) return null;
       const shown = new Set(st.panes.map((p) => p.tab));
@@ -138,7 +160,8 @@
     let f = frames[tab.id];
     if (f) return f;
     f = document.createElement("iframe");
-    f.src = tab.url;
+    f.src = tab.url + (tab.jump ? "#" + tab.jump : "");  // jump：這次要直接看哪裡（見 openUrl），只用一次
+    delete tab.jump;
     f.title = tab.title || tab.id;
     f.className = "hidden";
     framesBox.append(f);
@@ -152,14 +175,52 @@
   /* ---------- 畫 ---------- */
   const tabsEl = PR.$("#tabs"), panesEl = PR.$("#panes");
   const tabTitle = (t) => (t.kind === "library" ? PR.t("文獻庫") : t.title || paperOf(t.url) || "");
+  /* 分頁列不整排重畫：照 id 對上已經有的元素，只改它的樣子。整排換掉的話滑鼠正停著的那顆會閃一下，
+     新開的、關掉的也沒辦法單獨做「長出來／縮回去」（shell.css 的 @starting-style 和 .tab.out）。 */
+  const tabsEnd = document.createElement("span");
+  tabsEnd.className = "tabs-end";
+  tabsEl.append(tabsEnd);
+  const tabIcon = (t) => PR.icon(t.kind === "library" ? "folder" : t.kind === "note" ? "notebook" : "book", "sm");
+  function makeTab(t) {
+    const el = document.createElement("div");
+    el.dataset.tab = t.id;
+    el.setAttribute("role", "tab");
+    if (t.kind !== "library") el.draggable = true;
+    el.innerHTML = tabIcon(t) + (t.kind === "library" ? "" : '<span class="tt"></span><button class="x" data-x="' + PR.esc(t.id) + '" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>");
+    return el;
+  }
   function renderTabs() {
     const shown = new Set(st.panes.map((p) => p.tab)), cur = M.focused(st).tab;
-    tabsEl.innerHTML = st.tabs.map((t) => '<div class="tab' + (t.id === cur ? " on" : "") + (shown.has(t.id) ? " shown" : "") + (t.kind === "library" ? " lib" : "") + '" data-tab="' + PR.esc(t.id) + '" role="tab" aria-selected="' + (t.id === cur) + '"' +
-      (t.kind !== "library" ? ' draggable="true"' : "") + ' title="' + PR.esc(tabTitle(t)) + '">' + PR.icon(t.kind === "library" ? "folder" : t.kind === "note" ? "notebook" : "book", "sm") +
-      (t.kind === "library" ? "" : '<span class="tt">' + PR.esc(tabTitle(t)) + '</span><button class="x" data-x="' + PR.esc(t.id) + '" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>").join("") +
-      '<span class="grow"></span>' + (st.panes.length > 1 ? '<button class="btn icon" data-act="closepane" title="' + PR.t("收起這一格") + '">' + PR.icon("x", "sm") + "</button>" : "") +
+    const have = new Map(PR.$$(".tab[data-tab]:not(.out)", tabsEl).map((el) => [el.dataset.tab, el]));
+    let prev = null;
+    for (const t of st.tabs) {
+      let el = have.get(t.id);
+      if (el) have.delete(t.id); else el = makeTab(t);
+      const cls = "tab" + (t.id === cur ? " on" : "") + (shown.has(t.id) ? " shown" : "") + (t.kind === "library" ? " lib" : "") + (el.classList.contains("dragging") ? " dragging" : "");
+      if (el.className !== cls) el.className = cls;
+      el.setAttribute("aria-selected", String(t.id === cur));
+      const title = tabTitle(t), tt = el.querySelector(".tt");
+      if (el.title !== title) el.title = title;
+      if (tt && tt.textContent !== title) tt.textContent = title;
+      let want = prev ? prev.nextSibling : tabsEl.firstChild;
+      while (want && want !== el && want.classList && want.classList.contains("out")) want = want.nextSibling;  // 正在縮回去的不算位置
+      if (want !== el) tabsEl.insertBefore(el, want);
+      prev = el;
+    }
+    for (const el of have.values()) {  // 關掉的：縮回去再拿掉（動畫關著時 transitionend 不會來，用計時器保底）
+      el.style.maxWidth = el.offsetWidth + "px";  // 從現在的寬度縮回去（從 max-width 的上限開始縮的話，前三分之一看起來沒動）
+      void el.offsetWidth;
+      el.classList.add("out");
+      el.removeAttribute("draggable");
+      setTimeout(() => el.remove(), 220);
+    }
+    const end = '<span class="grow"></span>' + (st.panes.length > 1 ? '<button class="btn icon" data-act="closepane" title="' + PR.t("收起這一格") + '">' + PR.icon("x", "sm") + "</button>" : "") +
       '<button class="btn icon" data-act="split" title="' + PR.t("分割視窗：並排再開一格（⌘\\）") + '"' + (st.panes.length >= 3 ? " disabled" : "") + ">" + PR.icon("panel", "sm") + "</button>" +
       (PR.dock ? PR.dock.button() : "");
+    if (tabsEnd._html !== end) { tabsEnd._html = end; tabsEnd.innerHTML = end; }
+    if (tabsEl.lastChild !== tabsEnd) tabsEl.append(tabsEnd);
+    const on = tabsEl.querySelector(".tab.on");
+    if (on && on.scrollIntoView && tabsEl.scrollWidth > tabsEl.clientWidth) on.scrollIntoView({ block: "nearest", inline: "nearest" });  // 分頁多到要捲：目前這個一定看得到
     document.title = (cur === LIB ? "" : tabTitle(st.tabs.find((t) => t.id === cur) || {}) + " · ") + "FOLI";
   }
   function renderPanes() {
@@ -190,27 +251,55 @@
   PR.on("dock-changed", () => { renderTabs(); layout(); });
 
   /* ---------- 動作 ---------- */
-  function openUrl(url, title) {
+  function openUrl(url, title, beside) {
     if (/^https?:/.test(url)) { try { const u = new URL(url); if (u.origin !== location.origin) return; url = u.pathname + u.search + u.hash; } catch (e) { return; } }
     if (url.startsWith("/open")) {  // 桌面版的 easyread:// 連結：請伺服器找出是哪一篇
       fetch(url).then((r) => { const o = new URL(r.url).searchParams.get("open"); if (o) openUrl(o); }).catch(() => {});
       return;
     }
     if (!paperOf(url)) return;
-    const tab = M.open(st, url, title);
+    // #page=12、#find=詞：只是「這次開到哪裡」（全文搜尋的結果、筆記裡的出處），不是這個分頁的位址——不記在分頁上，
+    // 不然下次開 App 又被帶回那一頁，而不是接著上次讀到的地方。#b-…（段落）照舊記著
+    const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "", jump = /(^|&)(page|find)=/.test(hash);
+    const tab = beside ? addBeside(jump ? url.split("#")[0] : url, title) : M.open(st, jump ? url.split("#")[0] : url, title);
+    if (!tab) return;
     const f = frames[tab.id];
-    if (f && url.includes("#") && f.contentWindow) { try { f.contentWindow.location.hash = url.split("#")[1]; } catch (e) { /* 不同來源不會發生 */ } }
+    if (f && hash && f.contentWindow) { try { f.contentWindow.location.hash = hash; } catch (e) { /* 不同來源不會發生 */ } }
+    else if (!f && jump) tab.jump = hash;
     render();
     focusFrame(tab.id);
   }
+  /* 在旁邊並排打開（快速開啟的 ⌘Enter）：目前這一格不動，新的一格擺它；已經三格了就照平常開 */
+  function addBeside(url, title) {
+    const pid = paperOf(url);
+    let tab = st.tabs.find((t) => paperOf(t.url) === pid);
+    if (!tab) {
+      tab = { id: "t" + ++st.seq, kind: kindOf(url), url, title: title || "" };
+      st.tabs.splice(st.tabs.findIndex((t) => t.id === M.focused(st).tab) + 1, 0, tab);
+    }
+    if (!M.beside(st, tab.id)) M.show(st, tab.id);
+    return tab;
+  }
   window.easyreadOpen = openUrl;
   function focusFrame(id) { const f = frames[id]; if (f && f.contentWindow) setTimeout(() => f.contentWindow.focus(), 0); }
+  /* 剛關掉的分頁（最多記 12 個，只在這次開著的期間）：⌘⇧T、分頁的右鍵選單可以開回來。文件被刪掉而收掉的不記 */
+  const closed = [];
+  const remember = (t) => { if (t && t.kind !== "library") { closed.push({ url: t.url, title: t.title }); if (closed.length > 12) closed.shift(); } };
+  function dropFrame(id) { const f = frames[id]; if (f) { f.remove(); delete frames[id]; } restored.delete(id); }  // 卸掉前 iframe 裡的 pagehide 會把進度送出去
   function closeTab(id) {
-    const f = frames[id];
-    if (f) { f.remove(); delete frames[id]; }  // 卸掉前 iframe 裡的 pagehide 會把進度送出去
+    if (id === LIB) return;
+    remember(st.tabs.find((t) => t.id === id));
+    dropFrame(id);
     M.close(st, id);
     render();
+    focusFrame(M.focused(st).tab);
   }
+  function reopen() {
+    const t = closed.pop();
+    if (t) openUrl(t.url, t.title);
+    return !!t;
+  }
+  PR.shellClosed = () => closed.length;
   function goHome(url) {
     const lib = frames[LIB];
     if (lib && url && url.includes("?")) lib.src = url;  // 帶著「回到哪個分類」的狀態：重新載入文獻庫那一頁
@@ -222,7 +311,7 @@
   /* 文件、筆記不在了：開著它的分頁跟著收（iframe 卸掉、狀態存好）。回傳收了幾個 */
   function closeDocs(ids) {
     const gone = M.closeDocs(st, ids);
-    for (const id of gone) { const f = frames[id]; if (f) { f.remove(); delete frames[id]; } restored.delete(id); }
+    gone.forEach(dropFrame);
     if (gone.length) { render(); focusFrame(M.focused(st).tab); }
     return gone.length;
   }
@@ -255,21 +344,35 @@
       PR.toast(name ? PR.t("「{t}」已經不在文獻庫裡，分頁關掉了", { t: PR.esc(name) }) : PR.t("那份文件已經不在文獻庫裡，分頁關掉了"), null, 5200);
     }
     else if (d.type === "close-papers") {  // 文獻庫要換位置了：論文分頁全部收掉（它們開著時後端不讓換）
-      for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
+      for (const t of st.tabs.filter((x) => x.kind === "paper")) { dropFrame(t.id); M.close(st, t.id); }
       render();
     }
     // 主題不靠這裡傳了：每一格、外殼自己都收得到 localStorage 的 storage 事件（util.js）。以前某一格主題一變就通知外殼、
     // 外殼再套到其他格——有一格記著舊主題時兩邊互相蓋，是 2.1.0-tw.5 換主題閃個不停的那條路
   });
+  /* 鍵盤（外殼自己收到的、每一格轉過來的、桌面版選單送來的都走這裡）：
+     ⌘W 關目前這個分頁（文獻庫關不掉；只剩文獻庫時桌面版照舊是關視窗）、⌘⇧T 把剛關掉的開回來、⌘K／⌘T 快速開啟（palette.js） */
   function key(k, shift) {
+    const low = String(k).toLowerCase();
+    if (low === "w" && !shift) {
+      const cur = M.focused(st).tab;
+      if (cur !== LIB) closeTab(cur);
+      else if (st.tabs.length === 1 && window.easyreadDesktop) window.close();
+      return;
+    }
+    if (low === "t" && shift) { reopen(); return; }
+    if ((low === "k" || low === "t") && !shift) { if (PR.palette) PR.palette.toggle(); return; }
     if (k === "\\") { if (M.split(st)) { render(); focusFrame(M.focused(st).tab); } return; }
     if (/^[1-9]$/.test(k)) { const t = st.tabs[+k - 1]; if (t) { M.show(st, t.id); render(); focusFrame(t.id); } return; }
     if (shift && (k === "[" || k === "{" || k === "]" || k === "}")) { const t = M.step(st, k === "[" || k === "{" ? -1 : 1); if (t) { render(); focusFrame(t.id); } }
   }
   document.addEventListener("keydown", (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && "[]{}".includes(e.key))) { e.preventDefault(); key(e.key, e.shiftKey); }
+    const low = e.key.toLowerCase();
+    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && "[]{}".includes(e.key)) || low === "w" || low === "t" || (low === "k" && !e.shiftKey)) { e.preventDefault(); key(e.key, e.shiftKey); }
   });
+  // 桌面版（macOS）：⌘W、⌘⇧T 是選單上的項目（不然 ⌘W 是系統的「關視窗」，整個視窗就沒了），按了由主程式送過來
+  try { if (window.easyreadDesktop && window.easyreadDesktop.onShellKey) window.easyreadDesktop.onShellKey((m) => key(String((m && m.key) || ""), !!(m && m.shift))); } catch (e) { /* 不是桌面版 */ }
   tabsEl.addEventListener("click", (e) => {
     const x = e.target.closest("[data-x]");
     if (x) { closeTab(x.dataset.x); return; }
@@ -281,6 +384,25 @@
     if (tab) { M.show(st, tab.dataset.tab); render(); focusFrame(tab.dataset.tab); }
   });
   tabsEl.addEventListener("auxclick", (e) => { const tab = e.target.closest(".tab[data-tab]"); if (tab && e.button === 1 && tab.dataset.tab !== LIB) { e.preventDefault(); closeTab(tab.dataset.tab); } });
+  /* 分頁的右鍵選單 */
+  tabsEl.addEventListener("contextmenu", (e) => {
+    const el = e.target.closest(".tab[data-tab]:not(.out)");
+    if (!el || !PR.menu) return;
+    e.preventDefault();
+    const id = el.dataset.tab, lib = id === LIB, at = st.tabs.findIndex((t) => t.id === id);
+    const others = st.tabs.filter((t) => t.kind !== "library" && t.id !== id).length, right = st.tabs.slice(at + 1).filter((t) => t.kind !== "library").length;
+    const drop = (gone) => { gone.forEach((t) => { remember(t); dropFrame(t.id); }); render(); focusFrame(M.focused(st).tab); };
+    PR.menu({ x: e.clientX, y: e.clientY }, [
+      lib ? null : { label: PR.t("關閉分頁"), icon: "x", kbd: PR.kbd("⌘W"), fn: () => closeTab(id) },
+      { label: PR.t("關閉其他分頁"), disabled: !others, fn: () => drop(M.closeOthers(st, id)) },
+      lib ? null : { label: PR.t("關閉右邊的分頁"), disabled: !right, fn: () => drop(M.closeRight(st, id)) },
+      "-",
+      M.paneOf(st, id) >= 0 ? null : { label: PR.t("在旁邊並排打開"), icon: "panel", disabled: st.panes.length >= 3, fn: () => { if (M.beside(st, id)) { render(); focusFrame(id); } } },
+      { label: PR.t("重新開啟關掉的分頁"), icon: "redo", kbd: PR.kbd("⌘⇧T"), disabled: !closed.length, fn: reopen },
+    ].filter(Boolean));
+  });
+  // 選單開著時點進某一格（iframe 裡的點擊外殼收不到）：焦點一離開外殼就收掉
+  window.addEventListener("blur", () => { if (PR.closeMenu && PR.menuOpen && PR.menuOpen()) PR.closeMenu(); });
 
   /* 拖分頁排順序 */
   let dragId = null, dropOn = null;
@@ -343,8 +465,36 @@
     if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); }
   }, 0));
 
+  /* 給別的地方用的入口（都是同一個來源，iframe 裡可以直接叫）：
+     PR.shell.open(url, title)、PR.shell.tabs()（開著的分頁）、PR.shell.frameOf("/note/<id>")（那一份開著的話，它那一格的 window）、
+     PR.shell.lib()（文獻庫那一格的 window，沒載入就先載入）、PR.shell.act(名字) */
+  const libWin = () => { const t = st.tabs[0]; const f = frame(t); return f.contentWindow; };
+  PR.shell = {
+    open: openUrl,
+    home: () => goHome(""),
+    tabs: () => st.tabs.map((t) => ({ id: t.id, kind: t.kind, url: t.url, title: tabTitle(t), doc: paperOf(t.url), on: t.id === M.focused(st).tab })),
+    show: (id) => { M.show(st, id); render(); focusFrame(id); },
+    frameOf: (path) => { const t = st.tabs.find((x) => x.url.split(/[?#]/)[0] === path && frames[x.id]); return t ? frames[t.id].contentWindow : null; },
+    lib: libWin,
+    split: () => key("\\"),
+    reopen, closed: () => closed.length,
+    refocus: () => focusFrame(M.focused(st).tab),
+    changed: () => tellLibrary(),  // 筆記的清單變了（外殼自己建了一份）：文獻庫那一格跟上
+  };
+  window.easyreadShell = PR.shell;
+
   /* ---------- 開場 ---------- */
+  tabsEl.classList.add("booting");  // 上次留下來的分頁一開場就在那裡，不用一顆一顆長出來
   render();
+  requestAnimationFrame(() => requestAnimationFrame(() => tabsEl.classList.remove("booting")));
+  // 上次留下來的分頁裡，文件已經不在的收掉。自己問一次伺服器：文獻庫那一格沒在顯示時不會載入，等不到它報清單
+  if (restored.size) Promise.all([fetch("/api/library", { cache: "no-store" }).then((r) => r.json()), fetch("/api/notes", { cache: "no-store" }).then((r) => r.json())]).then(([lib, notes]) => {
+    if (lib.library_status !== "idle" || !Array.isArray(lib.items) || !Array.isArray(notes.items)) return;
+    const have = new Set(lib.items.concat(notes.items).map((i) => String(i.id)));
+    if (!have.size) return;  // 整個是空的：文獻庫的資料夾暫時讀不到（雲端硬碟還沒掛上）時也是這樣，不動手
+    closeDocs(st.tabs.filter((t) => t.kind !== "library" && restored.has(t.id) && !have.has(paperOf(t.url))).map((t) => paperOf(t.url)));
+    restored.clear();
+  }).catch(() => { /* 連不上就算了：打開那個分頁時它自己會發現 */ });
   const want = new URLSearchParams(location.search).get("open");
   if (want) { history.replaceState(null, "", "/"); openUrl(want); }
 })(window.PR);

@@ -108,3 +108,29 @@ test("文件不在了：指到它的分頁全部關掉（並排開了兩份也�
   assert.deepEqual(shown(st2), ["lib"]);
   assert.deepEqual(M.closeDocs(st2, ["lib"]), []);  // 文獻庫關不掉
 });
+
+test("右鍵選單：只留這一個、關掉右邊的（回傳關掉的，重開用）；把沒顯示的分頁擺到旁邊一格", () => {
+  const M = load(), st = M.blank();
+  const a = M.open(st, "/read/aaa", "A"), b = M.open(st, "/note/bbb", "B"), c = M.open(st, "/read/ccc", "C");
+  assert.deepEqual(M.closeRight(st, a.id).map((t) => t.url), ["/note/bbb", "/read/ccc"]);
+  assert.deepEqual(st.tabs.map((t) => t.id), ["lib", a.id]);
+  assert.deepEqual(shown(st), [a.id]);  // 顯示著的被關掉：那一格改顯示留下來的
+  const d = M.open(st, "/read/ddd", "D"), e = M.open(st, "/read/eee", "E");
+  assert.deepEqual(M.closeOthers(st, d.id).map((t) => t.title), ["A", "E"]);
+  assert.deepEqual(st.tabs.map((t) => t.id), ["lib", d.id]);
+  assert.deepEqual(shown(st), [d.id]);
+  assert.deepEqual(M.closeOthers(st, "lib").map((t) => t.title), ["D"]);  // 在文獻庫上按：其他全關
+  assert.deepEqual(shown(st), ["lib"]);
+  // 並排
+  const x = M.open(st, "/read/xxx"), y = M.open(st, "/read/yyy");
+  assert.equal(M.beside(st, y.id), false);  // 已經顯示著
+  assert.equal(M.beside(st, x.id), true);
+  assert.deepEqual(shown(st), [y.id, x.id]);
+  assert.equal(st.focus, 1);
+  assert.equal(M.beside(st, "lib"), true);
+  assert.equal(st.panes.length, 3);
+  const z = M.open(st, "/read/zzz");
+  assert.equal(M.beside(st, "nope"), false);
+  M.closePane(st, 0);
+  assert.equal(st.panes.length, 2);
+});

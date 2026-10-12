@@ -42,7 +42,7 @@
     if (!p) return "";
     const [x0, y0, x1, y1] = d.region, w = Math.max(x1 - x0, 0.001), h = Math.max(y1 - y0, 0.001);
     const ratio = (h * (p.h || 792)) / (w * (p.w || 612));  // 高 / 寬
-    const src = PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=1600" : "");
+    const src = PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=1600&v=2" : "");  // v：見 pageview.js 的 srcOf
     return '<div class="clip" style="width:min(100%,' + Math.round(170 / ratio) + "px);aspect-ratio:" + (1 / ratio).toFixed(4) + ";background-image:url(&quot;" + PR.esc(src) + "&quot;);background-size:" +
       (100 / w).toFixed(2) + "% " + (100 / h).toFixed(2) + "%;background-position:" + (w < 1 ? (x0 / (1 - w)) * 100 : 0).toFixed(2) + "% " + (h < 1 ? (y0 / (1 - h)) * 100 : 0).toFixed(2) + '%"></div>';
   }

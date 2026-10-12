@@ -281,6 +281,7 @@
     if (PR.$(".dialog-backdrop.open")) return;
     const rows = PR.$$(".row");
     const idx = rows.findIndex((r) => r.dataset.id === L.selected);
+    if ((e.metaKey || e.ctrlKey) && PR.framed && e.key !== "/") return;  // 外殼裡 ⌘K、⌘T、⌘W… 是外殼的（frame-bridge.js 轉過去），這裡的單鍵快捷不要跟著動
     if (e.key === "/" || (e.key === "k" && (e.ctrlKey || e.metaKey))) { e.preventDefault(); PR.$("#q").focus(); }
     else if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); const r = rows[Math.min(rows.length - 1, idx + 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }
     else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); const r = rows[Math.max(0, idx - 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }

@@ -360,6 +360,22 @@
   PR.on("reader", (op) => { if (op && op.op === "page_note") markPageNote(); });
   PR.on("remote", (changed) => { if (changed.includes("reader")) markPageNote(); });
 
+  /* 從別處指定要看哪裡：網址後面帶 #page=12（還可以加 &find=要標出來的詞）。全文搜尋的結果、筆記裡「出處」的連結都是這樣開過來的。
+     用完就把它從網址上拿掉：同一個地方第二次再點才會再跳一次（網址沒變就不會有 hashchange）；重新整理也不會又跳回去 */
+  function jumpFromHash() {
+    const m = /^#(?:.*&)?page=(\d+)/.exec(location.hash || ""), f = /[#&]find=([^&]*)/.exec(location.hash || "");
+    if (!m && !f) return 0;
+    history.replaceState(history.state, "", location.pathname + location.search);
+    const n = m ? Math.max(1, Math.min(PR.pageNodes ? PR.pageNodes().length || 1 : 1, +m[1])) : 0;
+    if (n && PR.openPage) PR.openPage(n, null, { instant: true });
+    let term = "";
+    try { term = f ? decodeURIComponent(f[1]) : ""; } catch (e) { term = ""; }
+    if (term && PR.openFind) setTimeout(() => PR.openFind(term), n ? 120 : 0);
+    return n || -1;
+  }
+  PR.jumpFromHash = jumpFromHash;
+  window.addEventListener("hashchange", () => { if (started) jumpFromHash(); });
+
   /* 第一次畫完：PDF 優先就翻到上次讀到的頁（閱讀進度和瀏覽器記的，取較新的）。
      頁面的圖和邊註欄還在陸續排好，位置會跑掉：之後再對幾次，讀者自己一捲就不管了 */
   let started = false;
@@ -368,8 +384,9 @@
     started = true;
     wasRunning = ["queued", "running"].includes((S.job || {}).state);
     PR.applyLayout();
+    const asked = jumpFromHash();  // 指定了要看哪一頁：就去那一頁，不接著上次
     if (!PR.pdfMain()) return;
-    const target = (PR.lastPage && PR.lastPage()) || 1;
+    const target = asked > 0 ? asked : (PR.lastPage && PR.lastPage()) || 1;
     let touched = false;
     const sc = PR.$(".pv-scroll");
     const mark = () => { touched = true; };
@@ -378,6 +395,6 @@
     const go = () => { if (!touched && PR.pdfPage() !== target) PR.openPage(target, null, { instant: true }); };
     setTimeout(() => { if (!touched) PR.openPage(target, null, { instant: true }); }, 50);
     [350, 900, 1800].forEach((ms) => setTimeout(go, ms));
-    if (target > 1) setTimeout(() => { if (!touched) PR.toast(PR.t("接著上次：第 {page} 頁", { page: target }), null, 1800); }, 400);
+    if (target > 1 && !asked) setTimeout(() => { if (!touched) PR.toast(PR.t("接著上次：第 {page} 頁", { page: target }), null, 1800); }, 400);
   });
 })(window.PR);

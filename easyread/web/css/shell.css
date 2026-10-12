@@ -20,6 +20,13 @@ html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
 .tab.drop-before::before, .tab.drop-after::before { content: ""; position: absolute; top: 4px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--accent); }
 .tab.drop-before::before { left: -2px; }
 .tab.drop-after::before { right: -2px; }
+.tabs-end { display: contents; }  /* 右邊那幾顆鈕的容器：不佔版面，裡面的照舊是 #tabs 的 flex 項目 */
+/* 分頁長出來／縮回去（shell.js 不整排重畫了：新開的、關掉的可以各自動）。動的是寬度——只有分頁列這幾顆要重排，範圍很小；
+   一開場（#tabs.booting）上次留下來的分頁直接就在那裡。關掉的那顆先由 JS 把 max-width 定在當下的寬度再縮 */
+.tab { overflow: clip; overflow-clip-margin: 4px; }
+@starting-style { .tab:not(.lib) { max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; } }
+.tab.out { max-width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; margin-left: -4px; opacity: 0; pointer-events: none; }
+#tabs.booting .tab { transition: none; }
 #tabs .grow { flex: 1; }
 #tabs .btn.icon { align-self: center; width: 28px; height: 28px; }
 :root { --dock-w: 0px; }
@@ -85,3 +92,29 @@ body.sizing .dock-view { pointer-events: none; }
 #tabs .dock-rail .dock-app { width: 28px; height: 28px; border-radius: 8px; }
 #tabs .dock-rail .dock-app.on::after { bottom: -2px; }
 .dock-empty .again { margin: 14px 0 0; font-size: 12.5px; }
+
+/* ---------------- 快速開啟（palette.js，⌘K／⌘T）----------------
+   一塊毛玻璃的面板浮在視窗上緣下面一點，底下鋪一層看不見的墊子接「點外面」（每一格是 iframe，點進去外殼收不到）。
+   鍵盤叫出來的東西：沒有開合動畫。 */
+#palette { position: fixed; inset: 0; z-index: 97; display: flex; justify-content: center; align-items: flex-start; padding: 13vh 16px 0; }
+.pal { width: min(620px, 100%); max-height: min(540px, 74vh); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--lg-tint-2, var(--glass));
+  -webkit-backdrop-filter: blur(34px) saturate(1.7); backdrop-filter: blur(34px) saturate(1.7);
+  box-shadow: inset 0 1px 0 var(--lg-spec, var(--glass-edge)), 0 0 0 .5px var(--lg-edge, var(--rule-2)), var(--lg-shadow-lg, var(--shadow-lg)); }
+.pal-in { flex: none; display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 16px; color: var(--ink-3); }
+.pal-in input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font: 400 16px var(--ui); color: var(--ink); }
+.pal-in input::placeholder { color: var(--ink-3); }
+.pal-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 6px 8px; border-top: .5px solid var(--rule-2); scroll-padding: 30px 0 8px; }
+.pal-sec { padding: 10px 10px 4px; font: 600 11px/1.2 var(--ui); color: var(--ink-3); }
+.pal-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 5px 10px; border-radius: 9px; cursor: default; }
+.pal-row.on { background: var(--select); }
+.pal-ic { flex: none; width: 20px; display: grid; place-items: center; color: var(--ink-2); }
+.pal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pal-t { font: 500 13.5px/1.35 var(--ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-t i { margin-left: 8px; font: 400 12px var(--ui); color: var(--ink-3); }
+.pal-s { font: 400 12px/1.4 var(--ui); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-row.hit .pal-s { color: var(--ink-2); }
+.pal-s mark { padding: 0 1px; border-radius: 3px; background: var(--accent-soft-2, var(--accent-soft)); color: var(--ink); }
+.pal-hint { flex: none; font: 400 11.5px var(--ui); color: var(--ink-3); }
+.pal-hint.kbd { font-family: var(--mono); }
+.pal-none { padding: 18px 12px 16px; font: 13px var(--ui); color: var(--ink-3); text-align: center; }
+@media (prefers-reduced-transparency: reduce) { .pal { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); } }

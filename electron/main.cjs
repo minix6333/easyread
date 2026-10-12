@@ -445,8 +445,23 @@ async function createWindow() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  // 「視窗」選單自己排。系統預設的那一份裡 ⌘W 是「關閉視窗」——這是分頁式的 App，按 ⌘W 想關的是眼前這個分頁，
+  // 結果整個視窗（連同其他開著的文件）都不見。改成送給外殼去關分頁（只剩文獻庫時外殼會自己把視窗關掉）；
+  // 別的視窗（獨立的問 AI、筆記）、或外殼還沒載進來時（啟動畫面）照舊關視窗。Windows／Linux 沒有選單列，鍵盤由頁面自己收（frame-bridge.js）。
+  const zhMenu = /^zh/i.test((app.getLocale && app.getLocale()) || "");
+  const shellKey = (key, shift) => (_item, win) => {
+    const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    if (win && win !== main) return void win.close();
+    if (!main) return;
+    const url = typeof main.webContents.getURL === "function" ? main.webContents.getURL() : "";
+    if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+\/(?:[?#].*)?$/.test(url)) return void (key === "w" && !shift && main.close());
+    main.webContents.send("easyread:shell-key", { key, shift: !!shift });
+  };
   Menu.setApplicationMenu(process.platform === "darwin"
-    ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
+    ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "window", submenu: [
+        { label: zhMenu ? "關閉分頁" : "Close Tab", accelerator: "CmdOrCtrl+W", click: shellKey("w", false) },
+        { label: zhMenu ? "重新開啟關掉的分頁" : "Reopen Closed Tab", accelerator: "CmdOrCtrl+Shift+T", click: shellKey("t", true) },
+        { type: "separator" }, { role: "minimize" }, { role: "zoom" }, { type: "separator" }, { role: "front" }] }])
     : null);
   // macOS 用 open-url 傳連結，可能早於 ready
   app.on("open-url", (event, link) => {

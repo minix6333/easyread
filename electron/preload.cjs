@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld("easyreadDesktop", {
     ipcRenderer.on("easyread:native-dock", listener);
     return () => ipcRenderer.removeListener("easyread:native-dock", listener);
   },
+  // ⌘W（關分頁）、⌘⇧T（重開）是主程式選單上的項目：按了送到外殼（web/js/shell.js 的 key）
+  onShellKey: (callback) => {
+    const listener = (_event, msg) => callback(msg);
+    ipcRenderer.on("easyread:shell-key", listener);
+    return () => ipcRenderer.removeListener("easyread:shell-key", listener);
+  },
   updateState: () => ipcRenderer.invoke("easyread:update-state"),
   downloadUpdate: () => ipcRenderer.invoke("easyread:update-download"),
   installUpdate: () => ipcRenderer.invoke("easyread:update-install"),
