@@ -81,7 +81,7 @@ app.whenReady().then(async () => {
   step = "full text";
   await key("K", [mod]);
   await sleep(200);
-  const term = "likelihood";
+  const term = "rollout";  // 只在那篇論文的內文裡有的詞（別的文件也有的話，排第一的可能是別份——likelihood 就是這樣失效的）
   await type(term);
   await sleep(900);
   const s4 = await shell();

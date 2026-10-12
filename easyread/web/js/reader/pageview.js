@@ -84,9 +84,9 @@
     if (!entry) return;
     const img = entry.img, src = srcOf(n);
     if (img.getAttribute("src") === src) return;
-    if (!img.getAttribute("src")) entry.node.classList.add("loading");  // 換清晰度時舊圖留著，不要閃一下骨架
+    if (!img.getAttribute("src")) entry.node.classList.add("loading");  // 只是記著「這一頁的圖在路上」；畫面上就是一張空白的紙（不閃骨架、不淡入，見 reader-panels.css）
     img.onload = () => { entry.node.classList.remove("loading"); entry.ok = img.getAttribute("src"); entry.fails = 0; };
-    // 載不到（伺服器正忙、那張圖還在做）：骨架收掉——不然那一頁會一直是一塊閃動的灰；換清晰度沒成功就先用回原來那張。還在附近的話等一下再試
+    // 載不到（伺服器正忙、那張圖還在做）：換清晰度沒成功就先用回原來那張。還在附近的話等一下再試
     img.onerror = () => {
       entry.node.classList.remove("loading");
       entry.fails = (entry.fails || 0) + 1;

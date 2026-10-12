@@ -54,8 +54,9 @@ body.resizing .side-panel { transition: none; }
 /* 頁面：白紙直接放在白底上，不加陰影和框，頁與頁之間只留一道細線 */
 .pv-page { position: relative; margin: 0 auto; width: 100%; background: #fff; border-radius: 2px; box-shadow: var(--shadow-page); }
 .pv-page + .pv-page { margin-top: 14px; }
-.pv-page > img { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity .16s cubic-bezier(.23, 1, .32, 1); }
-.pv-page.loading > img { opacity: 0; }  /* 第一次載進來的那一頁淡入（骨架→圖不是「啪」一下）；換清晰度時舊圖留著，不走這裡 */  /* 只管那一頁的圖；頁上便利貼裡貼的圖片不算 */
+.pv-page > img { display: block; width: 100%; height: 100%; object-fit: contain; }  /* 只管那一頁的圖；頁上便利貼裡貼的圖片不算 */
+/* 頁面的圖不要加會「合成」的效果（opacity 的過渡／動畫、mix-blend-mode、will-change…）：一頁一個合成圖層，快捲時一次十幾頁，
+   顯示記憶體和每一格要畫的東西都跟著翻倍。2.1.0-tw.8 加過「載入時淡入」，就是其中一個，拿掉了 */
 /* 夜間的原頁圖：反相 / 調暗 / 原色由 --night-filter、--night-page-bg 決定（base.css，閱讀設定可換） */
 :root[data-theme="dark"] .pv-page > img { filter: var(--night-filter, none); }
 :root[data-theme="dark"] .pv-page { background: var(--night-page-bg, #fff); }
@@ -137,10 +138,9 @@ body.pv-open .blk.pv-pair::before { background: var(--pair-ring); opacity: 1; }
 #popover .hd { font-size: 11.5px; letter-spacing: .08em; color: var(--ink-3); margin-bottom: 4px; }
 #popover .cap { color: var(--ink); font-family: var(--serif-zh); }
 #popover textarea { font-size: 13px; }
-/* 圖還沒到的頁：位置已經照那一頁的長寬比留好了（pageview.js 的 aspect-ratio），這裡只上底色。
-   以前還加 min-height: 60vh：投影片那種扁的頁載入前比載入後高，圖一到整份往上縮一截，捲的時候一跳一跳 */
-.pv-page.loading { background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%) 0 0 / 300% 100%; animation: pv-shimmer 1.2s linear infinite; }
-@keyframes pv-shimmer { to { background-position: -300% 0; } }
+/* 圖還沒到的頁：位置已經照那一頁的長寬比留好了（pageview.js 的 aspect-ratio），就是一張空白的紙，等圖來。
+   以前載入中會換成一條來回掃的灰色骨架：快捲時白紙→灰→有內容，一路在閃；那個動畫每一格還要重畫整頁，正好在最忙的時候搶著畫。
+   更早還加過 min-height: 60vh：投影片那種扁的頁載入前比載入後高，圖一到整份往上縮一截，捲的時候一跳一跳 */
 
 /* 跳转后的“返回刚才读的地方” */
 .jump-back { position: fixed; left: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 45; display: inline-flex; align-items: center; gap: 7px; max-width: min(420px, calc(100vw - 40px)); height: 38px; padding: 0 14px 0 11px; border-radius: 19px; font-size: 13px; color: var(--accent-ink); background: var(--accent); box-shadow: var(--shadow); }

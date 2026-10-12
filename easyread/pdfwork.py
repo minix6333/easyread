@@ -411,7 +411,9 @@ def page_variant(root: Path, rel: str, width: int) -> Path | None:
     from PIL import Image
     with Image.open(src) as im:
         src_w, src_h = im.size
-    if src_w == width:
+    # 原圖和要的寬度差不多（5% 以內）：就給原圖，不另外做一張。投影片的原圖 2304 寬，大視窗要的是 2400——為了多那 4%，
+    # 每一頁都得從 PDF 重畫（一頁一兩百毫秒，而且一次只能畫一頁），第一次捲過去整排都是等圖的空白頁；瀏覽器自己放大 4% 看不出來
+    if width * 0.95 <= src_w <= width * 1.05:
         return src
     out.parent.mkdir(exist_ok=True)
     with _variant_lock(out):  # 同一張同時來了兩個請求（或背景正在預先做）：等前一個做完直接用

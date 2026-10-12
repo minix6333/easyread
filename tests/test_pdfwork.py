@@ -42,6 +42,19 @@ class PdfworkTest(unittest.TestCase):
         with Image.open(res) as im:
             self.assertEqual(im.width, 1000)
 
+    def test_page_variant_close_enough_returns_src(self):
+        # 原圖和要的寬度差 5% 以內（投影片：原圖 2304、大視窗要 2400）：直接給原圖，不重畫、不留一張幾乎一樣的
+        deck = self.pages / "page-003.webp"
+        Image.new("RGB", (2304, 1296), color="white").save(deck, "WEBP")
+        for want in (2400, 2300, 2200):
+            self.assertEqual(pdfwork.page_variant(self.tmp, "pages/page-003.webp", want), deck.resolve(), want)
+            self.assertFalse((self.pages / f"w{want}" / "page-003.webp").exists(), want)
+        # 差得多的照舊：小的另外縮一張
+        res = pdfwork.page_variant(self.tmp, "pages/page-003.webp", 1600)
+        self.assertEqual(res, self.pages / "w1600" / "page-003.webp")
+        with Image.open(res) as im:
+            self.assertEqual(im.size, (1600, 900))
+
     def test_save_image_is_atomic(self):
         # 寫到一半時正式的檔名還不存在（別的執行緒不會拿到半張圖）；寫完才出現，旁邊不留暫存檔
         out = self.pages / "w1000" / "page-009.webp"

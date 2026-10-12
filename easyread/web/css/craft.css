@@ -66,16 +66,19 @@ html[data-accent="orange"] { --accent: #d5730f; }    html[data-accent="orange"][
 html[data-accent="pink"] { --accent: #d6457f; }      html[data-accent="pink"][data-theme="dark"] { --accent: #f582ae; }
 html[data-accent="red"] { --accent: #d0453a; }       html[data-accent="red"][data-theme="dark"] { --accent: #ff7a6e; }
 html[data-accent="graphite"] { --accent: #55555c; }  html[data-accent="graphite"][data-theme="dark"] { --accent: #b4b4bc; }
-/* 紙張色調（設定 → 外觀）：白（預設）、暖、冷、綠。紙是 --sheet；PDF 的頁面是圖，把圖「相乘」印在色紙上（白的地方透出紙色、黑字不變），
-   深色模式只有「夜間頁面：原色」時才染（反相、調暗的頁面照那個設定走） */
-html[data-paper="warm"] { --sheet: #fbf6ea; --paper-tone: #fbf6ea; }
-html[data-paper="cool"] { --sheet: #f2f6fb; --paper-tone: #f2f6fb; }
-html[data-paper="green"] { --sheet: #eff6ea; --paper-tone: #eff6ea; }
+/* 紙張色調（設定 → 外觀）：白（預設）、暖、冷、綠。紙是 --sheet；PDF 的頁面是圖：白紙上的圖再蓋一層很薄的色紗（--paper-veil），
+   白的地方剛好變成紙色（暖 #fbf6ea、冷 #f2f6fb、綠 #eff6ea，就是淺色主題的 --sheet）、黑字幾乎不變；圖還沒到的空白頁也是同一個顏色。
+   深色模式只有「夜間頁面：原色」時才染（反相、調暗的頁面照那個設定走）。
+   色紗 rgba(k, a) 是從紙色算的：a = 1 − 紙色最暗的那個分量，k = (紙色 − 最暗分量) ÷ a。
+   2.1.0-tw.8 以前是把圖「相乘」印在色紙上（mix-blend-mode: multiply）：混色讓每一頁的圖各自成了一個合成圖層，
+   投影片一個畫面附近十幾頁就是十幾層——捲快一點顯示記憶體就用完，頁面一塊一塊畫不出來。不要再對頁面的圖用混色 */
+html[data-paper="warm"] { --sheet: #fbf6ea; --paper-veil: rgba(206, 146, 0, .0824); }
+html[data-paper="cool"] { --sheet: #f2f6fb; --paper-veil: rgba(0, 78, 177, .051); }
+html[data-paper="green"] { --sheet: #eff6ea; --paper-veil: rgba(61, 146, 0, .0824); }
 html[data-paper="warm"][data-theme="dark"] { --sheet: #282420; }
 html[data-paper="cool"][data-theme="dark"] { --sheet: #1f2329; }
 html[data-paper="green"][data-theme="dark"] { --sheet: #20261f; }
-html[data-paper]:not([data-theme="dark"]) .pv-page, html[data-paper][data-theme="dark"] body.night-none .pv-page { background: var(--paper-tone); }
-html[data-paper]:not([data-theme="dark"]) .pv-page > img, html[data-paper][data-theme="dark"] body.night-none .pv-page > img { mix-blend-mode: multiply; }
+html[data-paper]:not([data-theme="dark"]) .pv-page::before, html[data-paper][data-theme="dark"] body.night-none .pv-page::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--paper-veil); pointer-events: none; }  /* 定位的偽元素：畫在圖上面、畫線和文字層下面 */
 ::selection, :root[data-theme="dark"] ::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
 .cm.ai .av { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, #fff), var(--accent) 72%); }
 /* 桌面版（macOS）：材質是透明的（視窗的毛玻璃透出來），畫布留一點點透。--clear 越大越透 */
@@ -426,7 +429,10 @@ body.pdf-main #pageview { top: 0; left: var(--pad); background: transparent; bor
 body.pdf-main #pageview { width: calc(var(--pdf-w) - var(--pad)); }
 body.pdf-main:not(.art-open) #pageview { width: calc(100vw - 2 * var(--pad)); }
 body.pdf-main.side-open:not(.art-open) #pageview { width: calc(100vw - var(--side-w) - var(--pad)); }
-body.pdf-main .pv-scroll { padding-top: calc(var(--bar-h) + 6px); border-radius: var(--r-canvas) var(--r-canvas) 0 0; }
+/* 四個角要一樣圓（不是只圓上面兩個）：macOS 上，四角不一樣的圓角裁切不能用著色器做，裡面每一組合成圖層都得另外配一張
+   和捲動區一樣大的遮罩圖層（2 倍螢幕上一張二十幾 MB）；四角一樣就不用遮罩。底下兩個角在視窗最底、頁面碰不到，看不出差別。
+   scripts/pdf_layers_check.cjs 盯著這件事（遮罩圖層要是 0） */
+body.pdf-main .pv-scroll { padding-top: calc(var(--bar-h) + 6px); border-radius: var(--r-canvas); }
 .pv-scroll { background: transparent; }
 #findbar { top: calc(var(--bar-h) + 4px); border-radius: var(--r-ctl); }
 .split-grip::after { background: var(--line); }

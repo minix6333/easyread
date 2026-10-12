@@ -50,7 +50,7 @@ app.whenReady().then(async () => {
     await win.loadURL(base + "/library").catch(() => {});
     await waitFor(wc, "window.PR && PR.token", "the library page");
     if (!saved) saved = await wc.executeJavaScript('PR.api("/api/prefs").then((p) => p.reader || {})');
-    await wc.executeJavaScript('localStorage.removeItem("easyread-shell"); var p = JSON.parse(localStorage.getItem("easyread-prefs") || "{}"); Object.assign(p, ' + JSON.stringify(vals) + '); localStorage.setItem("easyread-prefs", JSON.stringify(p)); PR.api("/api/prefs", { method: "POST", body: { reader: ' + JSON.stringify(vals) + " } }).then(() => 1)");
+    await wc.executeJavaScript('localStorage.removeItem("easyread-shell"); localStorage.removeItem("easyread-dock"); var p = JSON.parse(localStorage.getItem("easyread-prefs") || "{}"); Object.assign(p, ' + JSON.stringify(vals) + '); localStorage.setItem("easyread-prefs", JSON.stringify(p)); PR.api("/api/prefs", { method: "POST", body: { reader: ' + JSON.stringify(vals) + " } }).then(() => 1)");
   };
   const readers = () => ids.map((id) => wc.mainFrame.framesInSubtree.find((f) => f.url.includes("/read/" + id)));
   const SNAP = 'JSON.stringify((function () { var sc = document.querySelector(".pv-scroll"); return { top: Math.round(sc.scrollTop), page: PR.pdfPage(), pdf: PR.pdfMain(), theme: document.documentElement.dataset.theme }; })())';
