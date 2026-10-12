@@ -25,7 +25,7 @@
       : '<button class="btn sm accent" data-nh="replace">' + PR.t("替换我的笔记") + '</button><button class="btn sm" data-nh="append">' + PR.t("追加到末尾") + "</button>";
     return '<div class="np-ai"><div class="np-ai-head"><b>' + NAMES[ai.mode] + "</b>" + (ai.model ? "<small>" + PR.esc(ai.model) + "</small>" : "") + '<span class="grow"></span>' +
       (ai.streaming ? '<button class="btn sm" data-nh="stop">' + PR.t("停止") + "</button>" : '<button class="btn icon" data-nh="close" title="' + PR.t("丢掉") + '">×</button>') + "</div>" +
-      '<div class="np-ai-body">' + (ai.text ? PR.mdBlocks(ai.text) : ai.streaming ? '<p class="hint"><span class="spin"></span> ' + PR.t("正在想…") + "</p>" : "") +
+      '<div class="np-ai-body">' + (ai.text ? PR.mdBlocks(ai.text, ai.streaming ? { live: true } : null) : ai.streaming ? '<p class="hint"><span class="spin"></span> ' + PR.t("正在想…") + "</p>" : "") +
       (ai.error ? '<p class="err">' + PR.esc(ai.error) + "</p>" : "") + "</div>" +
       (!ai.streaming && ai.text ? '<div class="np-ai-acts">' + apply + "</div>" : "") + "</div>";
   };

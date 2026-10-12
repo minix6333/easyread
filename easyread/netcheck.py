@@ -170,14 +170,20 @@ def quick_problem(cfg: dict) -> str | None:
 
 
 _probe_lock = threading.Lock()
-_LOGIN = re.compile(r"not logged in|run /login|oauth token (has )?expired|invalid api key · please run", re.I)
+# Claude Code 的登入失效有好幾種說法：沒登入、token 過期、session 過期又換不到新的（2026-10 實際遇到的是最後一種，以前沒認出來）
+_LOGIN = re.compile(r"not logged in|run /login|oauth (token|session) (has )?expired|could not be refreshed|failed to authenticate|"
+                    r"invalid api key · please run|authentication_error", re.I)
+_CODEX_LOGIN = re.compile(r"not logged in|unauthorized|401|please (run )?.?codex login|token (has )?expired|refresh token", re.I)
 
 
 def login_hint(cfg: dict, msg: str) -> str:
     """Claude Code 還沒登入（或登入過期）：它自己的報錯只有一句英文，補上該怎麼做。"""
+    if cfg.get("engine") == "codex" and _CODEX_LOGIN.search(msg):
+        hint = tr("Codex 的登入失效了：打開終端機執行 codex login 重新登入；或先換一個模型。")
+        return msg if hint in msg else msg + "\n" + hint
     if cfg.get("engine") != "claude" or not _LOGIN.search(msg):
         return msg
-    hint = tr("Claude Code 還沒登入：打開終端機執行 claude，輸入 /login 登入一次；或到「設定 → 模型」改用別的模型。")
+    hint = tr("Claude Code 的登入失效了（還沒登入，或登入過期）：打開終端機執行 claude，輸入 /login 重新登入一次；或先換一個模型。")
     return msg if hint in msg else msg + "\n" + hint
 
 

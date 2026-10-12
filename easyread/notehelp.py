@@ -190,6 +190,7 @@ def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str) -> 
     handler.end_headers()
     handler.close_connection = True
     cancel = threading.Event()
+    watching = chat.cancel_when_gone(handler, cancel)  # 讀者按停止：馬上知道
 
     def send(obj):
         handler.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -215,6 +216,8 @@ def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str) -> 
             send({"error": str(e)[:500]})
         except OSError:
             pass
+    finally:
+        watching()
 
 
 # ---------- 獨立筆記（notes.py）的 AI：沒有文件可以對照，只看筆記本身 ----------

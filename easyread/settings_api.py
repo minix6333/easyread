@@ -39,6 +39,25 @@ def save_chat_models(body: dict) -> dict:
     return chat_models.listing(config.load())
 
 
+def set_chat_model_option(body: dict) -> dict:
+    """「問 AI」的模型選單裡直接開關 Fast：改的就是設定裡那張模型卡片（只有一個地方記），卡片上的翻譯標記跟著走。"""
+    cfg = config.load()
+    tier = body.get("service_tier")
+    if tier not in ("", "fast", "default"):
+        raise ValueError(tr("速度只能是 fast / default"))
+    ms = [dict(m) for m in chat_models.models(cfg)]
+    hit = next((m for m in ms if m.get("id") == body.get("id")), None)
+    if not hit or hit.get("engine") not in ("codex", "openai"):
+        raise ValueError(tr("這個模型沒有 Fast"))
+    was_translation = chat_models.translation_id(cfg) == hit["id"]
+    hit["service_tier"] = tier
+    patch: dict = {"chat": {"models": chat_models.sanitize(ms)}}
+    if was_translation:  # 這張卡片同時是翻譯用的模型：翻譯那邊一起改，卡片上的「翻譯」標記才不會掉
+        patch[hit["engine"]] = {"service_tier": tier}
+    config.save(patch)
+    return chat_models.listing(config.load())
+
+
 def test_engine(body: dict) -> dict:
     cfg = config.load()
     if body.get("engine"):
@@ -57,5 +76,5 @@ def list_models(body: dict) -> dict:
         return {"ok": False, "message": str(e)[:300]}
 
 
-POST = {"/api/config": save_config, "/api/chat/models": save_chat_models,
+POST = {"/api/config": save_config, "/api/chat/models": save_chat_models, "/api/chat/model-option": set_chat_model_option,
         "/api/config/test": test_engine, "/api/models/list": list_models}

@@ -23,3 +23,16 @@ class ChatEffortTest(unittest.TestCase):
         cfg["claude"]["model"] = "haiku"
         with self.assertRaises(ValueError):
             chat_options.apply(cfg, {"reasoning_effort": "high"})
+
+    def test_speed_option_only_for_engines_that_have_it(self):
+        cfg = copy.deepcopy(config.DEFAULTS)
+        cfg["engine"] = "codex"
+        self.assertEqual(chat_options.apply(cfg, {"service_tier": "fast"}), {"service_tier": "fast"})
+        self.assertEqual(cfg["codex"]["service_tier"], "fast")
+        self.assertEqual(chat_options.apply(cfg, {"service_tier": ""}), {"service_tier": ""})  # 空的＝照模型卡片，不改
+        self.assertEqual(cfg["codex"]["service_tier"], "fast")
+        with self.assertRaises(ValueError):
+            chat_options.apply(cfg, {"service_tier": "warp"})
+        cfg["engine"] = "claude"
+        self.assertEqual(chat_options.apply(cfg, {"service_tier": "fast"}), {})  # Claude Code 沒有這個等級：不理
+

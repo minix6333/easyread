@@ -55,6 +55,39 @@ class CodexTranslationOptionsTest(unittest.TestCase):
             self.assertEqual(config.load()["codex"]["reasoning_effort"], "low")
             self.assertEqual(config.load()["codex"]["service_tier"], "default")
 
+    def test_fast_switch_in_the_chat_menu_edits_the_model_card(self):
+        from easyread import settings_api
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"CODEX_HOME": tmp}), \
+                patch.object(config, "CONFIG_PATH", Path(tmp) / "easyread.json"):
+            Path(tmp, "models_cache.json").write_text(json.dumps({"models": [
+                {"slug": "sol", "visibility": "list", "service_tiers": [{"id": "priority", "name": "Fast", "description": "2x speed, increased usage"}]},
+                {"slug": "luna", "visibility": "list", "additional_speed_tiers": ["fast"]}, {"slug": "old", "visibility": "list"}]}), encoding="utf-8")
+            self.assertEqual([m["fast"] for m in cli_models.codex()["models"]], [2.0, 1.5, 0])  # 快幾倍；沒有這個等級是 0
+            config.save({"engine": "codex", "codex": {"model": "sol", "reasoning_effort": "low", "service_tier": ""},
+                         "chat": {"models": [{"id": "a", "name": "Sol", "engine": "codex", "model": "sol", "reasoning_effort": "low", "service_tier": ""},
+                                             {"id": "b", "name": "Sol 中", "engine": "codex", "model": "sol", "reasoning_effort": "medium", "service_tier": ""},
+                                             {"id": "c", "name": "Opus", "engine": "claude", "model": "opus"}], "default": "b"}})
+            self.assertEqual(chat_models.translation_id(config.load()), "a")
+            out = settings_api.set_chat_model_option({"id": "b", "service_tier": "fast"})
+            self.assertEqual({m["id"]: m.get("service_tier") for m in out["models"]}, {"a": "", "b": "fast", "c": ""})
+            self.assertEqual(config.load()["codex"]["service_tier"], "")  # 別張卡片、翻譯用的設定不動
+            ecfg, _ = chat_models.engine_cfg(config.load(), "b")
+            self.assertEqual(ecfg["codex"]["service_tier"], "fast")
+            # 這張卡片同時是翻譯用的：翻譯那邊一起改，卡片上的「翻譯」標記才不會掉
+            settings_api.set_chat_model_option({"id": "a", "service_tier": "fast"})
+            self.assertEqual(config.load()["codex"]["service_tier"], "fast")
+            self.assertEqual(chat_models.translation_id(config.load()), "a")
+            for bad in ({"id": "c", "service_tier": "fast"}, {"id": "b", "service_tier": "warp"}, {"id": "nope", "service_tier": "fast"}):
+                with self.assertRaises(ValueError):
+                    settings_api.set_chat_model_option(bad)
+
+    def test_official_openai_api_gets_priority_not_fast(self):
+        from easyread import openai_api
+        o = {"model": "example", "api": "responses", "service_tier": "fast", "base_url": "https://api.openai.com/v1"}
+        self.assertEqual(openai_api._body(o, "hi", [], False, None)["service_tier"], "priority")
+        o["base_url"] = "https://example.test/v1"
+        self.assertEqual(openai_api._body(o, "hi", [], False, None)["service_tier"], "fast")
+
     def test_settings_ui(self):
         subprocess.run(["node", "--test", "tests/test_codex_translation_options.cjs"], check=True)
 

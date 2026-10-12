@@ -15,7 +15,7 @@
       if (l.error) continue;
       PR.$$('.card[data-note="' + nid + '"] .reply.live').forEach((box) => {
         const body = box.querySelector(".body"), who = box.querySelector(".who");
-        if (body && l.text) body.innerHTML = PR.mdBlocks(l.text);
+        if (body && l.text) body.innerHTML = PR.mdBlocks(l.text, { live: true });
         if (who && l.model) who.textContent = l.model;
       });
     }
@@ -36,6 +36,7 @@
     const text = n.kind === "question" ? n.body : PR.t("这是我读这里时写的笔记，请点评：我理解得对不对、有没有漏掉或想错的地方、还可以往哪想。") + "\n\n" + PR.t("我的笔记：") + n.body;
     const live = (PR.liveAnswers[nid] = { text: "", model: (PR.chatModel && PR.chatModel.label()) || "", error: "" });
     PR.asking.add(nid);
+    if (PR.waitStatus) PR.waitStatus.start(nid);  // 卡片上三個點旁邊：已經等了幾秒、卡在哪
     repaint();
     const ctrl = (ctrls[nid] = new AbortController());
     let thread = null, ok = false;
@@ -66,7 +67,8 @@
           const ev = JSON.parse(line);
           if (ev.thread) thread = ev.thread;
           if (ev.model) { live.model = ev.model; paintLive(); }
-          if (ev.t) { live.text += ev.t; paintLive(); }
+          if (ev.status && PR.waitStatus) PR.waitStatus.set(nid, ev.status);
+          if (ev.t) { if (!live.text && PR.waitStatus) PR.waitStatus.stop(nid); live.text += ev.t; paintLive(); }
           if (ev.done) ok = true;
           if (ev.error) live.error = ev.error;
         }
@@ -76,6 +78,7 @@
       live.error = e.name === "AbortError" ? PR.t("（已停止）") : PR.t("没能回答：{msg}", { msg: e.message });
     }
     PR.asking.delete(nid);
+    if (PR.waitStatus) PR.waitStatus.stop(nid);
     delete ctrls[nid];
     if (!live.error) {
       // 回答已經寫進 discussion.json：直接取回來，別等輪詢（分頁在背景時輪詢是停的）

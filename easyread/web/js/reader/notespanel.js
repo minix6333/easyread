@@ -140,7 +140,7 @@
       '<button class="btn icon sm" data-np-act="pnext" title="' + PR.t("下一頁") + '"' + (p >= n ? " disabled" : "") + ">" + PR.icon("next", "sm") + "</button>" +
       '<span class="grow"></span><button class="np-chip" data-np-act="pgo"' + (detached ? "" : " hidden") + ">" + PR.t("PDF 在第 {n} 頁", { n: curPage() }) + "</button>" +
       '<button class="btn icon sm np-star' + (pn.star ? " on" : "") + '" data-np-act="star" title="' + PR.t("標成重點頁（之後可以只看重點頁）") + '">' + PR.icon("star", "sm") + "</button></div>" +
-      (writing ? '<div class="np-pview writing"><div class="pw-body">' + PR.mdBlocks(joined(pw.base, pw.text)) + '</div><p class="thinking"><i></i><i></i><i></i></p></div>'
+      (writing ? '<div class="np-pview writing"><div class="pw-body">' + PR.mdBlocks(joined(pw.base, pw.text), { live: true }) + '</div><p class="thinking"><i></i><i></i><i></i></p></div>'
         : '<div class="np-bk page" id="npPageEd" data-page="' + p + '"></div>') +
       '<div class="np-ptools">' +
       (writing ? '<button class="btn sm line" data-np-act="pwstop">' + PR.icon("stop", "sm") + PR.t("停止") + "</button>"
@@ -280,7 +280,7 @@
       const view = pw && panel().querySelector(".np-pview.writing"), body = view && view.querySelector(".pw-body");
       if (!body) return;
       const stick = view.scrollHeight - view.scrollTop - view.clientHeight < 48;  // 讀者往上捲回去看時不搶捲動
-      body.innerHTML = PR.mdBlocks(joined(pw.base, pw.text));
+      body.innerHTML = PR.mdBlocks(joined(pw.base, pw.text), { live: true });
       if (stick) view.scrollTop = view.scrollHeight;
     }, 90);
   }

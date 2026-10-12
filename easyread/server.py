@@ -236,7 +236,6 @@ class Handler(BaseHTTPRequestHandler):
         aside = chat.aside_context(ws, aside_in)
         if aside and isinstance(body.get("aside"), dict):
             user["aside"] = {"thread": str(aside_in.get("thread")), "msg": str(aside_in.get("msg") or ""), "quote": aside["quote"]}
-        preread.auto(ws)  # 還沒讀過整份（舊論文、另一台匯入的）：趁這一問在背景讀，下一問起就帶著全文筆記
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
@@ -258,10 +257,15 @@ class Handler(BaseHTTPRequestHandler):
         cancel = threading.Event()
         pieces: list[str] = []
         meter = usage.Meter(ecfg["engine"])
+        watching = chat.cancel_when_gone(self, cancel)  # 讀者按停止：馬上知道（不用等到下一次送字）
 
         def send(obj):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
             self.wfile.flush()
+
+        def keep_partial():  # 寫到一半被停下來：已經寫出來的留著，後面記一筆（已停止）
+            if pieces:
+                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot())
         try:
             send({"model": model, "thread": tid, "answer_style": style})
             def seen(actual):
@@ -270,32 +274,49 @@ class Handler(BaseHTTPRequestHandler):
                     send({"model": chat_models.label(m)})
             guard = tw.Stream(tw.is_tw(langs.reply_code(ws.load("paper").get("meta"))))  # 繁體保險：模型夾帶的簡體字轉掉
             t0 = time.time()
-            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {}),
-                                     live=live, on_live=lambda: send({"stream": "live"})):
-                piece = guard.feed(piece)
-                if piece:
-                    if not pieces:  # 首字花了多久（終端機裡看得到；追問、預熱有沒有生效就看這個）
-                        log.info("問 AI 首字 %.1f 秒（%s%s）", time.time() - t0, model, "，追問" if live.get("followup_text") else "")  # i18n-ok 終端機記錄
-                    pieces.append(piece)
-                    send({"t": piece})
+            first = 0.0
+            answer = chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {}),
+                                 live=live, on_live=lambda: send({"stream": "live"}),
+                                 on_status=lambda st: send({"status": st}))  # 還沒出字時：重新連線、太擠自動再問、開始思考
+            try:
+                for piece in answer:
+                    piece = guard.feed(piece)
+                    if piece:
+                        if not pieces:  # 首字花了多久（終端機裡看得到；追問、預熱有沒有生效就看這個）
+                            first = time.time() - t0
+                            log.info("問 AI 首字 %.1f 秒（%s%s）", first, model, "，追問" if live.get("followup_text") else "")  # i18n-ok 終端機記錄
+                        pieces.append(piece)
+                        send({"t": piece})
+            finally:
+                if hasattr(answer, "close"):
+                    answer.close()  # 讀者按了停止（送不出去了）：馬上收掉，模型那邊才會跟著停（codex_live 會送 turn/interrupt）
             tail = guard.flush()
             if tail:
                 pieces.append(tail)
                 send({"t": tail})
             msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot())
+            # 整則花了多久、寫得多快（慢是等第一個字、還是寫得慢，看這一行就知道）
+            total, snap = time.time() - t0, meter.snapshot() or {}
+            log.info("問 AI 寫完 %.1f 秒（首字 %.1f 秒，%d 字，輸出 %s token，每秒約 %.0f；輸入 %s、快取 %s；%s%s）", total, first, len("".join(pieces)),  # i18n-ok 終端機記錄
+                     snap.get("output", "?"), (snap.get("output") or 0) / max(0.1, total - first), snap.get("input", "?"), snap.get("cached", "?"),
+                     model, "，Fast" if (ecfg.get(ecfg.get("engine")) or {}).get("service_tier") == "fast" else "")  # i18n-ok
             send({"done": True, "id": msg["id"], "usage": msg.get("usage")})
+            # 還沒讀過整份（舊論文、另一台匯入的）：答完這一問才在背景讀，下一問起就帶著全文筆記。
+            # 以前是一收到問題就開始讀——兩件事同時搶同一個帳號，這一問的第一個字被拖慢（實測 30 秒以上）
+            preread.auto(ws)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
-            if pieces:
-                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot())
+            keep_partial()
         except engines.Cancelled:
-            pass
+            keep_partial()
         except Exception as e:  # noqa: BLE001
             log.exception("对话出错 %s", ws.id)
             try:
                 send({"error": str(e)[:500]})
             except OSError:
                 pass
+        finally:
+            watching()
 
     def _body(self) -> bytes:
         if getattr(self, "_body_bytes", None) is not None:  # 讀過了：連線上已經沒有這段，再讀會卡住等下一個請求

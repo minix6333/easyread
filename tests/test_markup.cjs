@@ -125,3 +125,20 @@ test("page mentions become clickable only when the open document has that page; 
   assert.ok(!/<code[^>]*>[^<]*<a/.test(html));  // 程式碼裡的不動
   assert.match(html, /<a href="https:\/\/x\.y\/z"[^>]*>第 5 頁的圖<\/a>/);  // 連結的字裡面不再包一層
 });
+
+test("an unfinished figure block shows the drawing placeholder only while streaming; a stopped answer renders what it has", () => {
+  const PR = markup();
+  PR.vizHtml = (src) => "<viz>" + PR.esc(src.trim()) + "</viz>";
+  const fence = "\x60\x60\x60";
+  const half = "開頭一句。\n\n" + fence + "viz\n<div class=\"viz\"><h4>半張圖";
+  const live = PR.mdBlocks(half, { live: true });
+  assert.ok(live.includes("md-drawing") && live.includes("開頭一句") && !live.includes("半張圖"), "streaming: placeholder, no half-written source");
+  const stopped = PR.mdBlocks(half + "\n\n（已停止）");
+  assert.ok(!stopped.includes("md-drawing"), "a finished answer never keeps saying it is drawing");
+  assert.ok(stopped.includes("md-viz") && stopped.includes("半張圖"));
+  assert.ok(stopped.includes("（已停止）") && !/<viz>[^]*已停止[^]*<\/viz>/.test(stopped), "the stop note is not part of the figure");
+  assert.ok(!PR.mdBlocks(half).includes("md-drawing"));
+  const whole = "A\n\n" + fence + "viz\n<div class=\"viz\">好</div>\n" + fence + "\n\nB";
+  assert.equal(PR.mdBlocks(whole, { live: true }), PR.mdBlocks(whole), "complete blocks render the same either way");
+});
+

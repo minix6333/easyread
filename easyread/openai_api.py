@@ -71,7 +71,9 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
         else:
             body["reasoning_effort"] = o["reasoning_effort"]
     if o.get("service_tier"):
-        body["service_tier"] = o["service_tier"]
+        # 設定裡的「Fast」是 Codex 的說法；OpenAI 自己的 API 叫 priority（寫 fast 會被退回 400）。別家相容的接口照設定原樣送
+        official = "api.openai.com" in (o.get("base_url") or "")
+        body["service_tier"] = "priority" if official and o["service_tier"] == "fast" else o["service_tier"]
     if temperature is not None and not o.get("reasoning_effort"):
         body["temperature"] = temperature
     if stream:

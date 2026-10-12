@@ -289,6 +289,9 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .about .keyrows.wide { grid-template-columns: minmax(96px, auto) 1fr; }
 .about .keyrows.wide kbd { white-space: nowrap; min-width: 0; }
 .thinking .wait-hint { margin-left: 8px; font: 12px var(--ui); color: var(--ink-3); align-self: center; }
+.thinking .wait-status { margin-left: 8px; font: 12px var(--ui); color: var(--ink-3); align-self: center; font-variant-numeric: tabular-nums; }  /* 已等幾秒、卡在哪（chat.js 的 PR.waitStatus） */
+.thinking .wait-status:empty { display: none; }
+.thinking .wait-status:not(:empty) + .wait-hint { display: none; }  /* 有具體狀態時不重複說「寫完才會一次顯示」 */
 
 /* ---------- 回答和筆記裡的圖（```flow，見 js/common/flow.js）：流程圖、架構圖、關係圖 ---------- */
 .md-flow { --mf-bg: var(--surface); margin: .7em 0; padding: 14px 10px; border-radius: 12px; background: var(--mf-bg); box-shadow: inset 0 0 0 1px var(--rule); overflow-x: auto; overflow-y: hidden; }

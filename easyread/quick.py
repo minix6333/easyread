@@ -112,6 +112,7 @@ def handle(handler, ws: Workspace, body: dict) -> None:
     handler.end_headers()
     handler.close_connection = True
     cancel = threading.Event()
+    watching = chat.cancel_when_gone(handler, cancel)  # 讀者按停止、關掉那張卡：馬上知道
 
     def send(obj):
         handler.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -150,3 +151,5 @@ def handle(handler, ws: Workspace, body: dict) -> None:
             send({"error": str(e)[:500]})
         except OSError:
             pass
+    finally:
+        watching()

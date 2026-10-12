@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import threading
 from pathlib import Path
@@ -29,6 +30,15 @@ def _alias_desc(alias: str) -> str:
     return {"fable": tr("最新"), "opus": tr("最强"), "sonnet": tr("快、省"), "haiku": tr("最快最省")}.get(alias, "")
 
 
+def _fast_speed(m: dict) -> float:
+    """這個模型有沒有 Fast（priority）等級、快幾倍：Codex 寫的是「2x speed, increased usage」；沒有這個等級回 0，有但沒寫倍數回 1.5。"""
+    for t in m.get("service_tiers") or []:
+        if isinstance(t, dict) and t.get("id") == "priority":
+            hit = re.search(r"(\d+(?:\.\d+)?)\s*x", str(t.get("description") or ""), re.I)
+            return float(hit.group(1)) if hit else 1.5
+    return 1.5 if "fast" in (m.get("additional_speed_tiers") or []) else 0
+
+
 def codex() -> dict:
     """{"default": slug, "models": [{"id", "name", "desc"}]}；Codex 没装或没登录过就是空名单。"""
     out: list[dict] = []
@@ -39,7 +49,7 @@ def codex() -> dict:
         ms.sort(key=lambda m: m.get("priority", 99))
         out = [{"id": m["slug"], "name": m.get("display_name") or m["slug"], "desc": m.get("description") or "",
                 "reasoning_levels": [r["effort"] for r in m.get("supported_reasoning_levels", []) if isinstance(r, dict) and r.get("effort")],
-                "default_reasoning": m.get("default_reasoning_level") or ""} for m in ms]
+                "default_reasoning": m.get("default_reasoning_level") or "", "fast": _fast_speed(m)} for m in ms]
     except (OSError, ValueError, AttributeError):
         pass
     return {"default": chat_models.codex_default_model(), "models": out,

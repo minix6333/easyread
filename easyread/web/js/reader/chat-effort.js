@@ -24,10 +24,30 @@
       return /(opus|sonnet) 5\.5/i.test(actual) ? "medium" : /opus 4\.7/i.test(actual) ? "xhigh" : "high";
     },
     effective(st, m) { return this.value(st, m) || this.fallback(st, m); },
+    /* 速度（Fast）：Codex 的模型才有。這個模型的 Fast 快幾倍（Codex 的模型名單裡寫的，沒有這個等級是 0）；
+       現在是不是 Fast 看設定裡那張模型卡片，卡片沒設就照 Codex 自己的設定 */
+    fastSpeed(st, m) {
+      if (m.engine !== "codex") return 0;
+      const cat = (st.catalog || {}).codex || {};
+      const hit = (cat.models || []).find((x) => x.id === (m.model || cat.default));
+      return (hit && hit.fast) || 0;
+    },
+    isFast(st, m) { return this.fastSpeed(st, m) > 0 && (m.service_tier || ((st.catalog || {}).codex || {}).configured_tier || "") === "fast"; },
+    /* 選「標準」時要存什麼：Codex 自己設了 fast 的話得明講 default 才壓得過，否則留空（跟著 Codex） */
+    tierFor(st, m, fast) { return fast ? "fast" : ((st.catalog || {}).codex || {}).configured_tier === "fast" ? "default" : ""; },
     /* 模型按钮上的后缀：显示实际生效的档位 */
     suffix(st, m) {
       const v = this.levels(m, st.catalog).length ? this.effective(st, m) : "";
-      return v ? '<span class="ch-model-effort"> · ' + PR.esc(name(v)) + "</span>" : "";
+      return (v ? '<span class="ch-model-effort"> · ' + PR.esc(name(v)) + "</span>" : "") + (this.isFast(st, m) ? '<span class="ch-model-effort"> · Fast</span>' : "");
+    },
+    /* 模型選單裡「速度」那一段（改的是模型卡片：所有對話、卡片上的提問都一起生效） */
+    speedSection(st, m) {
+      const k = this.fastSpeed(st, m);
+      if (!k) return "";
+      const fast = this.isFast(st, m);
+      const btn = (on, isFast, text) => '<button data-c="speed" data-fast="' + (isFast ? 1 : 0) + '" role="radio" aria-checked="' + on + '" class="' + (on ? "on" : "") + '"' + (st.streaming ? " disabled" : "") + ">" + text + "</button>";
+      return '<div class="ch-effort-sec"><div class="ch-effort-title"><span>' + PR.t("速度") + "</span><small>" + PR.t("Fast 約 {k} 倍速，額度用得比較快", { k: String(k).replace(/\.0$/, "") }) + "</small></div>" +
+        '<div class="ch-effort-seg" role="radiogroup" aria-label="' + PR.t("速度") + '">' + btn(!fast, false, PR.t("標準")) + btn(fast, true, "Fast") + "</div></div>";
     },
     /* 模型菜单最下面的一段 */
     section(st, m) {

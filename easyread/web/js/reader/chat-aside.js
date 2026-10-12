@@ -92,7 +92,7 @@
     if (m.role === "user") return '<div class="cm user"><div class="bubble">' + PR.md(m.content, { cite: false, xref: false }) + "</div></div>";
     const live = a.streaming && a.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-ca="copy">' + PR.icon("copy", "sm") + PR.t("复制") + '</button><button data-ca="tonote">' + PR.icon("notebook", "sm") + PR.t("加入筆記") + "</button></div>" : "") + "</div>";
   }
   function render() {
@@ -116,7 +116,7 @@
     const node = a && a.streaming && a.box.querySelector(".ca-body .cm.ai:last-child .body");
     if (!node) return;
     const text = a.streaming.msg.content;
-    node.innerHTML = text ? PR.mdBlocks(text) : '<p class="thinking"><i></i><i></i><i></i></p>';
+    node.innerHTML = text ? PR.mdBlocks(text, { live: true }) : '<p class="thinking"><i></i><i></i><i></i></p>';
     const body = a.box.querySelector(".ca-body");
     if (body.scrollHeight - body.scrollTop - body.clientHeight < 120) body.scrollTop = body.scrollHeight;
   }, 80);

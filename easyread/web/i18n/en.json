@@ -1729,5 +1729,17 @@
  "設為這份文件的封面": "Use as this document’s cover",
  "已設為封面（在文獻庫的卡片上）": "Set as cover (shown on the library card)",
  "封面改回自動的": "Reset cover to automatic",
- "快速查看": "Quick Look"
+ "快速查看": "Quick Look",
+ "Claude Code 的登入失效了（還沒登入，或登入過期）：打開終端機執行 claude，輸入 /login 重新登入一次；或先換一個模型。": "Claude Code is not signed in (never signed in, or the sign-in expired): open a terminal, run claude and type /login once; or switch to another model for now.",
+ "Codex 的登入失效了：打開終端機執行 codex login 重新登入；或先換一個模型。": "Codex is no longer signed in: open a terminal and run codex login; or switch to another model for now.",
+ "Fast 約 {k} 倍速，額度用得比較快": "Fast is about {k}× the speed and uses your plan's allowance faster",
+ "{model} 現在太擠（OpenAI 那邊暫時接不了，不是你的額度用完）。等一下再問，或在輸入框下面換一個模型、打開 Fast。": "{model} is overloaded right now (OpenAI cannot take the request at the moment; your allowance has not run out). Ask again in a moment, or switch models or turn on Fast below the input box.",
+ "已等 {n} 秒": "Waiting {n}s",
+ "思考中… {n} 秒": "Thinking… {n}s",
+ "標準": "Standard",
+ "模型太擠，自動再問（第 {a}／{b} 次）… {n} 秒": "Model is overloaded, asking again (try {a} of {b})… {n}s",
+ "這個模型沒有 Fast": "This model has no Fast tier",
+ "速度": "Speed",
+ "速度只能是 fast / default": "Speed must be fast or default",
+ "連線斷了，重新連線中… {n} 秒": "Connection dropped, reconnecting… {n}s"
 }

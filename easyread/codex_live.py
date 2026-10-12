@@ -34,6 +34,37 @@ class Unavailable(engines.EngineError):
     """app-server 起不來或協定對不上：呼叫方退回 codex exec。"""
 
 
+class Busy(engines.EngineError):
+    """OpenAI 那邊暫時接不了（模型滿載、429、連線重試用完）：還沒出字的話等一下再問一次就好（見 stream）。"""
+
+
+# 這幾種是「現在太擠」，不是這一問有問題：codexErrorInfo（camelCase）或訊息對得上其中一個
+_BUSY_INFO = {"serverOverloaded", "rateLimitExceeded", "responseTooManyFailedAttempts", "responseStreamDisconnected",
+              "responseStreamConnectionFailed", "httpConnectionFailed", "internalServerError"}
+_BUSY_TEXT = ("at capacity", "overloaded", "too many requests", "exceeded retry limit", "stream disconnected", "429", "503", "502")
+RETRY_WAITS = (3, 8)  # 太擠時自動再問：隔幾秒各試一次（都不行才把錯誤交給讀者）
+
+
+def _is_busy(err: dict | str) -> bool:
+    info = err.get("codexErrorInfo") if isinstance(err, dict) else None
+    kind = info if isinstance(info, str) else next(iter(info), "") if isinstance(info, dict) else ""
+    if kind in ("usageLimitExceeded", "unauthorized", "contextWindowExceeded", "badRequest"):  # 額度用完、沒登入…再試也一樣
+        return False
+    text = str(err.get("message") if isinstance(err, dict) else err).lower()
+    return kind in _BUSY_INFO or any(k in text for k in _BUSY_TEXT)
+
+
+def busy_message(model: str, detail: str) -> str:
+    """試了幾次還是太擠：說清楚不是讀者的問題、可以怎麼辦。"""
+    return tr("{model} 現在太擠（OpenAI 那邊暫時接不了，不是你的額度用完）。等一下再問，或在輸入框下面換一個模型、打開 Fast。", model=model or "Codex") + "\n" + detail
+
+
+def tier_of(c: dict):
+    """設定裡的 Fast → app-server 的 serviceTier："fast"（＝priority，約 2 倍速、額度用得快）、"default"（標準）；沒設就不傳，照 Codex 自己的設定。"""
+    v = (c.get("service_tier") or "").strip()
+    return v if v in ("fast", "priority", "flex", "default") else None
+
+
 def enabled() -> bool:
     return not _disabled and os.environ.get("EASYREAD_NO_LIVE", "") not in ("1", "true", "yes")
 
@@ -172,10 +203,12 @@ class Client:
             self.replies.pop(rid, None)
 
     # ---- 對話 ----
-    def thread_start(self, cwd: Path, model: str) -> str:
+    def thread_start(self, cwd: Path, model: str, tier: str | None = None) -> str:
         params: dict = {"cwd": str(cwd), "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True}
         if model:
             params["model"] = model
+        if tier:
+            params["serviceTier"] = tier
         res = self.request("thread/start", params) or {}
         tid = (res.get("thread") or {}).get("id") or res.get("threadId")
         if not tid:
@@ -184,61 +217,92 @@ class Client:
         return tid
 
     def turn(self, tid: str, inputs: list[dict], effort: str, cancel: threading.Event | None, meter: usage.Meter | None,
-             timeout: float = 1200) -> Iterator[str]:
-        """送一輪、逐段吐文字；turn/completed 時記 token 和額度。取消就 turn/interrupt。"""
+             timeout: float = 1200, tier: str | None = None, on_status=None) -> Iterator[str]:
+        """送一輪、逐段吐文字；turn/completed 時記 token 和額度。取消就 turn/interrupt。
+        on_status(dict)：還沒出字時發生了什麼（{"kind": "reconnect"|"thinking", …}），頁面拿去顯示在等待的地方。"""
         q = self.events.get(tid)
         if q is None:
             raise Unavailable(tr("Codex app-server 没有给出对话 id"))
         params: dict = {"threadId": tid, "input": inputs}
         if effort:
             params["effort"] = effort
+        if tier:
+            params["serviceTier"] = tier
+        while True:  # 上一輪留下來沒讀完的通知（出錯、取消之後）不能算到這一輪頭上
+            try:
+                if q.get_nowait() is None:
+                    raise engines.EngineError(tr("Codex app-server 退出了"))
+            except queue.Empty:
+                break
         self.request("turn/start", params)
         deadline = time.time() + timeout
         turn_id = None
         used = None
         got = False
-        while True:
-            try:
-                ev = q.get(timeout=0.2)
-            except queue.Empty:
-                if cancel is not None and cancel.is_set():
-                    if turn_id:
-                        try:
-                            self._send({"id": 0, "method": "turn/interrupt", "params": {"threadId": tid, "turnId": turn_id}})
-                        except engines.EngineError:
-                            pass
-                    raise engines.Cancelled()
-                if time.time() > deadline:
-                    raise engines.EngineError(tr("超过 {n} 秒没有结果", n=int(timeout)))
-                continue
-            if ev is None:
-                raise engines.EngineError(tr("Codex app-server 退出了"))
-            m = ev.get("method")
-            p = ev.get("params") or {}
-            if m == "turn/started":
-                turn_id = (p.get("turn") or {}).get("id") or p.get("turnId")
-            elif m == "item/agentMessage/delta":
-                d = p.get("delta") or p.get("text") or ""
-                if d:
-                    got = True
-                    yield d
-            elif m == "thread/tokenUsage/updated":
-                used = (p.get("tokenUsage") or {}).get("last")
-            elif m == "error":
-                err = p.get("error") or {}
-                raise engines.EngineError(str(err.get("message") or err or p)[:600])
-            elif m == "turn/completed":
-                if meter is not None:
-                    meter.add(**usage.from_codex_live(used, self.rate_limits))
-                turn = p.get("turn") or {}
-                if turn.get("status") == "failed" or turn.get("error"):
-                    raise engines.EngineError(str(turn.get("error") or tr("Codex 没有给出结果：{msg}", msg="")))
-                if not got:
-                    final = turn.get("finalMessage") or p.get("finalMessage")
-                    if final:
-                        yield str(final)
-                return
 
+        def tell(**st):
+            if on_status and not got:
+                try:
+                    on_status(st)
+                except Exception:  # noqa: BLE001 —— 狀態只是給人看的，送不出去不能影響回答
+                    pass
+        finished = False  # 這一輪在 Codex 那邊結束了沒有（完成或失敗）；沒結束就離開（按了停止、逾時）要叫它停，不然它會寫到完、額度照扣
+        try:
+            while True:
+                try:
+                    ev = q.get(timeout=0.2)
+                except queue.Empty:
+                    if cancel is not None and cancel.is_set():
+                        raise engines.Cancelled() from None
+                    if time.time() > deadline:
+                        raise engines.EngineError(tr("超过 {n} 秒没有结果", n=int(timeout))) from None
+                    continue
+                if ev is None:
+                    finished = True
+                    raise engines.EngineError(tr("Codex app-server 退出了"))
+                m = ev.get("method")
+                p = ev.get("params") or {}
+                if m == "turn/started":
+                    turn_id = (p.get("turn") or {}).get("id") or p.get("turnId")
+                elif m == "item/agentMessage/delta":
+                    d = p.get("delta") or p.get("text") or ""
+                    if d:
+                        got = True
+                        yield d
+                elif m == "thread/tokenUsage/updated":
+                    used = (p.get("tokenUsage") or {}).get("last")
+                elif m == "item/started" and (p.get("item") or {}).get("type") == "reasoning":
+                    tell(kind="thinking")
+                elif m == "error":
+                    err = p.get("error") or {}
+                    msg = str((err.get("message") if isinstance(err, dict) else err) or p)[:600]
+                    # willRetry：和 OpenAI 的連線斷了，Codex 自己會重連（「Reconnecting... 2/5」）——不是失敗，接著等。
+                    # 2.1.0-tw.9 以前把它當成出錯直接結束，讀者看到的就是一句「Reconnecting... 2/5」，還得自己再問一次
+                    if p.get("willRetry"):
+                        tell(kind="reconnect", text=msg)
+                        continue
+                    finished = True
+                    raise (Busy if not got and _is_busy(err) else engines.EngineError)(msg)
+                elif m == "turn/completed":
+                    finished = True
+                    if meter is not None:
+                        meter.add(**usage.from_codex_live(used, self.rate_limits))
+                    turn = p.get("turn") or {}
+                    if turn.get("status") == "failed" or turn.get("error"):
+                        err = turn.get("error") or {}
+                        msg = str((err.get("message") if isinstance(err, dict) else err) or tr("Codex 没有给出结果：{msg}", msg=""))[:600]
+                        raise (Busy if not got and _is_busy(err or msg) else engines.EngineError)(msg)
+                    if not got:
+                        final = turn.get("finalMessage") or p.get("finalMessage")
+                        if final:
+                            yield str(final)
+                    return
+        finally:
+            if not finished and turn_id and self.alive():
+                try:
+                    self._send({"id": 0, "method": "turn/interrupt", "params": {"threadId": tid, "turnId": turn_id}})
+                except engines.EngineError:
+                    pass
 
 # ---------- 單一行程 + 對話對應 ----------
 _lock = threading.Lock()
@@ -288,30 +352,59 @@ def bound_turns(ws_id: str, thread: str | None, model: str, cwd: Path) -> int | 
 
 
 def stream(c: dict, text: str, cwd: Path, cancel, meter=None, images=None, thread: str | None = None,
-           expect_turns: int | None = None, followup_text: str | None = None, on_live=None) -> Iterator[str]:
-    """問一輪。thread 給了就接著同一個 app-server 對話（輪數對得上時只送 followup_text）。"""
-    cli = client(c)
+           expect_turns: int | None = None, followup_text: str | None = None, on_live=None, on_status=None) -> Iterator[str]:
+    """問一輪。thread 給了就接著同一個 app-server 對話（輪數對得上時只送 followup_text）。
+    OpenAI 那邊太擠（滿載、429、重連用完）而且還沒出字：隔幾秒自動再問，最多 len(RETRY_WAITS) 次；on_status 會收到 {"kind": "busy", …}。"""
     model = c.get("model") or ""
     key = (model, str(cwd))
     ws_id = Path(cwd).name
-    with _lock:
-        t = _threads.get((ws_id, thread)) if thread else None
-        if t and (t["key"] != key or (expect_turns is not None and t["turns"] != expect_turns)):
-            t = None
-    use_follow = bool(t) and bool(followup_text)
-    if not t:
-        tid = cli.thread_start(Path(cwd), model)
-        t = {"id": tid, "turns": 0, "key": key}
-        if thread:
-            with _lock:
-                _threads[(ws_id, thread)] = t
-    if on_live:
-        on_live()
-    try:
-        for piece in cli.turn(t["id"], items(followup_text if use_follow else text, images), c.get("reasoning_effort") or "", cancel, meter,
-                              int(c.get("timeout") or 1200)):
-            yield piece
-        t["turns"] += 1
-    finally:
-        if not thread:  # 一次性的（選字翻譯）：這個 app-server 對話用完就不用再收它的通知
-            cli.events.pop(t["id"], None)
+    tier = tier_of(c)
+    attempt = 0
+    while True:
+        cli = client(c)
+        with _lock:
+            t = _threads.get((ws_id, thread)) if thread else None
+            if t and (t["key"] != key or (expect_turns is not None and t["turns"] != expect_turns)):
+                t = None
+        use_follow = bool(t) and bool(followup_text)
+        if not t:
+            tid = cli.thread_start(Path(cwd), model, tier)
+            t = {"id": tid, "turns": 0, "key": key}
+            if thread:
+                with _lock:
+                    _threads[(ws_id, thread)] = t
+        if on_live:
+            on_live()
+        ok = False
+        try:
+            for piece in cli.turn(t["id"], items(followup_text if use_follow else text, images), c.get("reasoning_effort") or "", cancel, meter,
+                                  int(c.get("timeout") or 1200), tier, on_status):
+                yield piece
+            t["turns"] += 1
+            ok = True
+            return
+        except Busy as e:  # 只在還沒出字時抛
+            if attempt >= len(RETRY_WAITS) or (cancel is not None and cancel.is_set()):
+                raise engines.EngineError(busy_message(model, str(e))) from None
+            wait = RETRY_WAITS[attempt]
+            attempt += 1
+            log.info("Codex 太擠（%s），%d 秒後再問一次（第 %d 次）", str(e)[:120], wait, attempt)  # i18n-ok 終端機記錄
+            if on_status:
+                try:
+                    on_status({"kind": "busy", "attempt": attempt, "of": len(RETRY_WAITS), "wait": wait, "text": str(e)[:200]})
+                except Exception:  # noqa: BLE001
+                    pass
+            end = time.time() + wait
+            while time.time() < end:
+                if cancel is not None and cancel.is_set():
+                    raise engines.Cancelled() from None
+                time.sleep(0.2)
+        finally:
+            # 沒答完（出錯、取消、太擠）：這個 app-server 對話裡留著半輪，接著用會對不上（整份文件再送一次、讀到上一輪剩下的通知）——
+            # 解開，下一問開新的（server 那邊看到沒綁著，會送完整的提示詞和對話記錄）。一次性的（選字翻譯）用完就不用再收通知
+            if not ok or not thread:
+                cli.events.pop(t["id"], None)
+                if thread:
+                    with _lock:
+                        if _threads.get((ws_id, thread)) is t:
+                            _threads.pop((ws_id, thread), None)

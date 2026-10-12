@@ -233,12 +233,12 @@
       (t.streaming ? act("trstop", "stop", PR.t("停止")) : (t.text ? act("trcopy", "copy", PR.t("复制")) + act("trsave", "note", PR.t("存成筆記")) : "") + act("trredo", "redo", PR.t("重譯"))) +
       act("trclose", "x", PR.t("关闭")) + "</span></div>" +
       '<div class="quote" lang="en">' + PR.esc(q.length > 160 ? q.slice(0, 160) + "…" : q) + "</div>" +
-      '<div class="body">' + (t.error ? '<p class="err">' + PR.esc(t.error) + "</p>" : t.text ? PR.mdBlocks(t.text) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div></div>";
+      '<div class="body">' + (t.error ? '<p class="err">' + PR.esc(t.error) + "</p>" : t.text ? PR.mdBlocks(t.text, t.streaming ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div></div>";
     place();
   }
   const paintTr = PR.throttle(() => {
     const b = cur && cur.tr && box && box.querySelector(".body");
-    if (b && cur.tr.text) b.innerHTML = PR.mdBlocks(cur.tr.text);
+    if (b && cur.tr.text) b.innerHTML = PR.mdBlocks(cur.tr.text, { live: true });
     const m = cur && cur.tr && box && box.querySelector(".meta");
     if (m && cur.tr.model) m.textContent = cur.tr.model;
   }, 60);

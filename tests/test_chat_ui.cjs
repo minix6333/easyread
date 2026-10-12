@@ -307,3 +307,28 @@ test("thinking effort lives in the model menu and shows on the model button once
   assert.equal(r.requests[0].chat_options.reasoning_effort, "high");
   r.finish(); await sending;
 });
+
+test("a Codex model that has a Fast tier gets a speed switch in the model menu; it edits the model card", async () => {
+  const E = (() => { const PR = { t: (x, v) => v ? x.replace(/\{(\w+)\}/g, (m, k) => v[k]) : x, esc: (x) => String(x) }; vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/chat-effort.js"), "utf8"), { window: { PR } }); return PR.chatEffort; })();
+  const st = { catalog: { codex: { default: "sol", configured_tier: "", models: [{ id: "sol", fast: 2 }, { id: "old", fast: 0 }] } }, chatOptions: {} };
+  const sol = { id: "a", engine: "codex", model: "sol", service_tier: "" };
+  assert.equal(E.fastSpeed(st, sol), 2);
+  assert.equal(E.fastSpeed(st, { engine: "codex", model: "old" }), 0);
+  assert.equal(E.fastSpeed(st, { engine: "claude", model: "opus" }), 0);
+  assert.equal(E.speedSection(st, { engine: "codex", model: "old" }), "", "no Fast tier: no section");
+  let html = E.speedSection(st, sol);
+  assert.match(html, /約 2 倍速/);
+  assert.match(html, /data-fast="0" role="radio" aria-checked="true"/);
+  assert.ok(!E.suffix(st, sol).includes("Fast"));
+  assert.equal(E.tierFor(st, sol, true), "fast");
+  assert.equal(E.tierFor(st, sol, false), "", "standard: follow Codex when Codex itself is standard");
+  sol.service_tier = "fast";
+  html = E.speedSection(st, sol);
+  assert.match(html, /data-fast="1" role="radio" aria-checked="true"/);
+  assert.match(E.suffix(st, sol), /· Fast/);
+  st.catalog.codex.configured_tier = "fast";  // Codex 自己的設定就是 fast：卡片沒設也是 Fast，選標準要明講 default
+  sol.service_tier = "";
+  assert.ok(E.isFast(st, sol));
+  assert.equal(E.tierFor(st, sol, false), "default");
+});
+

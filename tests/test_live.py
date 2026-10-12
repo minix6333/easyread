@@ -1,6 +1,7 @@
 """讓回答快起來的那些事：Claude Code 常駐行程（預熱、追問接著問、圖直接附上）、Codex app-server 串流、不等網路探測、
 JSON 解析不被 Markdown 連結帶偏、按翻譯時正在看的頁最先譯、選字翻譯的 low 強度和快取。
 python -m unittest tests.test_live"""
+import contextlib
 import io
 import json
 import os
@@ -254,6 +255,133 @@ class CodexLiveTest(unittest.TestCase):
         self.assertEqual(turns[1]["input"][-1]["text"], "q2")  # 換了模型：完整提示詞
         self.assertTrue(turns[1]["input"][0]["url"].startswith("data:image/png;base64,"))
 
+    # ---- 2.1.0-tw.10：重新連線不是失敗、太擠自動再問、Fast 真的送出去、按停止模型跟著停 ----
+    def _scripted(self, turns):
+        """turns：每一輪 turn/start 之後要吐的通知（函式，收 threadId）；不夠就重複最後一個。"""
+        srv = FakeAppServer()
+        base = srv.reply
+        seen = []
+
+        def reply(ev):
+            if ev.get("method") != "turn/start":
+                return base(ev)
+            tid = ev["params"]["threadId"]
+            seen.append(tid)
+            make = turns[min(len(seen), len(turns)) - 1]
+            return [{"id": ev["id"], "result": {}}, {"method": "turn/started", "params": {"threadId": tid, "turn": {"id": "turn%d" % len(seen)}}}] + make(tid)
+        srv.reply = reply
+        return srv
+
+    def _patched(self, srv):
+        return (mock.patch.object(engines, "codex_path", lambda c: "codex"), mock.patch.object(engines, "_popen", lambda a, cwd: srv),
+                mock.patch.object(codex_live.codex_lean, "args", lambda: []), mock.patch.object(codex_live, "RETRY_WAITS", (0, 0)))
+
+    @staticmethod
+    def _ok(tid):
+        return [{"method": "item/agentMessage/delta", "params": {"threadId": tid, "delta": "好"}},
+                {"method": "turn/completed", "params": {"threadId": tid, "turn": {"status": "completed"}}}]
+
+    @staticmethod
+    def _full(tid):
+        err = {"message": "Selected model is at capacity. Please try a different model.", "codexErrorInfo": "serverOverloaded"}
+        return [{"method": "error", "params": {"threadId": tid, "willRetry": False, "error": err}},
+                {"method": "turn/completed", "params": {"threadId": tid, "turn": {"status": "failed", "error": err}}}]
+
+    def test_reconnect_notice_is_not_a_failure(self):
+        # Codex 和 OpenAI 的連線斷了會自己重連（willRetry）：接著等，讀者只看到狀態，不是一句「Reconnecting... 2/5」的錯誤
+        def turn(tid):
+            return [{"method": "error", "params": {"threadId": tid, "willRetry": True, "error": {"message": "Reconnecting... 2/5"}}},
+                    {"method": "item/started", "params": {"threadId": tid, "item": {"type": "reasoning"}}}] + self._ok(tid)
+        srv, status = self._scripted([turn]), []
+        with contextlib.ExitStack() as st:
+            [st.enter_context(p) for p in self._patched(srv)]
+            out = list(codex_live.stream({"model": "m"}, "q", self.cwd, threading.Event(), None, None, "t1", 0, None, None, status.append))
+        self.assertEqual(out, ["好"])
+        self.assertEqual([s["kind"] for s in status], ["reconnect", "thinking"])
+        self.assertEqual(status[0]["text"], "Reconnecting... 2/5")
+        self.assertEqual(codex_live.bound_turns("paper-x", "t1", "m", self.cwd), 1)
+
+    def test_busy_model_is_asked_again_and_then_answers(self):
+        srv, status = self._scripted([self._full, self._ok]), []
+        with contextlib.ExitStack() as st:
+            [st.enter_context(p) for p in self._patched(srv)]
+            out = list(codex_live.stream({"model": "m"}, "完整", self.cwd, threading.Event(), None, None, "t1", 0, None, None, status.append))
+            self.assertEqual(codex_live.bound_turns("paper-x", "t1", "m", self.cwd), 1)
+        self.assertEqual(out, ["好"])
+        self.assertEqual([(s["kind"], s["attempt"], s["of"]) for s in status], [("busy", 1, 2)])
+        starts = [x for x in srv.sent if x.get("method") == "thread/start"]
+        turns = [x["params"] for x in srv.sent if x.get("method") == "turn/start"]
+        self.assertEqual((len(starts), len(turns)), (2, 2))  # 失敗的那一輪留在舊對話裡：再問時換一個新的
+        self.assertNotEqual(turns[0]["threadId"], turns[1]["threadId"])
+        self.assertEqual([t["input"][-1]["text"] for t in turns], ["完整", "完整"])
+
+    def test_still_busy_after_retries_says_what_to_do_and_unbinds(self):
+        srv = self._scripted([self._full])
+        with contextlib.ExitStack() as st:
+            [st.enter_context(p) for p in self._patched(srv)]
+            with self.assertRaises(engines.EngineError) as cm:
+                list(codex_live.stream({"model": "gpt-6.1-sol"}, "q", self.cwd, threading.Event(), None, None, "t1", 0, None, None, None))
+            self.assertIsNone(codex_live.bound_turns("paper-x", "t1", "gpt-6.1-sol", self.cwd))
+        self.assertNotIsInstance(cm.exception, codex_live.Busy)
+        self.assertIn("at capacity", str(cm.exception))
+        self.assertIn("Fast", str(cm.exception))  # 不是額度用完；可以等一下、換模型、開 Fast
+        self.assertEqual(len([x for x in srv.sent if x.get("method") == "turn/start"]), 3)  # 一次＋再試兩次
+
+    def test_other_errors_and_errors_after_text_are_not_retried(self):
+        def quota(tid):
+            err = {"message": "You've hit your usage limit.", "codexErrorInfo": "usageLimitExceeded"}
+            return [{"method": "error", "params": {"threadId": tid, "willRetry": False, "error": err}}]
+
+        def midway(tid):
+            return [{"method": "item/agentMessage/delta", "params": {"threadId": tid, "delta": "寫到一半"}}] + self._full(tid)
+        for script, got in ((quota, []), (midway, ["寫到一半"])):
+            codex_live._client = None
+            codex_live._threads.clear()
+            srv, out = self._scripted([script]), []
+            with contextlib.ExitStack() as st:
+                [st.enter_context(p) for p in self._patched(srv)]
+                with self.assertRaises(engines.EngineError):
+                    for piece in codex_live.stream({"model": "m"}, "q", self.cwd, threading.Event(), None, None, "t1", 0, None, None, None):
+                        out.append(piece)
+            self.assertEqual(out, got)
+            self.assertEqual(len([x for x in srv.sent if x.get("method") == "turn/start"]), 1)
+
+    def test_fast_setting_reaches_the_app_server(self):
+        # 設定裡開了 Fast：thread/start 和 turn/start 都要帶 serviceTier（以前只有 codex exec 那條路帶，串流的問答完全沒帶）
+        for tier, want in (("fast", "fast"), ("default", "default"), ("", None), ("warp", None)):
+            codex_live._client = None
+            codex_live._threads.clear()
+            srv = self._scripted([self._ok])
+            with contextlib.ExitStack() as st:
+                [st.enter_context(p) for p in self._patched(srv)]
+                list(codex_live.stream({"model": "m", "service_tier": tier}, "q", self.cwd, threading.Event(), None, None, "t1", 0, None, None, None))
+            start = next(x["params"] for x in srv.sent if x.get("method") == "thread/start")
+            turn = next(x["params"] for x in srv.sent if x.get("method") == "turn/start")
+            self.assertEqual((start.get("serviceTier"), turn.get("serviceTier")), (want, want), tier)
+
+    def test_stopping_midway_tells_codex_to_stop_and_unbinds_the_thread(self):
+        def slow(tid):
+            return [{"method": "item/agentMessage/delta", "params": {"threadId": tid, "delta": "第一段"}}]  # 之後沒有 turn/completed：還在寫
+        srv = self._scripted([slow])
+        with contextlib.ExitStack() as st:
+            [st.enter_context(p) for p in self._patched(srv)]
+            gen = codex_live.stream({"model": "m"}, "q", self.cwd, threading.Event(), None, None, "t1", 0, None, None, None)
+            self.assertEqual(next(gen), "第一段")
+            gen.close()  # 讀者按了停止：server 把產生器收掉
+            self.assertIsNone(codex_live.bound_turns("paper-x", "t1", "m", self.cwd))
+        stop = [x for x in srv.sent if x.get("method") == "turn/interrupt"]
+        self.assertEqual(len(stop), 1)
+        self.assertEqual(stop[0]["params"]["turnId"], "turn1")
+
+    def test_leftover_notices_from_a_failed_turn_do_not_leak_into_the_next(self):
+        srv = self._scripted([self._ok])
+        with contextlib.ExitStack() as st:
+            [st.enter_context(p) for p in self._patched(srv)]
+            cli = codex_live.client({"model": "m"})
+            tid = cli.thread_start(self.cwd, "m")
+            cli.events[tid].put({"method": "turn/completed", "params": {"threadId": tid, "turn": {"status": "failed", "error": {"message": "舊的"}}}})
+            self.assertEqual(list(cli.turn(tid, codex_live.items("q"), "", None, None)), ["好"])
+
     def test_chat_falls_back_to_exec_when_app_server_is_unavailable(self):
         seen = []
 
@@ -305,6 +433,42 @@ class SmallThingsTest(unittest.TestCase):
         self.assertEqual(segments.plan(pages, 2, 4, root, focus=1), segments.plan(pages, 2, 4, root))  # 第一頁本來就最先
         self.assertEqual(segments.plan(pages, 2, 4, root, focus=99), segments.plan(pages, 2, 4, root))
         self.assertEqual(segments.plan([3, 4, 5], 2, 1, root, focus=5), [[3, 4, 5]])  # 只有一段：不切
+
+    def test_closing_the_connection_cancels_right_away(self):
+        # 讀者按停止＝瀏覽器把連線關了：不用等到下一次送字，0.3 秒內就知道（等第一個字的那段時間也停得下來）
+        import socket
+        import types
+        for close_it in (True, False):
+            a, b = socket.socketpair()
+            cancel = threading.Event()
+            done = chat.cancel_when_gone(types.SimpleNamespace(connection=a), cancel)
+            try:
+                time.sleep(0.45)
+                self.assertFalse(cancel.is_set())
+                if close_it:
+                    b.close()
+                    self.assertTrue(cancel.wait(2))
+                else:
+                    done()  # 正常答完：背景那條線結束，之後連線關了也不算取消
+                    time.sleep(0.4)
+                    b.close()
+                    time.sleep(0.5)
+                    self.assertFalse(cancel.is_set())
+            finally:
+                done()
+                a.close()
+                b.close()
+        self.assertFalse(chat.cancel_when_gone(types.SimpleNamespace(), threading.Event())() or False)  # 沒有連線可看（測試裡的假 handler）：什麼都不做
+
+    def test_expired_login_gets_a_what_to_do_line(self):
+        # 2026-10-12 實際遇到的說法（以前沒認出來，讀者只看到一句英文）
+        msg = "Claude Code 出錯：Failed to authenticate: OAuth session expired and could not be refreshed"
+        out = netcheck.login_hint({"engine": "claude"}, msg)
+        self.assertIn("/login", out)
+        self.assertEqual(netcheck.login_hint({"engine": "claude"}, out), out)  # 不重複加
+        self.assertIn("codex login", netcheck.login_hint({"engine": "codex"}, "unexpected status 401 Unauthorized"))
+        self.assertEqual(netcheck.login_hint({"engine": "codex"}, "Selected model is at capacity."), "Selected model is at capacity.")
+        self.assertEqual(netcheck.login_hint({"engine": "claude"}, "API Error: 529 Overloaded"), "API Error: 529 Overloaded")
 
     def test_codex_live_usage_and_same_spot(self):
         rec = usage.from_codex_live({"inputTokens": 10, "cachedInputTokens": 4, "outputTokens": 2}, {"five_hour": {"used": 0.1}, "engine": "codex"})

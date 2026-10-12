@@ -130,6 +130,30 @@
     return true;
   }
 
+  /* 等第一個字的時候：三個點旁邊寫已經等了幾秒、現在卡在哪（重新連線、模型太擠自動再問、開始思考）。
+     以前只有三個點，等上二三十秒看不出是在排隊還是壞了。key：面板是 "chat"，卡片上的提問是那則筆記的 id（ask.js）。
+     每秒只改那幾個字，不重畫。 */
+  PR.waitStatus = (function () {
+    const waits = {};
+    let timer = null;
+    const text = (w) => {
+      const n = Math.round((Date.now() - w.t0) / 1000), s = w.status || {};
+      if (s.kind === "reconnect") return PR.t("連線斷了，重新連線中… {n} 秒", { n });
+      if (s.kind === "busy") return PR.t("模型太擠，自動再問（第 {a}／{b} 次）… {n} 秒", { a: s.attempt || 1, b: s.of || 1, n });
+      if (n < 4) return "";
+      return s.kind === "thinking" ? PR.t("思考中… {n} 秒", { n }) : PR.t("已等 {n} 秒", { n });
+    };
+    const paint = () => {
+      if (document.querySelectorAll) for (const key of Object.keys(waits)) document.querySelectorAll('.wait-status[data-wait="' + key + '"]').forEach((el) => { const t = text(waits[key]); if (el.textContent !== t) el.textContent = t; });
+      if (!Object.keys(waits).length && timer) { clearInterval(timer); timer = null; }
+    };
+    return {
+      start(key) { waits[key] = { t0: Date.now(), status: null }; if (!timer && typeof setInterval === "function") timer = setInterval(paint, 1000); },
+      set(key, status) { if (waits[key]) { waits[key].status = status; paint(); } },
+      stop(key) { delete waits[key]; },
+      html(key) { return '<span class="wait-status" data-wait="' + PR.esc(key) + '">' + (waits[key] ? PR.esc(text(waits[key])) : "") + "</span>"; },
+    };
+  })();
   /* 不會逐字串流的引擎（Codex）：等的時候說一聲，不然看起來像當掉 */
   PR.waitHint = function (id) {
     const m = st.models.find((x) => x.id === (id || st.model));
@@ -262,7 +286,7 @@
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i>' + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i>' + (live ? PR.waitStatus.html("chat") : "") + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + '</button><button data-c="tonote" title="' + PR.t("加進論文筆記的某個分類，或這一頁的筆記") + '">' + PR.icon("notebook", "sm") + PR.t("加入筆記") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
@@ -286,7 +310,7 @@
     const chips = chipsHtml();
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + (x.id === st.model ? '<span class="ch-model-check">✓</span>' : '') + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
-      PR.chatEffort.section(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
+      PR.chatEffort.section(st, m) + PR.chatEffort.speedSection(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
     // 简明回答（ASD-STE100 写作规则）：一个小开关放在模型旁边，不单独占一行
     const brief = st.answerStyle === "ste100";
     const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
@@ -333,7 +357,7 @@
     const node = st.streaming && PR.$("#chatList .cm.ai:last-child .body");
     if (!node) return;
     const text = st.streaming.msg.content;
-    if (!text) { node.innerHTML = '<p class="thinking"><i></i><i></i><i></i></p>'; return; }
+    if (!text) { if (!node.querySelector(".thinking")) node.innerHTML = '<p class="thinking"><i></i><i></i><i></i>' + PR.waitStatus.html("chat") + "</p>"; return; }
     if (live.msg !== st.streaming.msg || live.at > text.length) Object.assign(live, { msg: st.streaming.msg, at: 0, html: "" });
     let sealed = node.firstElementChild, tail = node.lastElementChild;
     if (!sealed || !sealed.classList.contains("md-sealed")) {
@@ -343,11 +367,11 @@
     }
     const cut = safeCut(text);
     if (cut > live.at) {
-      const more = PR.mdBlocks(text.slice(live.at, cut));
+      const more = PR.mdBlocks(text.slice(live.at, cut), { live: true });
       live.html += more; live.at = cut;
       sealed.insertAdjacentHTML("beforeend", more);
     }
-    tail.innerHTML = PR.mdBlocks(text.slice(live.at));
+    tail.innerHTML = PR.mdBlocks(text.slice(live.at), { live: true });
     const box = PR.$("#chatList");
     if (box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
   }
@@ -376,6 +400,7 @@
     t.messages.push(user, msg);
     const ctrl = new AbortController();
     st.streaming = { ctrl, msg };
+    PR.waitStatus.start("chat");
     st.draft = ""; st.listOpen = false; st.menuOpen = false; st.effortOpen = false;
     if (!only) st.images = [];
     if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
@@ -402,7 +427,8 @@
           if (ev.model) msg.model = ev.model;
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.stream === "live" && st.streaming) { st.streaming.live = true; renderLiveSoon(); }  // Codex 真的在逐字串流：不用提示「寫完才會一次顯示」
-          if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
+          if (ev.status) PR.waitStatus.set("chat", ev.status);  // 還沒出字：重新連線、太擠自動再問、開始思考
+          if (ev.t) { if (!msg.content) PR.waitStatus.stop("chat"); msg.content += ev.t; renderLiveSoon(); }
           if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
         }
@@ -412,6 +438,7 @@
       else msg.error = PR.t("没能回答：{msg}", { msg: e.message });
     }
     st.streaming = null;
+    PR.waitStatus.stop("chat");
     // 首次提问在服务端分配 ID 前失败，也应能切到新对话或重试。
     if (!t.id) { t.id = "local-" + (++st.localSeq); t.local = true; st.cur = t.id; }
     t.updated = PR.nowIso();
@@ -447,6 +474,13 @@
     if (c === "effort-level") { if (st.streaming) return; const m = modelOf(st.model); st.chatOptions.reasoning_effort = b.dataset.effort === PR.chatEffort.fallback(st, m) && !m.reasoning_effort ? "" : b.dataset.effort; return render(); }  // 菜单不关；点的就是默认档就不传，跟着 CLI
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
+    if (c === "speed") {  // Fast 開關：改的是設定裡那張模型卡片（選單不關）
+      if (st.streaming) return;
+      const m = modelOf(st.model), fast = b.dataset.fast === "1";
+      if (fast === PR.chatEffort.isFast(st, m)) return;
+      try { const d = await PR.api("/api/chat/model-option", { method: "POST", body: { id: m.id, service_tier: PR.chatEffort.tierFor(st, m, fast) } }); if (d && d.models) st.models = d.models; } catch (err) { PR.toast(PR.esc(err.message)); }
+      return render();
+    }
     if (c === "model") { if (st.streaming) return; st.menuOpen = false; return PR.chatModel.set(b.dataset.m); }
     if (c === "attach") {  // 選圖片檔
       const f = document.createElement("input");

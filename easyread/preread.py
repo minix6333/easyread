@@ -139,6 +139,8 @@ def _run(ws: Workspace, mid: str | None, info: dict) -> None:
             sig = signature(ws)
             try:
                 ecfg, m = chat_models.engine_cfg(config.load(), mid)
+                if ecfg.get("engine") in ("codex", "openai") and ecfg[ecfg["engine"]].get("service_tier") == "fast":
+                    ecfg[ecfg["engine"]]["service_tier"] = "default"  # 背景工作不搶快：Fast 的額度留給讀者正在等的那些問題
                 chunks = _chunks(ws)
                 if not chunks:
                     return

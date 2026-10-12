@@ -22,4 +22,12 @@ def apply(ecfg: dict, options: dict | None) -> dict:
             raise ValueError("Unsupported reasoning effort")
         ecfg[engine]["reasoning_effort"] = effort
         out["reasoning_effort"] = effort
+    # 速度（Fast）：只有 Codex 和 API 有；"fast" 約兩倍速、額度用得快，"default" 是標準，"" 照模型卡片上設的
+    tier = options.get("service_tier")
+    if tier is not None and ecfg["engine"] in ("codex", "openai"):
+        if tier not in ("", "fast", "default"):
+            raise ValueError("Unsupported service tier")
+        if tier:
+            ecfg[ecfg["engine"]]["service_tier"] = tier
+        out["service_tier"] = tier
     return out

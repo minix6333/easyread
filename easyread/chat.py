@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import re
+import select
+import socket
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -434,12 +436,36 @@ def _document(ws: Workspace, engine: str) -> tuple[str, bool]:
 
 
 # ---------- 流式输出 ----------
+def cancel_when_gone(handler, cancel: threading.Event):
+    """讀者按了停止（瀏覽器把這條連線關了）就馬上設 cancel；回傳收尾用的函式（答完叫一下）。
+    以前要等到「下一次送字送不出去」才知道連線沒了——等第一個字的那二三十秒裡按停止，模型其實還在那邊想、額度照扣，
+    一直到它吐出第一個字為止。請求的內容已經讀完、對方不會再送東西，所以這條連線變成「可讀」只有一種情況：對方關了。"""
+    sock = getattr(handler, "connection", None)
+    if sock is None:
+        return lambda: None
+    done = threading.Event()
+
+    def watch():
+        while not done.wait(0.3):
+            try:
+                readable, _, _ = select.select([sock], [], [], 0)
+                if readable and sock.recv(1, socket.MSG_PEEK) == b"":
+                    cancel.set()
+                    return
+            except (OSError, ValueError):  # 連線已經收掉了
+                cancel.set()
+                return
+    threading.Thread(target=watch, daemon=True, name="chat-gone").start()
+    return done.set
+
+
 def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images=None, live=None,
-           on_live=None) -> Iterator[str]:
+           on_live=None, on_status=None) -> Iterator[str]:
     """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。
     images：這次附的圖片檔，直接放進訊息（舊版 Claude Code 退回讓它自己 Read，提示詞裡寫了路徑）。
     live：{"thread", "turns", "followup_text", "tools", "system"}——接著哪個對話問；模型行程還記著前面幾輪時只送 followup_text
-    （見 claude_live / codex_live）。on_live()：Codex 真的在逐字串流時叫一下（頁面就不用提示「寫完才會一次顯示」）。"""
+    （見 claude_live / codex_live）。on_live()：Codex 真的在逐字串流時叫一下（頁面就不用提示「寫完才會一次顯示」）。
+    on_status(dict)：還沒出字時發生了什麼（Codex 重新連線、太擠自動再問、開始思考），頁面顯示在等待的那三個點旁邊。"""
     e = ecfg.get("engine")
     images = list(images or [])
     live = dict(live or {})
@@ -452,7 +478,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
         elif e == "openai":
             yield from openai_api.stream(ecfg["openai"], text, cancel, meter, images)
         else:
-            yield from _stream_codex(ecfg, text, cwd, cancel, meter, images, live, on_live)
+            yield from _stream_codex(ecfg, text, cwd, cancel, meter, images, live, on_live, on_status)
     except engines.EngineError as err:
         msg = netcheck.explain(ecfg, str(err))
         if images and e == "openai" and tr("（這個模型可能不能看圖") not in msg:
@@ -479,7 +505,7 @@ def bound_turns(ecfg: dict, ws: Workspace, thread: str | None) -> int | None:
     return None
 
 
-def _stream_codex(ecfg: dict, text: str, cwd: Path, cancel, meter, images, live: dict, on_live) -> Iterator[str]:
+def _stream_codex(ecfg: dict, text: str, cwd: Path, cancel, meter, images, live: dict, on_live, on_status=None) -> Iterator[str]:
     """先走 app-server（逐字串流、記著對話）；起不來、或還沒出字就斷了，退回 codex exec 整段給。
     两条路都不拉起用户的 MCP 和用不到的功能（见 codex_lean）。"""
     lean = engines.for_translation(ecfg)
@@ -487,7 +513,7 @@ def _stream_codex(ecfg: dict, text: str, cwd: Path, cancel, meter, images, live:
         got = False
         try:
             for piece in codex_live.stream(lean["codex"], text, cwd, cancel, meter, images, live.get("thread"), live.get("turns"),
-                                           live.get("followup_text"), on_live):
+                                           live.get("followup_text"), on_live, on_status):
                 got = True
                 yield piece
             return

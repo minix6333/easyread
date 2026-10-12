@@ -152,7 +152,13 @@
   PR.mdBlocks = function (text, opts) {
     text = String(text || "").trim();
     const cut = pendingFigure(text);
-    if (cut != null) return PR.mdBlocks(text.slice(0, cut), opts) + '<div class="md-drawing"><span class="spin"></span>' + PR.t("正在畫圖…") + "</div>";
+    if (cut != null) {
+      // 佔位只在回答還在流的時候放（呼叫的地方傳 { live: true }）。已經結束的回答——畫到一半被停止、模型忘了收尾——
+      // 把區塊補上收尾照畫（畫不出來會顯示原始碼）；以前不分，這種回答會永遠停在「正在畫圖…」
+      if (opts && opts.live) return PR.mdBlocks(text.slice(0, cut), opts) + '<div class="md-drawing"><span class="spin"></span>' + PR.t("正在畫圖…") + "</div>";
+      const tail = /\n+([（(][^\n（）()]{1,16}[）)])\s*$/.exec(text.slice(cut));  // 最後那句「（已停止）」不是圖的一部分
+      text = text.slice(0, tail ? cut + tail.index : text.length) + "\n\x60\x60\x60" + (tail ? "\n\n" + tail[1] : "");
+    }
     const saved = tokens(text, true);
     const html = saved.text.split(saved.blocks).map((part, i) => i % 2 ? tokenHtml(saved.values[part], true) :
       part.split(/\n\s*\n/).map((p) => para(p, opts)).join("")).join("");
