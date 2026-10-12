@@ -79,8 +79,13 @@ def main():
                         assert response.status == 200
                         data = response.read()
                         assert data[:4] == b"RIFF" and data[8:12] == b"WEBP", data[:80]
-                    if width < 1468:  # the 612 pt source was rendered at 2.4x
-                        assert (ws / "pages" / f"w{width}" / "page-001.webp").is_file(), "resizing did not run"
+                    # 612 pt 的頁照 2.4 倍畫出來是 1469 像素寬。小的另外縮一張（Pillow）、大的從 PDF 重新畫一張（pdfium），
+                    # 都存在 pages/w<寬>/；和原圖差不到 5% 的（1400）直接給原圖，不另外做一張幾乎一樣的（2.1.0-tw.9 起）
+                    made = (ws / "pages" / f"w{width}" / "page-001.webp").is_file()
+                    if width == 1400:
+                        assert not made, "a near-identical copy of the page image was made"
+                    else:
+                        assert made, "resizing did not run"
             finally:
                 if os.name == "nt":  # onefile 在 Windows 上是两层进程，只杀外层的话里层还占着 easyread.log，临时目录删不掉
                     subprocess.run(["taskkill", "/pid", str(proc.pid), "/t", "/f"], capture_output=True)
@@ -90,7 +95,7 @@ def main():
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
-        print("PASS: frozen PDF render, text, character coordinates, Web UI, original images at 1000/1200/1400/1600px")
+        print("PASS: frozen PDF render, text, character coordinates, Web UI, page images at 1000/1200 (downscaled), 1400 (original), 1600 (re-rendered)")
 
 
 if __name__ == "__main__":
