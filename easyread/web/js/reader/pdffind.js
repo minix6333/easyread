@@ -98,7 +98,11 @@
     }
     const input = bar.querySelector("input");
     const sel = String(window.getSelection() || "").trim();
-    if (typeof text === "string" && text.trim()) { input.value = text.trim(); search(input.value); return true; }  // 不搶焦點：人是來看那一頁的，不是來改搜尋字
+    if (typeof text === "string" && text.trim()) {  // 不搶焦點：人是來看那一頁的，不是來改搜尋字；這一份裡找不到那個詞就把搜尋列收掉，不留一個「找不到」
+      input.value = text.trim();
+      search(input.value).then(() => { if (bar && !hits.length && bar.querySelector("input").value === text.trim()) PR.closeFind(); });
+      return true;
+    }
     if (sel && sel.length < 80 && !/\n/.test(sel)) { input.value = sel; search(sel); }  // 選著字按 ⌘F：直接找那個詞
     input.focus(); input.select();
     return true;

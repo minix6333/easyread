@@ -103,6 +103,20 @@ class StandaloneNotesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             notes.set_folder_style(self.root, "  ", icon="atom")
 
+    def test_append_adds_an_excerpt_at_the_end(self):
+        n = notes.create(self.root, title="摘錄", body="第一段\n")
+        out = notes.append(self.root, n["id"], "> 引文\n>\n> —— [標題，第 3 頁](/read/abc123#page=3)", paper="abc123")
+        self.assertEqual(out["body"], "第一段\n\n> 引文\n>\n> —— [標題，第 3 頁](/read/abc123#page=3)\n")
+        self.assertEqual(out["papers"], ["abc123"])
+        out = notes.append(self.root, n["id"], "\n再一段\n", paper="abc123")  # 同一份文件不重複記
+        self.assertTrue(out["body"].endswith("#page=3)\n\n再一段\n"))
+        self.assertEqual(out["papers"], ["abc123"])
+        empty = notes.create(self.root)
+        self.assertEqual(notes.append(self.root, empty["id"], "只有這一段")["body"], "只有這一段\n")  # 空白的筆記：前面不多空行
+        self.assertEqual(notes.append(self.root, empty["id"], "   ")["body"], "只有這一段\n")  # 沒東西就不動
+        with self.assertRaises(ValueError):
+            notes.append(self.root, "ffffffffffff", "x")
+
 
 if __name__ == "__main__":
     unittest.main()

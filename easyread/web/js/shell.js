@@ -362,6 +362,7 @@
     }
     if (low === "t" && shift) { reopen(); return; }
     if ((low === "k" || low === "t") && !shift) { if (PR.palette) PR.palette.toggle(); return; }
+    if (low === "tab") { const t = M.step(st, shift ? -1 : 1); if (t) { render(); focusFrame(t.id); } return; }  // ⌃Tab／⌃⇧Tab：下一個／上一個分頁（和瀏覽器一樣）
     if (k === "\\") { if (M.split(st)) { render(); focusFrame(M.focused(st).tab); } return; }
     if (/^[1-9]$/.test(k)) { const t = st.tabs[+k - 1]; if (t) { M.show(st, t.id); render(); focusFrame(t.id); } return; }
     if (shift && (k === "[" || k === "{" || k === "]" || k === "}")) { const t = M.step(st, k === "[" || k === "{" ? -1 : 1); if (t) { render(); focusFrame(t.id); } }
@@ -369,7 +370,10 @@
   document.addEventListener("keydown", (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
     const low = e.key.toLowerCase();
-    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && "[]{}".includes(e.key)) || low === "w" || low === "t" || (low === "k" && !e.shiftKey)) { e.preventDefault(); key(e.key, e.shiftKey); }
+    // Mac 上要的是 ⌘（⌃W、⌃K、⌃T 是文字框裡刪字、對調的老快捷鍵，不能搶）；其他系統是 Ctrl。⌃Tab 兩邊都是下一個分頁
+    const cmd = /Mac|iPhone|iPad/.test(navigator.platform || "") ? e.metaKey && !e.ctrlKey : e.ctrlKey;
+    const mine = (cmd && (low === "w" || low === "t" || (low === "k" && !e.shiftKey))) || (low === "tab" && e.ctrlKey && !e.metaKey);
+    if (/^[1-9]$/.test(e.key) || e.key === "\\" || (e.shiftKey && "[]{}".includes(e.key)) || mine) { e.preventDefault(); key(e.key, e.shiftKey); }
   });
   // 桌面版（macOS）：⌘W、⌘⇧T 是選單上的項目（不然 ⌘W 是系統的「關視窗」，整個視窗就沒了），按了由主程式送過來
   try { if (window.easyreadDesktop && window.easyreadDesktop.onShellKey) window.easyreadDesktop.onShellKey((m) => key(String((m && m.key) || ""), !!(m && m.shift))); } catch (e) { /* 不是桌面版 */ }

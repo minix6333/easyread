@@ -165,6 +165,23 @@ def save(lib_root: Path, nid: str, title=None, body=None, papers=None, style: di
     return get(lib_root, nid)
 
 
+def append(lib_root: Path, nid: str, md: str, paper: str = "") -> dict:
+    """在筆記最後接上一段（閱讀頁的「加到筆記」：摘錄＋出處）。和原來的內容隔一個空行；paper 有給就記進「關聯的文件」。
+    那份筆記正開著的話不走這裡——它的編輯器自己接（不然它下一次自動存檔會把這裡加的蓋掉），見 web/js/reader/excerpt.js。"""
+    d = note_dir(lib_root, nid)
+    if not d:
+        raise ValueError(tr("沒有這份筆記"))
+    md = str(md or "").strip("\n")
+    if not md.strip():
+        return get(lib_root, nid)
+    body = _body(d).rstrip("\n")
+    papers = None
+    if isinstance(paper, str) and paper:
+        have = [x for x in (_meta(d).get("papers") or []) if isinstance(x, str)]
+        papers = have if paper in have else have + [paper]
+    return save(lib_root, nid, body=(body + "\n\n" if body.strip() else "") + md + "\n", papers=papers)
+
+
 def duplicate(lib_root: Path, nid: str) -> dict:
     """複製一份：內容、貼的圖、外觀都帶過去（不帶收藏），標題後面加「副本」。"""
     d = note_dir(lib_root, nid)

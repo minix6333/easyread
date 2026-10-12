@@ -186,6 +186,7 @@
         const r = await PR.api("/api/p/" + id + "/delete", { method: "POST", body: {} }).catch((e) => { PR.toast(PR.t("没删成：") + PR.esc(e.message)); return null; });
         if (!r) return;
         if (L.docsGone) L.docsGone([id]);  // 它開著的分頁一起關掉
+        if (L.fadeOut) await L.fadeOut('.row[data-id="' + id + '"]');
         L.select(null); await L.load();
         const name = r && r.trash ? r.trash.split(/[\\/]/).pop() : "";
         PR.toast(PR.t("已移到回收站"), name ? { label: PR.t("撤销"), fn: () => PR.restoreTrash(name) } : null);

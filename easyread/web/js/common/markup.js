@@ -106,6 +106,9 @@
       return url ? '<img class="md-img" src="' + url + '" data-src="' + src + '" alt=""' + w + ' loading="lazy">' : "";
     });
     s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // 連到這個文獻庫裡的另一份文件、筆記（/read/<id>、/note/<id>，後面可以帶 #page=12 這種位置）：
+    // 摘錄的「出處」就是這種。在外殼裡點了開成分頁、跳到那一頁（frame-bridge.js 接手），不開新視窗
+    s = s.replace(/\[([^\]\n]+)\]\((\/(?:read|note)\/[\w\-]+(?:[?#][^\s)]*)?)\)/g, '<a href="$2" class="doclink">$1</a>');
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");

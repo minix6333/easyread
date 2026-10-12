@@ -1717,5 +1717,11 @@
  "重新開啟關掉的分頁": "Reopen closed tab",
  "關閉其他分頁": "Close other tabs",
  "關閉分頁": "Close tab",
- "關閉右邊的分頁": "Close tabs to the right"
+ "關閉右邊的分頁": "Close tabs to the right",
+ "加到筆記": "Add to note",
+ "加到筆記（可以直接拖進旁邊開著的筆記）": "Add to a note (or drag straight into a note open beside)",
+ "，第 {page} 頁": ", p. {page}",
+ "已加到「{t}」": "Added to “{t}”",
+ "{t} 的摘錄": "Excerpts from {t}",
+ "已建一份筆記，摘錄放進去了": "Created a note with the excerpt"
 }

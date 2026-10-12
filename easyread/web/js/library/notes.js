@@ -67,14 +67,16 @@
   async function remove(id) {
     const n = byId(id);
     if (!n) return;
+    const leave = L.fadeOut('[data-note="' + id + '"]');
     try {
       const r = await PR.api("/api/notes/" + encodeURIComponent(id) + "/delete", { method: "POST", body: {} });
+      await leave;
       L.notes = L.notes.filter((x) => x.id !== id);
       L.trashCount = (L.trashCount || 0) + 1;
       L.render();
       if (L.docsGone) L.docsGone([id]);  // 它開著的分頁一起關掉
       if (r.trash) undoToast(r.trash, titleOf(n));
-    } catch (e) { PR.toast(PR.t("刪除失敗：{msg}", { msg: PR.esc(e.message) })); }
+    } catch (e) { PR.$$(".leaving").forEach((el) => el.classList.remove("leaving")); PR.toast(PR.t("刪除失敗：{msg}", { msg: PR.esc(e.message) })); }
   }
   /* 筆記頁自己刪掉的（note/panels.js 記在 sessionStorage）：回到文獻庫時補一顆「復原」 */
   function checkTrashed() {

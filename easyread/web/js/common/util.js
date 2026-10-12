@@ -416,6 +416,7 @@ window.PR = window.PR || {};
       if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 4);
       m.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + "px";
       m.style.top = y + "px";
+      PR.growFrom(m, r);
     };
     const enter = (it) => { stack.push({ label: it.label, items: cur }); cur = it.sub.filter(Boolean); paint(); place(); };
     const back = () => { const s = stack.pop(); if (!s) return; cur = s.items; paint(); place(); };
@@ -451,6 +452,15 @@ window.PR = window.PR || {};
     m.classList.add("open");
     place();
     return m;
+  };
+  /* 浮層（選單、小框、挑圖示的面板、確認框）從叫它出來的地方「長」出來：把縮放的原點定在觸發點相對於浮層的位置。
+     以前一律是左上角——選單靠右對齊、或下面放不下改往上開的時候，看起來是從不相干的角落冒出來的。
+     r：觸發點的位置（getBoundingClientRect 那種，或 {left, right, top, bottom}）；浮層要先擺好 left／top */
+  PR.growFrom = function (el, r) {
+    if (!el || !r) return;
+    const left = parseFloat(el.style.left) || 0, top = parseFloat(el.style.top) || 0, w = el.offsetWidth, h = el.offsetHeight;
+    const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+    el.style.transformOrigin = Math.round(Math.max(0, Math.min(w, cx - left))) + "px " + Math.round(Math.max(0, Math.min(h, cy - top))) + "px";
   };
   PR.menuOpen = () => { const m = PR.$("#ctxmenu"); return !!(m && m.classList.contains("open")); };
   PR.closeMenu = () => { const m = PR.$("#ctxmenu"); m && m.classList.remove("open"); };

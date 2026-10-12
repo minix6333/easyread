@@ -1166,9 +1166,15 @@
       try { e.dataTransfer.setData("text/plain", selectedMarkdown()); } catch (err) { /* 有些環境不給設 */ }
       list.querySelectorAll(".bk-b.sel").forEach((x) => x.classList.add("dragging"));
     });
+    /* 別處拖過來的一段 Markdown（閱讀頁選的字：引文＋出處，見 reader/excerpt.js）：插入線一樣跟著滑鼠走，放在哪一塊旁邊就插在哪裡 */
+    const EXCERPT = "application/x-foli-excerpt";
+    const bringsExcerpt = (e) => !state.drag && !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes(EXCERPT);
+    const clearDrop = () => list.querySelectorAll(".bk-b.drop-before, .bk-b.drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+    list.addEventListener("dragleave", (e) => { if (!state.drag && !list.contains(e.relatedTarget)) clearDrop(); });
     list.addEventListener("dragover", (e) => {
-      if (!state.drag) return;
+      if (!state.drag && !bringsExcerpt(e)) return;
       e.preventDefault();
+      if (!state.drag) e.dataTransfer.dropEffect = "copy";
       const k = indexAtY(e.clientY), els = list.querySelectorAll(".bk-b"), el = els[k];
       list.querySelectorAll(".bk-b.drop-before, .bk-b.drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
       if (!el) return;
@@ -1176,7 +1182,21 @@
       el.classList.add(e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after");
     });
     list.addEventListener("drop", (e) => {
-      if (!state.drag) return;
+      if (!state.drag) {
+        const md = bringsExcerpt(e) ? e.dataTransfer.getData(EXCERPT) : "";
+        if (!md) return;
+        e.preventDefault();
+        const t = list.querySelector(".bk-b.drop-before, .bk-b.drop-after");
+        const at = t ? idx(t.dataset.id) - (t.classList.contains("drop-before") ? 1 : 0) : state.blocks.length - 1;
+        clearDrop();
+        if (state.editing) pullText(state.editing);
+        snapshot();
+        const nb = parse(md);
+        nb.forEach((b, k) => state.blocks.splice(at + 1 + k, 0, b));
+        render(); changeSoon.flush();
+        nb.forEach((b) => { const el = blockEl(b.id); if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); } });  // 亮一下：放進來的是這幾塊
+        return;
+      }
       e.preventDefault();
       const target = list.querySelector(".bk-b.drop-before, .bk-b.drop-after");
       const from = idx(state.drag.id);

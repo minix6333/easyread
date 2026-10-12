@@ -238,7 +238,19 @@
   document.addEventListener("input", (e) => { const ta = e.target.closest && e.target.closest("#noteAi .nai-in"); if (ta) { st.draft = ta.value; PR.autosize(ta); } });
 
   /* ---------- 開場 ---------- */
-  PR.note = { id, st, url, patch, queue, flush: () => flushSoon.flush(), flushNow, ed: null, on: (ev, fn) => { (subs[ev] = subs[ev] || []).push(fn); }, ready: null };
+  /* 別的地方（閱讀頁的「加到筆記」，同一個外殼裡的另一格）請這份筆記在最後接一段：交給編輯器接，跟自己打的字走同一條存檔的路。
+     還沒載好、已經刪掉的回 false（那邊改請伺服器接） */
+  function append(md) {
+    if (!st.ed || !st.note || dead) return false;
+    st.ed.insert(String(md || ""));
+    return true;
+  }
+  // 並排開著的閱讀頁把選的字拖過來：放在某一塊旁邊由編輯器接（blocks.js）；放在紙的空白處（編輯器以外）就接在最後
+  const sheet = $("#noteMain"), EXCERPT = "application/x-foli-excerpt";
+  const brings = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes(EXCERPT);
+  sheet.addEventListener("dragover", (e) => { if (brings(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } });
+  sheet.addEventListener("drop", (e) => { if (e.defaultPrevented || !brings(e)) return; const md = e.dataTransfer.getData(EXCERPT); if (md) { e.preventDefault(); append(md); } });
+  PR.note = { id, st, url, patch, queue, flush: () => flushSoon.flush(), flushNow, append, ed: null, on: (ev, fn) => { (subs[ev] = subs[ev] || []).push(fn); }, ready: null };
   async function boot() {
     try { st.note = await PR.api(url); } catch (e) {
       $("#noteMain").innerHTML = '<p class="hint note-missing">' + PR.t("讀不到這份筆記：{msg}", { msg: PR.esc(e.message) }) + "</p>";

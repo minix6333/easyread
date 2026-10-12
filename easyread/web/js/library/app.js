@@ -91,6 +91,12 @@
     have[kind] = cur;
     if (gone.length) tellShell({ type: "gone", ids: gone });
   };
+  /* 刪掉的那幾列先淡出去（.leaving，craft.css），再把清單重畫：回傳一個淡完才好的 Promise */
+  L.fadeOut = function (sel) {
+    const els = PR.$$(sel);
+    els.forEach((el) => el.classList.add("leaving"));
+    return new Promise((done) => setTimeout(done, els.length ? 150 : 0));
+  };
   L.docsGone = function (ids) {
     for (const id of ids) { absent.delete(id); if (have.paper) have.paper.delete(id); if (have.note) have.note.delete(id); }
     if (ids.length) tellShell({ type: "gone", ids });

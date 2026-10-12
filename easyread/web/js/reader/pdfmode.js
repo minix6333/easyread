@@ -304,6 +304,11 @@
     const z = (PR.prefs || {}).pdfZoom || 1;
     if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); PR.pageStep(-1); }
     else if (k === "ArrowRight" || k === "PageDown") { e.preventDefault(); PR.pageStep(1); }
+    else if (k === " " && !(PR.keyAction && PR.keyAction(" "))) {  // 空白鍵往下捲一個畫面（⇧空白往上），和 PDF 閱讀器、瀏覽器一樣；自己把空白鍵設成別的快捷鍵的話照你的
+      const sc = PR.$(".pv-scroll");
+      e.preventDefault();
+      if (sc) sc.scrollBy({ top: (e.shiftKey ? -1 : 1) * Math.round(sc.clientHeight * 0.88), behavior: "smooth" });
+    }
     else if (k === "=" || k === "+") { e.preventDefault(); e.stopImmediatePropagation(); PR.setPdfZoom(z + 0.25); }
     else if (k === "-" || k === "_") { e.preventDefault(); e.stopImmediatePropagation(); PR.setPdfZoom(z - 0.25); }
     else if (k === "0") { e.preventDefault(); e.stopImmediatePropagation(); PR.setPdfZoom(1); }

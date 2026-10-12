@@ -26,6 +26,7 @@
     if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6);
     box.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + "px";
     box.style.top = y + "px";
+    if (PR.growFrom) PR.growFrom(box, r);
   }
 
   function open(o, withInput) {

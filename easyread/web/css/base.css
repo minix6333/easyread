@@ -310,3 +310,13 @@ kbd { font: 11px var(--mono); padding: 1px 5px; border-radius: 4px; background: 
 input[type=range] { accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation: none !important; } .menu, .popover, #toast { filter: none; } }
 .btn.icon.lang-btn { font: 600 12px/1 var(--ui); letter-spacing: .02em; }  /* 顶栏的 中 / EN */
+
+/* ---------- 排版的小地方 ----------
+   中英夾雜：漢字和英文字母、數字之間自動留一點空（text-autospace，Chromium 140 起）——不用自己打空白，本來有空白的也不會變成兩倍。
+   只開在讀和寫的地方（譯文、筆記、卡片、AI 的回答）；程式碼、公式、圖裡的字不要（等寬對齊、量好的寬度會跑掉），
+   PDF 上那層對位用的透明字（.pv-text，用 canvas 量寬度再拉伸）更不能開。
+   標題：兩行以上時每一行差不多長（balance），不要最後一行只掛一兩個字。 */
+#paper, .card, .cm, .bk, .pv-sticky, .nc-pv { text-autospace: normal; }
+:is(#paper, .card, .cm, .bk, .pv-sticky) :is(pre, code, kbd, samp, svg, .katex, .bk-code, .bk-math) { text-autospace: no-autospace; }
+.pv-text { text-autospace: no-autospace; }
+.paper-head h1, .blk-heading .zh, .bk-h1, .bk-h2, .bk-h3 { text-wrap: balance; }

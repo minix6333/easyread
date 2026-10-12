@@ -461,7 +461,7 @@ body.pdf-main .jump-back, .jump-back { left: calc(var(--pad) + 16px); bottom: 16
 /* 頂欄：三顆面板鈕收起來，只留一顆「右側面板」；PDF 優先時「譯文」那顆留著 */
 #bar [data-act="pages"], #bar [data-act="notes"], #bar [data-act="chat"], #bar [data-act="layout"] { display: none !important; }
 body.pdf-main #bar [data-act="pages"] { display: inline-flex !important; }
-#settings.menu { top: calc(var(--bar-h) + 2px); right: calc(var(--insp-now, 0px) + var(--pad) + 14px); }
+#settings.menu { top: calc(var(--bar-h) + 2px); right: calc(var(--insp-now, 0px) + var(--pad) + 14px); transform-origin: calc(100% - 60px) 0; }  /* 從頂欄那顆「Aa」底下長出來 */
 
 /* ============ 右側檢閱器：就是材質，最上面一排文字分頁 ============ */
 #inspTabs { display: none; position: fixed; right: 0; z-index: 41; align-items: center; gap: 2px; background: transparent; border: 0; }
@@ -950,3 +950,7 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .nc-time { flex: none; }
 .nc-foot .chip.cat { display: inline-block; flex: 0 1 auto; min-width: 0; max-width: none; line-height: 20px; overflow: hidden; text-overflow: ellipsis; }
 .nc-foot .chip.cat .ti { display: inline-grid; vertical-align: -2px; margin-right: 3px; }
+
+/* ---------- 小的過渡 ---------- */
+/* 刪掉的筆記卡片、文獻的列：先淡出去再把清單重畫（library/notes.js、detail.js 加 .leaving）。不然是瞬間不見、後面的一起跳上來 */
+.ncard.leaving, .row.leaving, .srow.leaving { opacity: 0 !important; transform: scale(.97) !important; pointer-events: none; transition: opacity .15s cubic-bezier(.23, 1, .32, 1), transform .15s cubic-bezier(.23, 1, .32, 1) !important; }

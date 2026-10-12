@@ -54,7 +54,8 @@ body.resizing .side-panel { transition: none; }
 /* 頁面：白紙直接放在白底上，不加陰影和框，頁與頁之間只留一道細線 */
 .pv-page { position: relative; margin: 0 auto; width: 100%; background: #fff; border-radius: 2px; box-shadow: var(--shadow-page); }
 .pv-page + .pv-page { margin-top: 14px; }
-.pv-page > img { display: block; width: 100%; height: 100%; object-fit: contain; }  /* 只管那一頁的圖；頁上便利貼裡貼的圖片不算 */
+.pv-page > img { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity .16s cubic-bezier(.23, 1, .32, 1); }
+.pv-page.loading > img { opacity: 0; }  /* 第一次載進來的那一頁淡入（骨架→圖不是「啪」一下）；換清晰度時舊圖留著，不走這裡 */  /* 只管那一頁的圖；頁上便利貼裡貼的圖片不算 */
 /* 夜間的原頁圖：反相 / 調暗 / 原色由 --night-filter、--night-page-bg 決定（base.css，閱讀設定可換） */
 :root[data-theme="dark"] .pv-page > img { filter: var(--night-filter, none); }
 :root[data-theme="dark"] .pv-page { background: var(--night-page-bg, #fff); }

@@ -102,3 +102,12 @@ test("blank lines between numbered steps do not reset each displayed number to o
   assert.ok(html.includes('<ol start="2"><li>输入 <math>x</math>。</li></ol>'));
   assert.ok(html.includes('<ol start="3"><li>读取结果。</li></ol>'));
 });
+
+test("links to another document or note in the library stay in the app; other local paths are not linkified", () => {
+  const PR = markup();
+  const html = PR.md("見 [標題，第 12 頁](/read/abc-1#page=12&find=hello%20world)、[另一份筆記](/note/0123456789ab)、[網站](https://x.y/z)、[不行](/api/notes)、[也不行](javascript:alert(1))");
+  assert.match(html, /<a href="\/read\/abc-1#page=12&amp;find=hello%20world" class="doclink">標題，第 12 頁<\/a>/);
+  assert.match(html, /<a href="\/note\/0123456789ab" class="doclink">另一份筆記<\/a>/);
+  assert.match(html, /<a href="https:\/\/x\.y\/z" target="_blank" rel="noopener">網站<\/a>/);
+  assert.ok(html.includes("[不行](/api/notes)") && !html.includes('href="javascript'));
+});

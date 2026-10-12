@@ -54,6 +54,7 @@
     if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6);
     pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + "px";
     pop.style.top = y + "px";
+    if (PR.growFrom) PR.growFrom(pop, r);
     const on = pop.querySelector(".pick-grid .on");
     if (on) on.scrollIntoView({ block: "center" });
   };

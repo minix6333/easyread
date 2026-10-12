@@ -18,7 +18,9 @@
     return p;
   };
   PR.prefs = Object.assign({}, DEF, PR.migratePrefs(PR.ls.get("easyread-prefs", {})));
-  PR.applyPrefs = function () {
+  /* quiet：只套用、不存回伺服器。開頁面時用——那時候手上的是瀏覽器記的那一份（可能是舊的、甚至是空的＝全部預設值），
+     伺服器存的要晚一點才拿得到；以前這裡照樣排進存檔，伺服器回得慢（剛開機、正在做圖）就會被這份舊的蓋掉，設定像被重設了一樣 */
+  PR.applyPrefs = function (quiet) {
     PR.pullShared();  // 主題、外觀以 localStorage 為準（別格可能剛改過）：這一格記憶裡過期的值不能套回去、更不能存回去（util.js 的說明）
     const p = PR.prefs, root = document.documentElement;
     root.style.setProperty("--fs", p.fs + "px");
@@ -41,7 +43,7 @@
     if (PR.applyReadingLanguage) PR.applyReadingLanguage();
     if (PR.applyLayout) PR.applyLayout();  // PDF 優先 / 文章優先（pdfmode.js）
     PR.ls.set("easyread-prefs", Object.assign(PR.migratePrefs(PR.ls.get("easyread-prefs", {})), p));
-    if (PR.store.mode === "server") PR.savePrefs("reader", p);
+    if (!quiet && PR.store.mode === "server") PR.savePrefs("reader", p);
   };
   // 系統外觀變了由 util.js 處理（只有「跟隨系統」時重算主題）。以前這裡整個 applyPrefs 一次——連存檔一起，是換主題會閃個不停的一環
   PR.on("shared-prefs", () => { if (PR.$("#settings").classList.contains("open")) PR.renderSettings(); });
@@ -439,6 +441,7 @@
     let y = r.bottom + 8;
     if (y + h > innerHeight - 10) y = r.top - h - 8;
     pop.style.left = x + "px"; pop.style.top = Math.max(58, y) + "px";
+    PR.growFrom(pop, r);
   };
   PR.hidePopover = () => { clearTimeout(popHideT); PR.$("#popover").classList.remove("open"); };
   PR.hidePopoverSoon = () => { if (popSticky) return; clearTimeout(popHideT); popHideT = setTimeout(PR.hidePopover, 220); };

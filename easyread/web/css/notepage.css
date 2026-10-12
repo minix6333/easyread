@@ -50,6 +50,7 @@ body.note-page[data-font="round"] .note-main { --read-zh: "SF Pro Rounded", "Hir
 /* 頂欄：收藏亮起來是金色的星 */
 #starBtn.on { color: var(--gold, #d9a520); }
 #starBtn.on svg { fill: currentColor; }
+#starBtn svg { transition: fill var(--dur-fast) ease, color var(--dur-fast) ease; }  /* 收藏／取消：顏色接過去，不是瞬間換 */
 
 /* ---------- 左邊的目錄 ---------- */
 .note-outline { position: fixed; z-index: 3; left: var(--pad); top: 0; bottom: 0; width: 228px; padding: 0 6px 12px 6px; box-sizing: border-box; display: flex; flex-direction: column;

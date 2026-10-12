@@ -146,6 +146,7 @@
       (pdf && canAsk ? btn("translate", "en", PR.t("翻譯") + key("T")) : "") +
       (pendingSel.side ? "" : btn("en", "en", PR.t("看这段英文"))) +
       btn("copy", "copy", PR.t("复制")) +
+      (PR.store.mode === "server" && PR.excerptMenu ? btn("excerpt", "notebook", PR.t("加到筆記（可以直接拖進旁邊開著的筆記）") + key("E")) : "") +
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
     bar.classList.add("open");
@@ -161,11 +162,16 @@
 
   PR.selectionAction = function (kind, color) {
     if (!pendingSel) return;
-    const { anchor, key, quote, prefix, suffix, side, page, range, rects } = pendingSel;
+    const { anchor, key, quote, prefix, suffix, side, page, range, rects, rect } = pendingSel;
     selbar().classList.remove("open");
     getSelection().removeAllRanges();
     pendingSel = null;
     if (kind === "en") { PR.toggleEn(anchor, true); return; }
+    if (kind === "excerpt") {  // 加到獨立筆記（excerpt.js）：選單出現在選的字底下
+      const r = rect || { left: innerWidth / 2, bottom: innerHeight / 3 };
+      if (PR.excerptMenu) PR.excerptMenu({ anchor, quote, side, page }, { x: Math.max(8, r.left), y: r.bottom + 6 });
+      return;
+    }
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"), null, 1200)); return; }
     if (kind === "chat") { PR.chatAsk({ anchor, quote, page }); return; }
     if (kind === "translate") { if (side === "pdf" && PR.translateSelection) PR.translateSelection({ anchor, page, range, rects, quote }); return; }

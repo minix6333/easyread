@@ -59,6 +59,7 @@
       const m = /^[1-8]$/.test(k) ? (PR.HL_COLORS[+k - 1] || [])[0] : null;  // 1–8：八種顏色
       if (m) { e.preventDefault(); return PR.selectionAction("highlight", m); }
       if (k === "n" || k === "q") { e.preventDefault(); return PR.selectionAction(k === "n" ? "note" : "question"); }
+      if (k === "e" && PR.store.mode === "server" && PR.excerptMenu) { e.preventDefault(); return PR.selectionAction("excerpt"); }  // 加到獨立筆記
       if (k === "t" && (PR.pendingSelection() || {}).side === "pdf" && PR.canChat && PR.canChat()) { e.preventDefault(); return PR.selectionAction("translate"); }
     }
     if (k === "escape") {
@@ -128,7 +129,7 @@
 
   /* ---------- 启动 ---------- */
   async function boot() {
-    PR.applyPrefs();
+    PR.applyPrefs(true);  // 先照瀏覽器記的畫出來（不存：見 panels.js）
     try { await PR.load(); } catch (e) {
       PR.$("#paper").innerHTML = '<div class="pending">' + PR.t("读不到论文：{msg}。", { msg: PR.esc(e.message) }) + '<a href="/">' + PR.t("回文献库") + "</a></div>";
       if (e.status === 404 && PR.docMissing) PR.docMissing();  // 已經刪掉的文件（分頁是上次留下來的）：請外殼把這個分頁收掉
@@ -136,7 +137,7 @@
     }
     if (PR.store.mode === "server") {  // 以本机 prefs.json 为准
       const p = await PR.loadPrefs();
-      if (p.reader) { Object.assign(PR.prefs, PR.migratePrefs(Object.assign({}, p.reader))); PR.applyPrefs(); }
+      if (p.reader) { Object.assign(PR.prefs, PR.migratePrefs(Object.assign({}, p.reader))); PR.applyPrefs(true); }  // 伺服器存的才是準的：套上去，一樣不用存回去
       PR.useServerUi(p);
     }
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";

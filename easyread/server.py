@@ -552,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"deleted": bool(name), "trash": name})
             if action == "duplicate":
                 return self._json(200, notes.duplicate(lib.root, nid))
+            if action == "append":  # 在最後接一段（閱讀頁的「加到筆記」）
+                return self._json(200, notes.append(lib.root, nid, body.get("md") or "", body.get("paper") or ""))
             if action == "ai":  # 筆記 AI（edit / write），串流
                 n = notes.get(lib.root, nid)
                 if not n:
