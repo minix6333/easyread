@@ -42,6 +42,59 @@ class PdfworkTest(unittest.TestCase):
         with Image.open(res) as im:
             self.assertEqual(im.width, 1000)
 
+    def test_save_image_is_atomic(self):
+        # 寫到一半時正式的檔名還不存在（別的執行緒不會拿到半張圖）；寫完才出現，旁邊不留暫存檔
+        out = self.pages / "w1000" / "page-009.webp"
+        out.parent.mkdir()
+        seen = []
+
+        class Slow:
+            def save(self, path, fmt, **kw):
+                Path(path).write_bytes(b"half")
+                seen.append(out.exists())
+                Path(path).write_bytes(b"whole")
+
+        pdfwork.save_image(Slow(), out, "WEBP")
+        self.assertEqual(seen, [False])
+        self.assertEqual(out.read_bytes(), b"whole")
+        self.assertEqual([f.name for f in out.parent.iterdir()], ["page-009.webp"])
+
+    def test_save_image_failure_leaves_nothing(self):
+        out = self.pages / "page-010.webp"
+
+        class Broken:
+            def save(self, path, fmt, **kw):
+                Path(path).write_bytes(b"half")
+                raise OSError("disk full")
+
+        with self.assertRaises(OSError):
+            pdfwork.save_image(Broken(), out, "WEBP")
+        self.assertFalse(out.exists())
+        self.assertEqual(sorted(f.name for f in self.pages.iterdir()), ["page-001.webp", "page-002.webp"])
+
+    def test_page_variant_concurrent_requests_all_get_a_whole_image(self):
+        # 同一張圖同時要八次（捲很快、背景又在預先做的時候）：每個人拿到的都是完整、打得開的圖
+        import threading
+        sizes, errors = [], []
+
+        def go():
+            try:
+                res = pdfwork.page_variant(self.tmp, "pages/page-002.webp", 1000)
+                with Image.open(res) as im:
+                    im.load()
+                    sizes.append(im.size)
+            except Exception as e:  # noqa: BLE001
+                errors.append(e)
+
+        threads = [threading.Thread(target=go) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(set(sizes), {(1000, 667)})
+        self.assertEqual([f.name for f in (self.pages / "w1000").iterdir()], ["page-002.webp"])
+
     def test_warm_variants(self):
         pdfwork.warm_variants(self.tmp, width=1000)
         self.assertTrue((self.pages / "w1000" / "page-002.webp").exists())

@@ -125,25 +125,39 @@ PHRASES: list[tuple[str, str]] = [
 ]
 
 
-def convert(text: str, cc) -> str:
+# 本來就用繁體寫的句子（這個分支新加的字串都是）裡，這幾個詞是台灣的用法，不能再被當成簡體用語轉一次：
+# 「文件」是 document（一篇論文、一份投影片），s2twp 會當成簡體的「文件」＝電腦裡的檔案，轉成「這份檔案還沒有譯文」；
+# 「項目」是清單裡的一項，會被轉成「專案」。簡體寫的句子照舊轉（「文件太大」→「檔案太大」是對的）。
+KEEP_IN_TRADITIONAL = ["文件", "項目"]
+
+
+def convert(text: str, cc, t2s=None) -> str:
     if text in WHOLE:
         return WHOLE[text]
-    out = cc.convert(text)
+    keep = t2s is not None and t2s.convert(text) != text  # 轉成簡體會變：這一句裡有繁體才有的字，是用繁體寫的
+    src = text
+    if keep:
+        for i, w in enumerate(KEEP_IN_TRADITIONAL):
+            src = src.replace(w, f"\ue000{i}\ue001")  # 先換成 OpenCC 不認得的記號，轉完再換回來
+    out = cc.convert(src)
     for a, b in PHRASES:
         if a != b:
             out = out.replace(a, b)
+    if keep:
+        for i, w in enumerate(KEEP_IN_TRADITIONAL):
+            out = out.replace(f"\ue000{i}\ue001", w)
     return out
 
 
 def generate(fresh: bool = False) -> dict:
     import opencc  # opencc-python-reimplemented，純 Python
-    cc = opencc.OpenCC("s2twp")
+    cc, t2s = opencc.OpenCC("s2twp"), opencc.OpenCC("t2s")
     keys = list(json.loads(EN.read_text(encoding="utf-8")).keys())
     old = {} if fresh or not TW.exists() else json.loads(TW.read_text(encoding="utf-8"))
     auto_old = {} if fresh or not AUTO.exists() else json.loads(AUTO.read_text(encoding="utf-8"))
     out, auto = {}, {}
     for k in keys:
-        a = convert(k, cc)
+        a = convert(k, cc, t2s)
         auto[k] = a
         cur = old.get(k)
         out[k] = cur if (cur is not None and cur != auto_old.get(k) and cur != a) else a  # 手改過的留著

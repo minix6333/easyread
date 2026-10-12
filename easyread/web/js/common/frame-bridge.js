@@ -19,6 +19,11 @@
     if (framed) post({ type: closeSelf ? "close-self" : "notes-changed" });
     else if (closeSelf) location.href = "/library";
   };
+  /* 這一格的文件已經不在文獻庫裡了（開了才發現、或開著的時候被刪）：請外殼把這個分頁收掉、說一聲。沒被框住就什麼都不做（回傳 false，頁面自己顯示） */
+  PR.docMissing = function () {
+    if (framed) post({ type: "missing" });
+    return framed;
+  };
   if (!framed) return;
   document.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest("a[href]");

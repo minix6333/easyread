@@ -90,7 +90,7 @@ def region(root: Path, page, rect) -> str:
                 W, H = img.size
                 with img.crop((int(x0 * W), int(y0 * H), max(int(x0 * W) + 1, int(math.ceil(x1 * W))), max(int(y0 * H) + 1, int(math.ceil(y1 * H))))) as part:
                     out.parent.mkdir(exist_ok=True)
-                    part.save(out, "PNG", optimize=True)
+                    pdfwork.save_image(part, out, "PNG", optimize=True)
     return f"{DIR}/{out.name}"
 
 

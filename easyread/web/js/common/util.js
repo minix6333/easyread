@@ -320,7 +320,7 @@ window.PR = window.PR || {};
     if (opts.method && opts.method !== "GET") headers["X-Token"] = PR.token || "";
     const r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
+    if (!r.ok) { const err = new Error(data.error || PR.t("请求失败 {status}", { status: r.status })); err.status = r.status; throw err; }  // status：呼叫的人要分「沒有這個東西」和「暫時連不上」
     return data;
   };
 

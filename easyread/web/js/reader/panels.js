@@ -45,7 +45,10 @@
   };
   // 系統外觀變了由 util.js 處理（只有「跟隨系統」時重算主題）。以前這裡整個 applyPrefs 一次——連存檔一起，是換主題會閃個不停的一環
   PR.on("shared-prefs", () => { if (PR.$("#settings").classList.contains("open")) PR.renderSettings(); });
-  const relayout = PR.debounce(() => { PR.fitWide(); PR.renderMargin(); PR.syncPage && PR.syncPage(true); }, 60);
+  // 改了設定之後重排。原頁那邊：PDF 優先時 PDF 是讀者自己在翻的，改設定不能動它；文章優先時右邊的原頁面板只在
+  // 「譯文讀到的段落真的變了」才跟（syncPage(false)）。以前這裡不分情況硬對一次（true）：PDF 優先時每改一項設定 PDF 就被捲走——
+  // 有譯文的捲到上次對到的那一段，沒譯文的一路滑回第 1 頁
+  const relayout = PR.debounce(() => { PR.fitWide(); PR.renderMargin(); if (PR.syncPage && !(PR.pdfMain && PR.pdfMain())) PR.syncPage(false); }, 60);
   PR.setPref = function (k, v, quiet) {
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);

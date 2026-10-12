@@ -131,6 +131,7 @@
     PR.applyPrefs();
     try { await PR.load(); } catch (e) {
       PR.$("#paper").innerHTML = '<div class="pending">' + PR.t("读不到论文：{msg}。", { msg: PR.esc(e.message) }) + '<a href="/">' + PR.t("回文献库") + "</a></div>";
+      if (e.status === 404 && PR.docMissing) PR.docMissing();  // 已經刪掉的文件（分頁是上次留下來的）：請外殼把這個分頁收掉
       return;
     }
     if (PR.store.mode === "server") {  // 以本机 prefs.json 为准

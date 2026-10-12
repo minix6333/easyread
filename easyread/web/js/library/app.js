@@ -64,9 +64,36 @@
     await L.load();
   };
 
+  let loadSeq = 0, loadDone = 0;
   L.load = async function () {
     if (L.loadNotes) L.loadNotes();  // 獨立筆記的清單、分類的圖示顏色（library/notes.js）
-    apply(await PR.api("/api/library"));
+    const seq = ++loadSeq, d = await PR.api("/api/library");
+    if (seq < loadDone) return;  // 比已經畫出來的那一份還舊（兩個請求前後腳、回來的順序反了）：不要蓋回去
+    loadDone = seq;
+    apply(d);
+    if (d.library_status === "idle") L.tellDocs("paper", d.items.map((i) => i.id));
+  };
+  /* 外殼裡開著的分頁要和文獻庫對得上：文件、筆記不在了，開著它的分頁要跟著關（不然分頁列上留著一個打不開的）。
+     - 在這裡刪的：刪成功就叫 L.docsGone，馬上關；
+     - 別處刪的（別台刪了同步過來、另一個視窗）：輪詢的清單裡「上次還在、連續兩次都沒有」才算——
+       只憑一次不算，免得清單剛好讀到一半、或一份比較舊的清單晚到，就把正在寫的筆記關掉；
+     - 第一次拿到清單時整份交給外殼（docs）：上次開著、現在已經不在的分頁，一開 App 就收掉。 */
+  const have = { paper: null, note: null }, absent = new Map();
+  const tellShell = (msg) => { if (PR.framed) window.parent.postMessage(Object.assign({ easyread: true }, msg), location.origin); };
+  L.tellDocs = function (kind, ids) {
+    const cur = new Set(ids);
+    if (!have[kind]) { have[kind] = cur; tellShell({ type: "docs", kind, ids }); return; }
+    const gone = [];
+    for (const id of have[kind]) {
+      if (cur.has(id)) { absent.delete(id); continue; }
+      if (absent.get(id)) { gone.push(id); absent.delete(id); } else { absent.set(id, 1); cur.add(id); }
+    }
+    have[kind] = cur;
+    if (gone.length) tellShell({ type: "gone", ids: gone });
+  };
+  L.docsGone = function (ids) {
+    for (const id of ids) { absent.delete(id); if (have.paper) have.paper.delete(id); if (have.note) have.note.delete(id); }
+    if (ids.length) tellShell({ type: "gone", ids });
   };
   function apply(d) {
     L.lastData = d;  // 切换界面语言前存一份，刷新后先拿它画列表，不闪空白（lang-toggle.js）

@@ -63,7 +63,9 @@
   }
 
   /* 页面调用这个提交修改 */
+  let ready = false;  // 文件載進來了沒（PR.load 成功才是）
   PR.commit = function (op) {
+    if (!ready) return;  // 文件沒載成（已經刪掉的那種）：沒有東西可以存。以前關掉這種分頁時還是會送一筆「閱讀進度」，沒有權杖、被伺服器擋掉，還一直重試
     if ((PR.chatOnly || PR.notesOnly) && op.op === "progress") return;  // 問 AI 的獨立視窗沒有在讀：不能把主視窗記的閱讀位置蓋掉
     op.at = op.at || PR.nowIso();
     // 同一目标还没发出去的旧操作合并掉，避免队列无限长
@@ -82,7 +84,7 @@
   function scheduleFlush(ms) { clearTimeout(flushT); flushT = setTimeout(flush, ms); }
 
   async function flush(leaving) {
-    if (mode !== "server" || flushing || !outbox.length) return;
+    if (!ready || mode !== "server" || flushing || !outbox.length) return;
     flushing = true;
     const batch = outbox.slice();
     try {
@@ -129,7 +131,7 @@
     } else {
       if (!PR.pid) throw new Error(PR.t("地址里没有论文 id"));
       const r = await fetch(base() + "/state", { cache: "no-store" });
-      if (!r.ok) throw new Error(r.status === 404 ? PR.t("文献库里没有这篇论文") : PR.t("读取数据失败：{status}", { status: r.status }));
+      if (!r.ok) { const err = new Error(r.status === 404 ? PR.t("文献库里没有这篇论文") : PR.t("读取数据失败：{status}", { status: r.status })); err.status = r.status; throw err; }
       const d = await r.json();
       PR.token = d.token;
       Object.assign(S, { paper: d.paper, discussion: d.discussion, layout: d.layout || {}, item: d.item || {}, job: d.job || {}, versions: d.versions, engine: d.engine });
@@ -138,6 +140,7 @@
     const ov = (S.item || {}).meta_override || {};
     for (const [k, v] of Object.entries(ov)) if (v) S.paper.meta[k] = v;
     outboxKey = "pr-outbox-" + PR.pid + (mode === "static" ? "-static" : "");
+    ready = true;
     PR.paperKey = PR.pid;
     outbox = PR.ls.get(outboxKey, []);
     rebuildReader();
@@ -150,11 +153,16 @@
   PR.canAsk = () => mode === "server" && S.engine && S.engine !== "none";
 
   /* ---------- 轮询：翻译方追加讨论/译文、后台翻译进度、另一个标签页改了笔记 ---------- */
+  let missing = 0;
   async function poll() {
     if (mode !== "server" || document.hidden) return;
     let v;
     try {
-      v = await (await fetch(base() + "/versions", { cache: "no-store" })).json();
+      const r = await fetch(base() + "/versions", { cache: "no-store" });
+      // 這篇已經不在文獻庫裡了（別處刪的）：連續兩次都是 404 才算，請外殼把這個分頁收掉
+      if (r.status === 404) { if (++missing >= 2 && PR.docMissing) PR.docMissing(); return; }
+      missing = 0;
+      v = await r.json();
       if (PR.store.status === "offline") flush();
     } catch (e) {
       if (!outbox.length) setStatus("offline", PR.t("未连上本地服务（只读）"));

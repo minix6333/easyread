@@ -106,12 +106,41 @@ class Handler(BaseHTTPRequestHandler):
         if args and str(args[1]).startswith(("4", "5")):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
+    def handle_one_request(self):
+        self._body_bytes = None  # 同一條連線會接著處理好幾個請求：每個請求自己的內容讀了沒，從頭算
+        super().handle_one_request()
+
+    def _settle_body(self):
+        """回應之前，請求帶來的內容一定要處理掉。
+        連線是保持著的（HTTP/1.1）：還沒讀就先回了（權杖不對、沒有這篇、路徑不認得），那段內容會留在連線上，被當成
+        「下一個請求的開頭」——瀏覽器接著在同一條連線上要的東西（一支 JS、一張圖、整個頁面，什麼都可能）就拿到一個 501。
+        小的讀掉丟棄、連線照用；大的（上傳被拒）不值得讀完，回完就把連線關掉。"""
+        if getattr(self, "_body_bytes", None) is not None:
+            return
+        try:
+            n = max(0, int(self.headers.get("Content-Length") or 0))
+        except (TypeError, ValueError):
+            n = 0
+        self._body_bytes = b""
+        if not n:
+            return
+        if n <= 1 << 20:
+            try:
+                self.rfile.read(n)
+                return
+            except OSError:
+                pass
+        self.close_connection = True
+
     # ---------- 输出 ----------
     def _send(self, code: int, body: bytes, ctype: str, cache: bool = False):
+        self._settle_body()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -128,6 +157,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, path.read_bytes(), ctype, cache)
 
     def _redirect(self, location: str):
+        self._settle_body()
         self.send_response(302)
         self.send_header("Location", location)
         self.send_header("Content-Length", "0")
@@ -138,6 +168,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, i18n.inject(path.read_text(encoding="utf-8")).encode("utf-8"), "text/html; charset=utf-8")
 
     def _download(self, body: bytes, filename: str, ctype: str):
+        self._settle_body()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -248,10 +279,13 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def _body(self) -> bytes:
+        if getattr(self, "_body_bytes", None) is not None:  # 讀過了：連線上已經沒有這段，再讀會卡住等下一個請求
+            return self._body_bytes
         n = int(self.headers.get("Content-Length", "0"))
         if n > MAX_UPLOAD:
-            raise ValueError(tr("文件太大"))
-        return self.rfile.read(n) if n else b""
+            raise ValueError(tr("文件太大"))  # 沒讀的那一大段由 _settle_body 處理（關連線）
+        self._body_bytes = self.rfile.read(n) if n else b""
+        return self._body_bytes
 
     def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target="", kind="", tags=None):
         # A failed first preparation still leaves a library entry. Re-importing

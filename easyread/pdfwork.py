@@ -22,6 +22,29 @@ _PDFIUM_LOCK = threading.RLock()
 _LAYOUT_LOCK = threading.RLock()
 
 
+def save_image(img, out: Path, fmt: str, **kw) -> None:
+    """圖先寫到旁邊的暫存檔、寫完才換成正式的檔名。
+    直接寫的話，另一個執行緒（背景預先做圖的、同一頁的另一個請求）會在寫到一半時看到「檔案已經在了」就拿去回給瀏覽器——
+    那是半張圖，瀏覽器還會照快取標頭記一天，那一頁之後怎麼開都是壞的。"""
+    out = Path(out)
+    tmp = out.with_name(f"{out.name}.{threading.get_ident()}.part")
+    try:
+        img.save(tmp, fmt, **kw)
+        tmp.replace(out)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+_variant_locks: dict[str, threading.Lock] = {}
+_variant_guard = threading.Lock()
+
+
+def _variant_lock(out: Path) -> threading.Lock:
+    """同一張圖同時只做一份（不同的圖照樣可以一起做）。"""
+    with _variant_guard:
+        return _variant_locks.setdefault(str(out), threading.Lock())
+
+
 @contextmanager
 def open_pdf(pdf: Path):
     """所有 PDFium 调用与资源释放共用一把锁，包括操作不同文档的线程。"""
@@ -39,7 +62,7 @@ def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84
                 w, h = page.get_size()
                 with bitmap.to_pil() as raw, raw.convert("RGB") as img:
                     name = f"page-{i + 1:03d}.webp"
-                    img.save(out_dir / name, "WEBP", quality=quality, method=5)
+                    save_image(img, out_dir / name, "WEBP", quality=quality, method=5)
                 pages.append({"n": i + 1, "w": round(w, 2), "h": round(h, 2), "img": f"pages/{name}"})
     return pages
 
@@ -120,7 +143,7 @@ def crop(root: Path, page: int, box: list[float], out_name: str, scale: float | 
                 with img.crop((int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H))) as part:
                     (root / "figures").mkdir(exist_ok=True)
                     rel = f"figures/{out_name}.webp"
-                    part.save(root / rel, "WEBP", quality=90)
+                    save_image(part, root / rel, "WEBP", quality=90)
     return rel
 
 
@@ -370,7 +393,7 @@ def engine_image(root: Path, n: int) -> Path:
             with open_pdf(root / "source.pdf") as doc:
                 with closing(doc[n - 1]) as page, closing(page.render(scale=2.0)) as bitmap:
                     with bitmap.to_pil() as raw, raw.convert("RGB") as img:
-                        img.save(out, "JPEG", quality=82)
+                        save_image(img, out, "JPEG", quality=82)
     return out
 
 
@@ -391,19 +414,22 @@ def page_variant(root: Path, rel: str, width: int) -> Path | None:
     if src_w == width:
         return src
     out.parent.mkdir(exist_ok=True)
-    if src_w > width:
-        with Image.open(src) as im:
-            im.resize((width, round(src_h * width / src_w)), Image.LANCZOS).save(out, "WEBP", quality=80, method=4)
-        return out
-    m = re.search(r"page-(\d+)\.webp$", src.name)
-    pdf = root / "source.pdf"
-    if not m or not pdf.exists():
-        return src
-    with open_pdf(pdf) as doc:
-        with closing(doc[int(m.group(1)) - 1]) as page:
-            w, _ = page.get_size()
-            with closing(page.render(scale=min(8.0, width / max(w, 1)))) as bitmap, bitmap.to_pil() as raw, raw.convert("RGB") as img:
-                img.save(out, "WEBP", quality=84, method=4)
+    with _variant_lock(out):  # 同一張同時來了兩個請求（或背景正在預先做）：等前一個做完直接用
+        if out.exists():
+            return out
+        if src_w > width:
+            with Image.open(src) as im, im.resize((width, round(src_h * width / src_w)), Image.LANCZOS) as small:
+                save_image(small, out, "WEBP", quality=80, method=4)
+            return out
+        m = re.search(r"page-(\d+)\.webp$", src.name)
+        pdf = root / "source.pdf"
+        if not m or not pdf.exists():
+            return src
+        with open_pdf(pdf) as doc:
+            with closing(doc[int(m.group(1)) - 1]) as page:
+                w, _ = page.get_size()
+                with closing(page.render(scale=min(8.0, width / max(w, 1)))) as bitmap, bitmap.to_pil() as raw, raw.convert("RGB") as img:
+                    save_image(img, out, "WEBP", quality=84, method=4)
     return out
 
 

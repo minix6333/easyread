@@ -130,6 +130,7 @@
     for (const i of its) {
       const r = await PR.api("/api/p/" + i.id + "/delete", { method: "POST", body: {} }).catch(() => null);
       if (r && r.trash) names.push(r.trash.split(/[\\/]/).pop()); else if (!r) failed++;
+      if (r && L.docsGone) L.docsGone([i.id]);  // 它開著的分頁一起關掉
     }
     L.endPick(); await L.load();
     const undo = async () => {

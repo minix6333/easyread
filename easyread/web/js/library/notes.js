@@ -12,13 +12,16 @@
   const titleOf = (n) => n.title || PR.t("未命名筆記");
   const has = (n) => PR.hasIcon(n);
 
-  let lastKey = "";
+  let lastKey = "", noteSeq = 0, noteDone = 0;
   L.loadNotes = async function (force) {
     try {
-      const d = await PR.api("/api/notes");
+      const seq = ++noteSeq, d = await PR.api("/api/notes");
+      if (seq < noteDone) return;  // 比已經拿到的那一份舊：丟掉（不然剛建的筆記會從清單上消失一下）
+      noteDone = seq;
       const key = JSON.stringify([d.items, d.folders]);
       L.notes = d.items || [];
       L.catStyle = d.folders || {};
+      if (L.tellDocs) L.tellDocs("note", L.notes.map((n) => n.id));  // 外殼的分頁跟著對（library/app.js）
       if (key === lastKey && !force) return;  // 文獻庫每 15 秒輪詢一次：筆記沒變就不重畫（重畫會把正在滑過、正在拖的卡片換掉）
       lastKey = key;
       L.render();
@@ -69,6 +72,7 @@
       L.notes = L.notes.filter((x) => x.id !== id);
       L.trashCount = (L.trashCount || 0) + 1;
       L.render();
+      if (L.docsGone) L.docsGone([id]);  // 它開著的分頁一起關掉
       if (r.trash) undoToast(r.trash, titleOf(n));
     } catch (e) { PR.toast(PR.t("刪除失敗：{msg}", { msg: PR.esc(e.message) })); }
   }

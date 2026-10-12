@@ -49,16 +49,16 @@ function reader(mode = "server") {
 test("opening original pages at the paper title loads the first image", () => {
   const r = reader();
   r.PR.togglePages(true);
-  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp?w=1000");
+  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp?w=1000&v=2");
   assert.equal(r.node(".pv-label").textContent, "1 / 2");
 });
 
 test("scrolling follows the reading position after another block was selected", () => {
   const r = reader();
   r.select("second"); r.read("second"); r.PR.togglePages(true);
-  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/two.webp?w=1000");
+  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/two.webp?w=1000&v=2");
   r.read("first"); r.PR.syncPage(false);
-  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp?w=1000");
+  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp?w=1000&v=2");
 });
 
 test("turning off follow retains the manually selected original page", () => {
@@ -66,7 +66,7 @@ test("turning off follow retains the manually selected original page", () => {
   r.select("second"); r.PR.togglePages(true);
   r.node(".pv-follow input").checked = false;
   r.read("first"); r.PR.syncPage(false);
-  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/two.webp?w=1000");
+  assert.equal(r.node(".pv-page img").src, "/p/paper/pages/two.webp?w=1000&v=2");
 });
 
 const crossing = () => ({ page: 1, box: [0.08, 0.10, 0.92, 0.90], boxes: [[0.08, 0.60, 0.48, 0.90], [0.52, 0.10, 0.92, 0.30]] });
@@ -83,7 +83,7 @@ test("server and offline readers draw separate regions and scroll to the first c
     assert.equal(parseFloat(regions[1].style.left), 51.6);
     assert.ok(Math.abs(parseFloat(regions[0].style.height) - 30.6) < 0.000001);
     assert.equal(r.node(".pv-scroll").scroll.top, 528);
-    assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp" + (mode === "server" ? "?w=1000" : ""));
+    assert.equal(r.node(".pv-page img").src, "/p/paper/pages/one.webp" + (mode === "server" ? "?w=1000&v=2" : ""));
   }
 });
 

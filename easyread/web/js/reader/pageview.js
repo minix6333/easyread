@@ -75,20 +75,25 @@
     const entry = pageNodes[n - 1];
     const need = ((entry && entry.node.clientWidth) || PR.$(".pv-scroll").clientWidth || 480) * (devicePixelRatio || 1);
     const w = need <= 1000 ? 1000 : need <= 1600 ? 1600 : need <= 2400 ? 2400 : need <= 3200 ? 3200 : 4000;  // 1000 宽的服务端已提前生成好
-    return base + "?w=" + w;
+    return base + "?w=" + w + "&v=2";  // v：舊版伺服器有機會把寫到一半的圖交出來，瀏覽器會把那張壞圖記一天；換個網址，記著的壞圖就用不到了
   }
   let pageNodes = [], pageSource = null;
   const scroller = PR.$(".pv-scroll");
   function loadPage(n) {
     const entry = pageNodes[n - 1];
     if (!entry) return;
-    const src = srcOf(n);
-    if (entry.img.getAttribute("src") === src) return;
-    if (!entry.img.getAttribute("src")) {  // 換清晰度時舊圖留著，不要閃一下骨架
-      entry.node.classList.add("loading");
-      entry.img.onload = () => entry.node.classList.remove("loading");
-    }
-    entry.img.setAttribute("src", src);
+    const img = entry.img, src = srcOf(n);
+    if (img.getAttribute("src") === src) return;
+    if (!img.getAttribute("src")) entry.node.classList.add("loading");  // 換清晰度時舊圖留著，不要閃一下骨架
+    img.onload = () => { entry.node.classList.remove("loading"); entry.ok = img.getAttribute("src"); entry.fails = 0; };
+    // 載不到（伺服器正忙、那張圖還在做）：骨架收掉——不然那一頁會一直是一塊閃動的灰；換清晰度沒成功就先用回原來那張。還在附近的話等一下再試
+    img.onerror = () => {
+      entry.node.classList.remove("loading");
+      entry.fails = (entry.fails || 0) + 1;
+      if (entry.ok && entry.ok !== img.getAttribute("src")) img.setAttribute("src", entry.ok); else img.removeAttribute("src");
+      if (entry.fails <= 3) setTimeout(() => { if (pageNodes[n - 1] === entry && Math.abs(pvPage - n) <= 2) loadPage(n); }, 700 * entry.fails);
+    };
+    img.setAttribute("src", src);
   }
   PR.pageNodes = () => pageNodes;
   PR.pdfPage = () => pvPage;
@@ -143,14 +148,14 @@
     panelInput = false;
     holdUntil = 0;
   }, { passive: true, capture: true }));
-  function followPanel(entry, middle) {
-    if (!PR.$(".pv-follow input").checked) return;
+  /* 某一頁上、畫面的 middle 那個高度最靠近哪一段：[段落 id, 那一段的框, 在頁上的幾分之幾] */
+  function blockNear(entry, middle, page) {
     const r = entry.node.getBoundingClientRect();
-    const y = Math.max(0, Math.min(1, (middle - r.top) / r.height));
+    const y = Math.max(0, Math.min(1, (middle - r.top) / (r.height || 1)));
     let best = null, bestBox = null, distance = Infinity;
     for (const id in S.layout) {
       const loc = S.layout[id];
-      if (loc.page !== pvPage || !PR.blockById[id]) continue;
+      if (loc.page !== page || !PR.blockById[id]) continue;
       for (const box of boxesOf(loc)) {
         if (!box) continue;
         const d = Math.max(box[1] - y, y - box[3], 0);
@@ -158,7 +163,24 @@
       }
     }
     // Older imports may have page numbers but no paragraph coordinates.
-    if (!best) best = Object.keys(PR.blockById).find(id => PR.blockById[id].page === pvPage);
+    if (!best) best = Object.keys(PR.blockById).find(id => PR.blockById[id].page === page);
+    return [best, bestBox, y];
+  }
+  /* PDF 現在看到哪一段（畫面中間那一段）。換版面、打開譯文時用：不管「跟隨」開沒開，都要對到眼前這一段 */
+  PR.pdfBlockNow = function () {
+    const entry = pageNodes[pvPage - 1];
+    if (!entry || !scroller.clientHeight) return pvBlock;
+    const hit = blockNear(entry, scroller.getBoundingClientRect().top + scroller.clientHeight / 2, pvPage)[0];
+    if (hit) return hit;
+    // 這一頁沒有任何一段（整頁是圖、還沒譯到）：往後找最近的一段，再沒有就用最後一段
+    const pageOf = (b) => (S.layout[b.id] || b).page || 0;
+    const all = (S.paper.blocks || []).filter((b) => PR.blockById[b.id]);
+    const next = all.find((b) => pageOf(b) >= pvPage) || all[all.length - 1];
+    return next ? next.id : pvBlock;
+  };
+  function followPanel(entry, middle) {
+    if (!PR.$(".pv-follow input").checked) return;
+    const [best, bestBox, y] = blockNear(entry, middle, pvPage);
     const node = best && document.getElementById("b-" + best);
     if (!node) return;
     pvBlock = best;
@@ -177,9 +199,20 @@
     const entry = pageNodes.find(p => p.node.getBoundingClientRect().bottom > middle) || pageNodes[pageNodes.length - 1];
     pvPage = Number(entry.node.dataset.n);
     remember(pvPage);
-    updatePageLabel(); loadNearby(pvPage);
+    updatePageLabel(); loadWhenSlow();
     if (panelInput) followPanel(entry, middle);
   }, { passive: true });
+  /* 捲到哪、圖載到哪——但飛快經過的頁不載（拉捲軸、跳到很遠的頁時一秒掠過幾十頁：每頁都去要圖，伺服器排一長串、畫面一路閃骨架）。
+     慢慢讀的時候照舊馬上載（前後各兩頁，捲過去時圖已經在了）；快的時候等停下來那一刻再載 */
+  let lastTop = 0, lastAt = 0, loadT = 0;
+  function loadWhenSlow() {
+    const now = Date.now(), top = scroller.scrollTop;
+    const speed = Math.abs(top - lastTop) / Math.max(1, now - lastAt);  // 每毫秒幾像素
+    lastTop = top; lastAt = now;
+    clearTimeout(loadT);
+    if (speed * 1000 < scroller.clientHeight * 4) loadNearby(pvPage);
+    else loadT = setTimeout(() => loadNearby(pvPage), 90);
+  }
 
   function highlightBlock(page, blockId) {
     pageNodes.forEach(p => p.hl.classList.remove("on"));
@@ -219,6 +252,10 @@
     } else {
       top = Math.max(0, pageTop(node) - 18);
     }
+    // 很遠（超過兩個畫面）：先直接到目的地前後半個畫面的地方，只滑最後那一小段。整段用滑的會在不到一秒裡掠過幾十頁——
+    // 每一頁都來不及畫（一塊一塊黑的）、圖也一路跟著要，看起來就是畫面在閃
+    const from = scroller.scrollTop, room = scroller.clientHeight;
+    if (behavior === "smooth" && Math.abs(top - from) > room * 2) scroller.scrollTop = top + (top > from ? -1 : 1) * room * 0.5;
     scroller.scrollTo({ top, behavior });
     PR.pdfSpotAt && PR.pdfSpotAt(top, behavior === "smooth");  // 「讀到哪裡」馬上換成這裡（pdfmode.js）：跳頁的同時版面變了，才不會被捲回原處
   }
@@ -265,8 +302,12 @@
     PR.jumpTo("b-" + id);
   }
 
+  /* 原頁跟上譯文讀到的地方。force：不管「跟隨」開沒開、讀到的段落變了沒有都對一次（點了某一段、剛打開原頁面板）。
+     PDF 優先而且譯文收著的時候不做事：那時候 PDF 就是讀者自己在翻的那一邊，沒有「譯文讀到哪」可以跟。
+     （2.1.0-tw.7 以前沒擋：在 Aa 裡換主題、字體、夜間頁面…都會叫到這裡，沒有譯文的文件找不到段落，就把 PDF 一路滑回第 1 頁） */
   PR.syncPage = function (force) {
     if (!visible()) return;
+    if (PR.pdfMain && PR.pdfMain() && !articleOpen()) return;
     if (!force && (!PR.$(".pv-follow input").checked || Date.now() < holdUntil)) return;
     const reading = PR.readingBlock();
     // Selection controls an explicit click; scrolling follows the viewport.

@@ -47,12 +47,25 @@
       if (Object.keys(pending).length) flushSoon();
     } catch (e) {
       pending = Object.assign(sending, pending); sending = null;
+      if (await isGone()) return;  // 筆記已經被刪了：不用再試
       setState("error", e.message);
       setTimeout(flushSoon, 4000);  // 伺服器暫時連不上（電腦剛醒）：過一下再試，不用等使用者再打字
     }
   }
+  /* 存不進去時看一下是不是這份筆記已經不在了（在文獻庫刪的、別台刪了同步過來）。是的話就不再每四秒試一次：
+     在外殼裡把這個分頁收掉（刪掉的筆記在回收站裡，找得回來）；自己一個視窗時留著內容讓人複製，說明一下 */
+  let dead = false;
+  async function isGone() {
+    if (dead) return true;
+    try { const r = await fetch(url, { cache: "no-store" }); if (r.status !== 404) return false; } catch (e) { return false; }
+    dead = true; pending = {};
+    setState("error", PR.t("這份筆記已經刪除"));
+    if (!(PR.docMissing && PR.docMissing())) PR.toast(PR.t("這份筆記已經刪除，之後打的字不會存。可以到文獻庫的回收站把它復原。"), null, 12000);
+    return true;
+  }
   function queue(patch) { Object.assign(pending, patch); setState("saving"); flushSoon(); }
   function flushNow() {  // 頁面要走了：等不了去抖
+    if (dead) return;
     if (st.ed && st.note) { const md = st.ed.getValue(); if (md !== st.note.body) { st.note.body = md; pending.body = md; } }
     const body = Object.assign({}, sending || {}, pending);
     if (!Object.keys(body).length) return;
@@ -227,6 +240,8 @@
     try { st.note = await PR.api(url); } catch (e) {
       $("#noteMain").innerHTML = '<p class="hint note-missing">' + PR.t("讀不到這份筆記：{msg}", { msg: PR.esc(e.message) }) + "</p>";
       document.body.classList.add("note-gone");
+      dead = true;
+      if (e.status === 404 && PR.docMissing) PR.docMissing();  // 已經刪掉的筆記（分頁是上次留下來的）：請外殼把這個分頁收掉
       return false;
     }
     PR.token = st.note.token;

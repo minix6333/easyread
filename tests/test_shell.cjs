@@ -83,3 +83,28 @@ test("拖排順序與上一個／下一個", () => {
   assert.equal(M.step(st, 1).id, "lib");
   assert.equal(M.step(st, -1).id, b.id);
 });
+
+test("文件不在了：指到它的分頁全部關掉（並排開了兩份也一樣），其他分頁和文獻庫不動", () => {
+  const M = load(), st = M.blank();
+  const a = M.open(st, "/read/aaa", "A"), n = M.open(st, "/note/nnn", "N"), b = M.open(st, "/read/bbb", "B");
+  M.show(st, n.id);
+  M.split(st);  // 另一格擺別的文件
+  st.focus = 0;
+  assert.deepEqual(M.closeDocs(st, ["zzz"]), []);  // 沒開著的：什麼都不動
+  assert.equal(st.tabs.length, 4);
+  assert.deepEqual(M.closeDocs(st, ["nnn"]), [n.id]);
+  assert.deepEqual(st.tabs.map((t) => t.id), ["lib", a.id, b.id]);
+  assert.ok(!shown(st).includes(n.id));
+  assert.ok(shown(st).every((id) => st.tabs.some((t) => t.id === id)));  // 每一格顯示的都是還在的分頁
+  // 同一份並排開兩個：兩個都關
+  const st2 = M.blank();
+  const x = M.open(st2, "/read/xxx");
+  M.split(st2);  // 文獻庫先擺到第二格
+  st2.focus = 0;
+  const dup = M.split(st2);  // 都顯示著：這一份再開一個
+  assert.equal(dup.url, "/read/xxx");
+  assert.deepEqual(M.closeDocs(st2, ["xxx"]).sort(), [x.id, dup.id].sort());
+  assert.deepEqual(st2.tabs.map((t) => t.id), ["lib"]);
+  assert.deepEqual(shown(st2), ["lib"]);
+  assert.deepEqual(M.closeDocs(st2, ["lib"]), []);  // 文獻庫關不掉
+});

@@ -59,6 +59,13 @@
       // 兩格顯示同一個分頁沒意義：多的那格收掉
       for (let k = st.panes.length - 1; k > 0 && st.panes.length > 1; k--) if (st.panes.slice(0, k).some((p) => p.tab === st.panes[k].tab)) M.closePane(st, k);
     },
+    /* 文件不在了（刪掉、別台刪了同步過來）：指到它的分頁全部關掉——同一份可能並排開了兩個。回傳關掉的分頁 id */
+    closeDocs(st, ids) {
+      const set = new Set(ids);
+      const gone = st.tabs.filter((t) => t.kind !== "library" && set.has(paperOf(t.url))).map((t) => t.id);
+      gone.forEach((id) => M.close(st, id));
+      return gone;
+    },
     split(st) {
       if (st.panes.length >= 3) return null;
       const shown = new Set(st.panes.map((p) => p.tab));
@@ -121,6 +128,7 @@
     return st;
   }
   const st = load();
+  const restored = new Set(st.tabs.filter((t) => t.kind !== "library").map((t) => t.id));  // 上次留下來的分頁（還沒對過它們的文件還在不在）
   const save = () => PR.ls.set(KEY, { tabs: st.tabs.filter((t) => t.kind !== "library"), panes: st.panes, focus: st.focus, seq: st.seq });
 
   /* ---------- iframe ---------- */
@@ -211,6 +219,13 @@
     focusFrame(LIB);
   }
 
+  /* 文件、筆記不在了：開著它的分頁跟著收（iframe 卸掉、狀態存好）。回傳收了幾個 */
+  function closeDocs(ids) {
+    const gone = M.closeDocs(st, ids);
+    for (const id of gone) { const f = frames[id]; if (f) { f.remove(); delete frames[id]; } restored.delete(id); }
+    if (gone.length) { render(); focusFrame(M.focused(st).tab); }
+    return gone.length;
+  }
   function tellLibrary(except) {
     const lib = frames[LIB];
     if (lib && lib.contentWindow && lib.contentWindow !== except) lib.contentWindow.postMessage({ easyread: true, type: "notes-changed" }, location.origin);
@@ -226,6 +241,19 @@
     else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方
     else if (d.type === "close-self" && from) { closeTab(from.id); goHome(""); tellLibrary(); }  // 筆記把自己刪了：關掉那個分頁、回文獻庫（那邊會出「復原」）
     else if (d.type === "notes-changed") tellLibrary(e.source);  // 筆記改了名字、圖示、建了副本…：文獻庫的清單馬上跟上
+    else if (d.type === "gone" && Array.isArray(d.ids)) closeDocs(d.ids.map(String));  // 文獻庫說這幾份刪掉了（在那裡刪的、或清單裡不見了）
+    else if (d.type === "docs" && Array.isArray(d.ids)) {
+      // 文獻庫第一次拿到清單：上次留下來的分頁裡，文件已經不在的收掉（上次關掉 App 之後刪的、在別台刪的）。
+      // 清單整個是空的不動手——文獻庫的資料夾暫時讀不到（雲端硬碟還沒掛上）時也會是空的；之後才開的分頁也不管（由 gone 處理）
+      const have = new Set(d.ids.map(String)), kind = d.kind === "note" ? "note" : "paper";
+      if (have.size) closeDocs(st.tabs.filter((t) => t.kind === kind && restored.has(t.id) && !have.has(paperOf(t.url))).map((t) => paperOf(t.url)));
+      st.tabs.forEach((t) => { if (t.kind === kind) restored.delete(t.id); });
+    }
+    else if (d.type === "missing" && from) {  // 這一格打開才發現自己的文件已經不在了：收掉，說一聲
+      const name = from.title;
+      closeDocs([paperOf(from.url)]);
+      PR.toast(name ? PR.t("「{t}」已經不在文獻庫裡，分頁關掉了", { t: PR.esc(name) }) : PR.t("那份文件已經不在文獻庫裡，分頁關掉了"), null, 5200);
+    }
     else if (d.type === "close-papers") {  // 文獻庫要換位置了：論文分頁全部收掉（它們開著時後端不讓換）
       for (const t of st.tabs.filter((x) => x.kind === "paper")) { const f = frames[t.id]; if (f) { f.remove(); delete frames[t.id]; } M.close(st, t.id); }
       render();

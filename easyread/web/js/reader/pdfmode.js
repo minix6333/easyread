@@ -129,7 +129,7 @@
     artOpen = open;
     PR.applyLayout();
     if (!open) return;
-    const to = (opts && opts.to) || (PR.pdfBlock && PR.pdfBlock());
+    const to = (opts && opts.to) || (PR.pdfBlockNow ? PR.pdfBlockNow() : PR.pdfBlock && PR.pdfBlock());  // PDF 畫面中間那一段（「跟隨」關著也一樣對得到）
     if (!(opts && opts.quiet) && to && PR.blockById[to]) PR.jumpTo("b-" + to, { noBack: true, instant: true });
     // 寬公式重量（實測 140 ms）和邊注排版等譯文滑出來之後再做，先讓面板順順地滑；量完把剛才跳到的段落停回原位
     const node = to && document.getElementById("b-" + to);
@@ -139,12 +139,32 @@
       if (node) window.scrollBy(0, node.getBoundingClientRect().top - top);
     });
   };
+  /* 換版面：換過去之後要停在同一個地方，而且是直接到位（不滑、不經過別頁）。
+     - PDF 優先 → 文章優先：譯文跳到 PDF 畫面中間那一段；
+     - 文章優先 → PDF 優先：PDF 翻到譯文正讀到的那一段。先量好再換——換過去譯文就收起來，量不到了。
+       只是換過去看一眼又換回來（譯文幾乎沒捲、或剛才對到的那一段還在畫面中間）：PDF 留在原來那個位置，一格都不動。 */
+  let artBlock = null, artY = null;  // 換到文章優先時譯文對到的那一段、當時捲到哪
   PR.setLayout = function (mode) {
     const pdf = mode !== "article";
     if (!pdf && !hasArticle()) return PR.toast(PR.t("還沒有譯文，先用 PDF 讀"), null, 1800);
+    const was = PR.pdfMain();
+    if (was === pdf) return;
+    const from = was ? (PR.pdfBlockNow ? PR.pdfBlockNow() : null) : PR.readingBlock();
+    const el = !was && artBlock && document.getElementById("b-" + artBlock), r = el && el.getBoundingClientRect();
+    const stayed = !was && artY != null && (Math.abs(scrollY - artY) < innerHeight * 0.25 || (!!r && r.top < innerHeight * 0.75 && r.bottom > innerHeight * 0.2));
     PR.setPref("layout", pdf ? "pdf" : "article");
-    if (pdf) { if (PR.side === "pages") PR.openSide(null); PR.syncPage && PR.syncPage(true); }
-    else PR.togglePages(false);
+    if (pdf) {
+      if (PR.side === "pages") PR.openSide(null);
+      const b = PR.blockById[from], loc = b && S.layout[from];
+      if (!stayed && b && PR.openPage) PR.openPage(loc ? loc.page : b.page, from, { instant: true });
+      else if (!stayed && from === "head" && PR.openPage) PR.openPage(1, null, { instant: true });  // 譯文還在最上面的標題：第 1 頁
+      artBlock = artY = null;
+    } else {
+      PR.togglePages(false);
+      artBlock = from && PR.blockById[from] ? from : null;
+      if (artBlock) PR.jumpTo("b-" + artBlock, { noBack: true, instant: true, noFlash: true });
+      artY = scrollY;
+    }
     PR.toast(pdf ? PR.t("PDF 優先") : PR.t("文章優先"), null, 1400);
   };
 

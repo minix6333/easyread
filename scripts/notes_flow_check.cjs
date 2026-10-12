@@ -1,12 +1,14 @@
 // 開發用：在多分頁的外殼裡把「獨立筆記」的整條路走一遍，檢查幾格之間有沒有接上——單頁的測試看不到這些：
 //   文獻庫按「新筆記」→ 外殼開成分頁 → 在筆記頁改標題、圖示、收藏、分類 → 文獻庫的清單馬上跟上 →
 //   筆記頁複製一份 → 筆記頁刪除 → 那個分頁自己關掉、回到文獻庫、出「復原」→ 復原 → 回收站裡徹底刪掉。
-//   node_modules/.bin/electron scripts/notes_flow_check.cjs [--base http://localhost:8765]
+//   還有：文件開著分頁時被刪掉（在文獻庫刪、別處刪、上次留下來的分頁）→ 分頁要跟著關。
+//   node_modules/.bin/electron scripts/notes_flow_check.cjs [--base http://localhost:8765] [--paper <一篇可以暫時刪掉再復原的論文 id>]
 // 用的是開發的文獻庫：會建兩份暫時的筆記和一個暫時的分類，跑完都清掉（連回收站裡的）。每一項印 ok／FAIL，結束碼 0＝全過。
 const { app, BrowserWindow } = require("electron");
 const argv = process.argv.slice(2);
 const opt = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const base = opt("--base", "http://localhost:8765");
+const paperId = opt("--paper", "");  // 給一篇可以暫時移到回收站再復原的論文（開發用的那篇一頁的）：連「刪論文、分頁跟著關」一起檢查
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let step = "start";
@@ -38,16 +40,23 @@ app.whenReady().then(async () => {
   await win.loadURL(base + "/library").catch(() => {});
   await wc.executeJavaScript('localStorage.removeItem("easyread-shell"); localStorage.removeItem("easyread-note-ui"); 1');  // 外殼從只有文獻庫開始；筆記頁的目錄、面板從關著開始
   await win.loadURL(base + "/").catch(() => {});
-  const lib = await waitFrame(/\/library/, "window.PR && PR.lib && PR.token && PR.lib.loadNotes", "the library frame");
+  let lib = await waitFrame(/\/library/, "window.PR && PR.lib && PR.token && PR.lib.loadNotes", "the library frame");  // 後面重新載入外殼之後要換成新的那一格
   const before = await lib.executeJavaScript("PR.lib.notes.length");
   const folder = "流程檢查" + Date.now().toString(36).slice(-4);
   const created = [];
+  // 收尾直接問伺服器，不靠哪一格的頁面（外殼重新載入之後原來那一格就不在了；第一次寫時靠那一格，中途失敗就留下暫時的筆記）
+  const api = async (path, body) => {
+    const token = (await (await fetch(base + "/api/notes")).json()).token;
+    const r = await fetch(base + path, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Token": token }, body: JSON.stringify(body) } : {});
+    return r.json().catch(() => null);
+  };
   const cleanup = async () => {
     for (const id of created) {
-      const del = await lib.executeJavaScript('PR.api("/api/notes/' + id + '/delete", { method: "POST", body: {} }).catch(() => null)');
-      if (del && del.trash) await lib.executeJavaScript('PR.api("/api/trash", { method: "POST", body: { action: "purge", name: ' + JSON.stringify(del.trash) + " } }).catch(() => null)");
+      const del = await api("/api/notes/" + id + "/delete", {}).catch(() => null);
+      if (del && del.trash) await api("/api/trash", { action: "purge", name: del.trash }).catch(() => null);
     }
-    await lib.executeJavaScript('PR.api("/api/notes-folder", { method: "POST", body: { from: ' + JSON.stringify(folder) + ', to: "" } }).catch(() => null)');
+    for (const t of ((await api("/api/trash").catch(() => null)) || { items: [] }).items) if (t.kind === "note" && created.some((id) => t.name.includes(id))) await api("/api/trash", { action: "purge", name: t.name }).catch(() => null);  // 已經在回收站裡的也清掉
+    await api("/api/notes-folder", { from: folder, to: "" }).catch(() => null);
   };
 
   cleanupOnFail = cleanup;
@@ -108,6 +117,87 @@ app.whenReady().then(async () => {
   check("刪掉的筆記在回收站裡（有標題、圖示）", !!del.trash && trash.some((t) => t.name === del.trash && /流程檢查的筆記/.test(t.title) && t.icon === "atom"), { del, trash });
   await lib.executeJavaScript('PR.api("/api/trash", { method: "POST", body: { action: "purge", name: ' + JSON.stringify(del.trash) + " } })");
   created.splice(created.indexOf(copy.id), 1);
+
+  // ---------- 刪掉的文件，分頁要跟著關（2.1.0-tw.7 沒做：分頁列上留著打不開的分頁，那一格還每四秒重試存檔） ----------
+  const shell = () => wc.executeJavaScript("(() => { const s = JSON.parse(localStorage.getItem('easyread-shell') || '{}'); return { tabs: Array.from(document.querySelectorAll('#tabs .tab')).map((t) => t.title), urls: (s.tabs || []).map((t) => t.url), frames: Array.from(document.querySelectorAll('#frames iframe')).map((f) => f.getAttribute('src')), shown: Array.from(document.querySelectorAll('#frames iframe:not(.hidden)')).length, toast: (document.querySelector('#toast.open') || {}).textContent || '' }; })()");
+  const has = (list, x) => list.some((u) => String(u).includes(x));
+  step = "delete an open note from the library";
+  await lib.executeJavaScript('PR.navigate("/note/' + id + '"); 1');
+  await waitFrame(new RegExp("/note/" + id), "window.PR && PR.note && PR.noteEd && document.body.classList.contains('note-ready')", "the note tab again");
+  const open1 = await shell();
+  await wc.executeJavaScript("document.querySelector('#tabs .tab.lib').click(); 1");
+  await sleep(200);
+  await lib.executeJavaScript('(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); const row = document.querySelector(\'#side .srow.note[data-note="' + id + '"]\'); row.querySelector("[data-more]").click(); await w(200); Array.from(document.querySelectorAll("#ctxmenu button.mi")).find((x) => x.classList.contains("danger")).click(); return 1; })()');
+  await sleep(500);
+  const gone1 = await shell();
+  check("筆記開著分頁時在文獻庫把它刪掉：分頁馬上關掉、那一格卸掉、存起來的分頁清單裡也沒有了", has(open1.urls, id) && has(open1.frames, id) && !has(gone1.urls, id) && !has(gone1.frames, id) && gone1.tabs.length === open1.tabs.length - 1 && gone1.shown === 1, { open1, gone1 });
+  await lib.executeJavaScript('(() => { const b = document.querySelector("#toast button"); if (b) b.click(); return !!b; })()');
+  await waitFor(lib, 'PR.lib.notes.some((n) => n.id === "' + id + '")', "the note to come back again");
+  const back2 = await shell();
+  check("復原之後：筆記回到清單，分頁不會自己又開起來", !has(back2.urls, id) && !has(back2.frames, id), back2);
+
+  step = "consecutive absences";
+  await lib.executeJavaScript('PR.navigate("/note/' + id + '"); 1');
+  await waitFrame(new RegExp("/note/" + id), "window.PR && PR.note && document.body.classList.contains('note-ready')", "the note tab a third time");
+  await sleep(400);
+  const ids = await lib.executeJavaScript("PR.lib.notes.map((n) => n.id)");
+  const without = JSON.stringify(ids.filter((x) => x !== id));
+  await lib.executeJavaScript("PR.lib.tellDocs('note', " + JSON.stringify(ids) + "); PR.lib.tellDocs('note', " + without + "); 1");  // 清單裡少了它一次（讀到一半、舊清單晚到）
+  await sleep(300);
+  const once = await shell();
+  await lib.executeJavaScript("PR.lib.tellDocs('note', " + JSON.stringify(ids) + "); PR.lib.tellDocs('note', " + without + "); 1");  // 回來了，又少一次：還是不算
+  await sleep(300);
+  const again = await shell();
+  await lib.executeJavaScript("PR.lib.tellDocs('note', " + without + "); 1");  // 連續第二次沒有：真的不在了
+  await sleep(400);
+  const twice = await shell();
+  check("輪詢的清單裡少了它一次不關（可能只是讀到一半），連續兩次都沒有才關", has(once.urls, id) && has(again.urls, id) && !has(twice.urls, id) && !has(twice.frames, id), { once: once.urls, again: again.urls, twice: twice.urls });
+  await lib.executeJavaScript("PR.lib.loadNotes(true)");
+
+  step = "missing doc opened later";
+  await wc.executeJavaScript('window.easyreadOpen("/note/dddddddddddd"); 1');
+  await sleep(1500);
+  const miss = await shell();
+  check("開一份已經不存在的筆記：那個分頁自己收掉，說一聲", !has(miss.urls, "dddddddddddd") && !has(miss.frames, "dddddddddddd") && /不在文獻庫|no longer/.test(miss.toast), miss);
+  await wc.executeJavaScript('window.easyreadOpen("/read/eeeeeeeeeeee"); 1');
+  await sleep(1800);
+  const miss2 = await shell();
+  check("開一篇已經不存在的論文：一樣收掉", !has(miss2.urls, "eeeeeeeeeeee") && !has(miss2.frames, "eeeeeeeeeeee"), miss2);
+
+  step = "stale tabs at startup";
+  await wc.executeJavaScript("localStorage.setItem('easyread-shell', JSON.stringify({ tabs: [{ id: 't1', kind: 'note', url: '/note/ffffffffffff', title: '早就刪掉的筆記' }, { id: 't2', kind: 'note', url: '/note/" + id + "', title: '還在的筆記' }, { id: 't3', kind: 'paper', url: '/read/eeeeeeeeeeee', title: '早就刪掉的論文' }], panes: [{ tab: 'lib', w: 1 }], focus: 0, seq: 3 })); 1");
+  await win.loadURL(base + "/").catch(() => {});
+  lib = await waitFrame(/\/library/, "window.PR && PR.lib && PR.token && PR.lib.items && PR.lib.loadNotes", "the library frame after reload");
+  await sleep(1500);
+  const start = await shell();
+  check("重開 App：上次留下來、文件已經刪掉的分頁不再出現，還在的那個留著", !has(start.urls, "ffffffffffff") && !has(start.urls, "eeeeeeeeeeee") && has(start.urls, id) && start.tabs.length === 2, start);
+  await wc.executeJavaScript("localStorage.removeItem('easyread-shell'); 1");
+
+  if (paperId) {
+    step = "delete an open paper";
+    await win.loadURL(base + "/").catch(() => {});
+    lib = await waitFrame(/\/library/, "window.PR && PR.lib && PR.token && PR.lib.items && PR.lib.items.length", "the library frame for the paper test");
+    await wc.executeJavaScript('window.easyreadOpen("/read/' + paperId + '"); 1');
+    await waitFrame(new RegExp("/read/" + paperId), "window.PR && PR.state && PR.state.paper && PR.token", "the reader tab");
+    await sleep(600);
+    const p1 = await shell();
+    await wc.executeJavaScript("document.querySelector('#tabs .tab.lib').click(); 1");
+    let trashName = "";
+    cleanupOnFail = async () => { if (trashName) await lib.executeJavaScript('PR.api("/api/trash", { method: "POST", body: { action: "restore", name: ' + JSON.stringify(trashName) + " } }).catch(() => null)"); await cleanup(); };
+    // 走介面上的那條路：右鍵選單 →「移到回收站」→ 確認
+    await lib.executeJavaScript('(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); PR.lib.view = "all"; PR.lib.tag = null; PR.lib.render(); await w(100); PR.rowMenu("' + paperId + '", { x: 300, y: 300 }); await w(200); const items = Array.from(document.querySelectorAll("#ctxmenu button.mi")); items[items.length - 1].click(); await w(300); const ok = document.querySelector(\'.popover.confirm [data-cf="ok"]\'); if (ok) ok.click(); return !!ok; })()');
+    for (let i = 0; i < 40 && !trashName; i++) { await sleep(150); const t = await lib.executeJavaScript('PR.api("/api/trash").then((d) => (d.items.find((x) => x.name.startsWith("' + paperId + '-")) || {}).name || "")'); trashName = t; }
+    await sleep(500);
+    const p2 = await shell();
+    check("論文開著分頁時在文獻庫把它移到回收站：分頁跟著關", !!trashName && has(p1.urls, paperId) && !has(p2.urls, paperId) && !has(p2.frames, paperId), { trashName, p1: p1.urls, p2: p2.urls });
+    if (trashName) await lib.executeJavaScript('PR.api("/api/trash", { method: "POST", body: { action: "restore", name: ' + JSON.stringify(trashName) + " } })");
+    trashName = "";
+    await lib.executeJavaScript("PR.lib.load()");
+    await sleep(500);
+    const restoredPaper = await lib.executeJavaScript('PR.lib.items.some((i) => i.id === "' + paperId + '")');
+    check("那篇論文復原回來了（開發用的文獻庫照舊）", restoredPaper, { restoredPaper });
+    cleanupOnFail = cleanup;
+  }
 
   step = "cleanup";
   await cleanup();
