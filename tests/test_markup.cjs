@@ -111,3 +111,17 @@ test("links to another document or note in the library stay in the app; other lo
   assert.match(html, /<a href="https:\/\/x\.y\/z" target="_blank" rel="noopener">網站<\/a>/);
   assert.ok(html.includes("[不行](/api/notes)") && !html.includes('href="javascript'));
 });
+
+test("page mentions become clickable only when the open document has that page; tags, links and code are left alone", () => {
+  const PR = markup();
+  assert.equal(PR.md("見第 3 頁"), "見第 3 頁");  // 沒有開著的文件（筆記頁）：不動
+  PR.state = { paper: { meta: { pages: new Array(12).fill({}) } }, layout: { "p3-2": { page: 4 } } };
+  PR.blockById = { "p3-2": { page: 3, type: "p" } };
+  const html = PR.md("見第 3 頁、p. 7 和 Page 12；第 40 頁沒有。[p3-2] 講過。`p.2` [第 5 頁的圖](https://x.y/z)");
+  assert.match(html, /見<a class="pgref" data-page="3">第 3 頁<\/a>/);
+  assert.match(html, /<a class="pgref" data-page="7">p\. 7<\/a> 和 <a class="pgref" data-page="12">Page 12<\/a>/);
+  assert.ok(html.includes("第 40 頁沒有"));  // 超出頁數：不連
+  assert.match(html, /<a class="pgref" data-page="4" data-anchor="p3-2">（第 3 页）<\/a> 講過/);  // 段落代號：翻到它實際在的那一頁、帶著是哪一段
+  assert.ok(!/<code[^>]*>[^<]*<a/.test(html));  // 程式碼裡的不動
+  assert.match(html, /<a href="https:\/\/x\.y\/z"[^>]*>第 5 頁的圖<\/a>/);  // 連結的字裡面不再包一層
+});

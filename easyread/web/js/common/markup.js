@@ -93,8 +93,22 @@
     return s.replace(/\[([a-z]+\d*(?:-[\w-]+)?)\]/g, (m, id) => {
       const b = PR.blockById && PR.blockById[id];
       if (!b) return m;
-      return b.type === "math" && b.tag ? PR.t("（式 {tag}）", { tag: b.tag }) : b.page ? PR.t("（第 {page} 页）", { page: b.page }) : m;
+      const label = b.type === "math" && b.tag ? PR.t("（式 {tag}）", { tag: b.tag }) : b.page ? PR.t("（第 {page} 页）", { page: b.page }) : "";
+      if (!label) return m;
+      // 知道是哪一段：做成可以點的，點了翻到那一頁、把那一段框出來（reader/main.js 接 a.pgref）
+      const page = ((PR.state && PR.state.layout && PR.state.layout[id]) || {}).page || b.page;
+      return page ? '<a class="pgref" data-page="' + page + '" data-anchor="' + id + '">' + label + "</a>" : label;
     });
+  }
+  /* AI 的回答、自己寫的筆記裡的「第 12 頁」「p. 12」「Page 12」：這份文件真的有那一頁，就變成可以點的（閱讀頁裡才有文件）。
+     標籤、連結、程式碼裡面的不動（切開來只處理純文字的那幾段） */
+  function pageRefs(s) {
+    const pages = PR.state && PR.state.paper && PR.state.paper.meta && PR.state.paper.meta.pages;
+    const n = pages ? pages.length : 0;
+    if (!n || !/[頁页]|\bp(?:age|\.)/i.test(s)) return s;
+    const link = (m, p) => (+p >= 1 && +p <= n ? '<a class="pgref" data-page="' + +p + '">' + m + "</a>" : m);
+    return s.split(/(<a\b[\s\S]*?<\/a>|<code\b[\s\S]*?<\/code>|<[^>]+>)/).map((part, i) => (i % 2 ? part :
+      part.replace(/第\s?(\d{1,4})\s?[頁页]/g, link).replace(/\b[Pp]age\s(\d{1,4})\b/g, link).replace(/\b[Pp]\.\s?(\d{1,4})\b/g, link))).join("");
   }
 
   function inline(text, opts) {
@@ -116,7 +130,7 @@
     s = s.replace(/==([^=\n]+)==/g, '<mark class="md-hl">$1</mark>');  // 螢光（Craft 的 ==…== ／ ⌘⇧B）
     if (opts.cite !== false) s = citeLinks(s);
     if (opts.xref !== false) s = xrefLinks(s);
-    return s.replace(/\n/g, "<br>");
+    return pageRefs(s).replace(/\n/g, "<br>");
   }
 
   /* 一行/一段文字 -> HTML */

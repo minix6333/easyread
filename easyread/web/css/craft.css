@@ -981,3 +981,30 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .list.grid .nc-foot { height: 38px; }
 .list.grid .ncard.new { aspect-ratio: auto; min-height: 0; }
 @media (max-width: 760px) { .list.grid { grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 12px; } }
+
+/* ---------- 快速查看（library/quicklook.js）：選著一篇按空白鍵 ---------- */
+#ql { position: fixed; inset: 0; z-index: 88; display: grid; place-items: center; background: rgba(20, 20, 24, .26); transition: opacity .12s ease-out; }
+@starting-style { #ql { opacity: 0; } }
+:root[data-theme="dark"] #ql { background: rgba(0, 0, 0, .46); }
+.ql { width: min(940px, calc(100vw - 48px)); height: min(900px, calc(100vh - 56px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--bg);
+  box-shadow: 0 0 0 .5px var(--rule-2), 0 24px 70px -18px rgba(0, 0, 0, .5), 0 4px 14px rgba(0, 0, 0, .14); }
+.ql-hd { flex: none; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 10px 0 16px; box-shadow: 0 .5px 0 var(--rule-2); }
+.ql-ic { flex: none; display: grid; place-items: center; color: var(--ink-2); }
+.ql-tt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ql-t { font: 600 14px/1.3 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql-s { font: 12px/1.3 var(--ui); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql-hd .btn.sm { gap: 8px; }
+.ql-hd kbd { font: 11px var(--mono); color: var(--ink-3); }
+.ql-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 22px 30px; background: var(--canvas, var(--surface-2)); }
+.ql-page { max-width: 700px; margin: 0 auto 14px; aspect-ratio: var(--ar, .773); border-radius: 6px; overflow: hidden; background: #fff; box-shadow: 0 0 0 .5px var(--line), 0 6px 18px -10px rgba(0, 0, 0, .3); }
+.ql-body.wide .ql-page { max-width: 860px; aspect-ratio: var(--ar, 1.778); }
+.ql-page img { display: block; width: 100%; height: 100%; }
+:root[data-theme="dark"] .ql-page img { filter: brightness(.92); }
+.ql-note { max-width: 700px; margin: 0 auto; padding: 26px 34px 40px; border-radius: 12px; background: var(--sheet, var(--surface)); box-shadow: 0 0 0 .5px var(--line); font: 15px/1.75 var(--ui); color: var(--ink); text-autospace: normal; overflow-wrap: anywhere; }
+.ql-note h1 { margin: 0 0 14px; font: 700 24px/1.3 var(--ui); letter-spacing: -.01em; text-wrap: balance; }
+.ql-note h2, .ql-note h3, .ql-note h4 { margin: 1.3em 0 .4em; line-height: 1.35; }
+.ql-note p { margin: 0 0 .7em; }
+.ql-note img { max-width: 100%; border-radius: 8px; }
+.ql-note blockquote { margin: .6em 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--rule-2); color: var(--ink-2); }
+.ql-note pre { padding: 10px 12px; border-radius: 9px; background: var(--fill); overflow-x: auto; font: 12.5px/1.6 var(--mono); }
+.ql-empty { margin: 30px 0; text-align: center; color: var(--ink-3); font: 13px var(--ui); }

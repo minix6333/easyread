@@ -74,6 +74,19 @@
     if (act && PR.runAction(act)) e.preventDefault();
   });
 
+  /* 回答、筆記裡的頁碼（markup.js 的 a.pgref）：點了翻到那一頁；知道是哪一段，PDF 上就把那一段框出來。
+     AI 說「見第 7 頁」的時候，一下就能對原文 */
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a.pgref");
+    if (!a) return;
+    e.preventDefault();
+    const page = +a.dataset.page, anchor = a.dataset.anchor && PR.blockById[a.dataset.anchor] ? a.dataset.anchor : "";
+    if (PR.chatOnly || PR.notesOnly) { if (PR.chatLink && PR.chatLink.go) PR.chatLink.go(anchor, page); return; }  // 獨立視窗：請主視窗翻
+    if (PR.pdfMain && PR.pdfMain()) PR.openPage(page, anchor || null);
+    else if (anchor) PR.jumpTo("b-" + anchor);
+    else PR.openPage(page);
+  });
+
   /* ⌘S：本來就自動存，按了就把還沒送出的馬上寫進去，說一聲（也免得跳出瀏覽器的「儲存網頁」） */
   document.addEventListener("keydown", (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "s") return;

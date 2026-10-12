@@ -397,6 +397,7 @@
     const mark = () => { touched = true; };
     ["wheel", "mousedown", "touchstart"].forEach((ev) => sc && sc.addEventListener(ev, mark, { passive: true, once: true }));
     document.addEventListener("keydown", mark, { once: true });
+    document.addEventListener("mousedown", mark, { once: true, capture: true });  // 點了任何地方（筆記、回答裡的頁碼連結…）也算：讀者已經在動了，不要再把他拉回「上次那一頁」
     const go = () => { if (!touched && PR.pdfPage() !== target) PR.openPage(target, null, { instant: true }); };
     setTimeout(() => { if (!touched) PR.openPage(target, null, { instant: true }); }, 50);
     [350, 900, 1800].forEach((ms) => setTimeout(go, ms));

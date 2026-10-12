@@ -320,3 +320,6 @@ input[type=range] { accent-color: var(--accent); }
 :is(#paper, .card, .cm, .bk, .pv-sticky) :is(pre, code, kbd, samp, svg, .katex, .bk-code, .bk-math) { text-autospace: no-autospace; }
 .pv-text { text-autospace: no-autospace; }
 .paper-head h1, .blk-heading .zh, .bk-h1, .bk-h2, .bk-h3 { text-wrap: balance; }
+/* 回答、筆記裡可以點的頁碼（「第 12 頁」）：平常只是一道點線，滑過去才上色——一段回答裡常常有好幾個，不能每個都搶眼 */
+a.pgref { color: inherit; text-decoration: underline dotted color-mix(in srgb, var(--accent) 65%, transparent); text-underline-offset: 3px; cursor: pointer; border-radius: 4px; transition: background var(--dur-fast), color var(--dur-fast); }
+@media (hover: hover) and (pointer: fine) { a.pgref:hover { color: var(--accent); background: var(--accent-soft); } }

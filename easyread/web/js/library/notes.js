@@ -106,6 +106,7 @@
     if (!n) return;
     PR.menu(at, [
       { label: PR.t("打開"), icon: has("notes") ? "notes" : "notebook", fn: () => PR.navigate("/note/" + id) },
+      { label: PR.t("快速查看"), icon: "eye", fn: () => PR.quickLook && PR.quickLook.open("note", id) },
       "-",
       { label: PR.t("重新命名"), icon: has("rename") ? "rename" : "edit", fn: async () => {
         const t = await PR.promptText({ title: PR.t("重新命名"), value: n.title || "", placeholder: PR.t("未命名筆記"), ok: PR.t("好"), max: 200, at });

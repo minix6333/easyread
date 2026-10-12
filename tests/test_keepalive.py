@@ -92,8 +92,13 @@ class KeepAliveTest(unittest.TestCase):
         self.assertEqual(token, self.app.token)
 
     def test_cached_files_are_revalidated_not_trusted_for_a_day(self):
-        # 可以快取的檔案：帶 ETag、要瀏覽器每次對一下；沒變回 304（不重傳），變了就給新的
-        head = f"GET /web/vendor/lucide.LICENSE HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\n"
+        # 文獻庫裡可以快取的檔案（這裡用筆記貼的圖）：帶 ETag、要瀏覽器每次對一下；沒變回 304（不重傳），變了就給新的
+        from easyread import notes
+        n = notes.create(self.app.lib.root, title="x")
+        clip = notes.note_dir(self.app.lib.root, n["id"]) / "clips"
+        clip.mkdir(exist_ok=True)
+        (clip / "a.png").write_bytes(b"\x89PNG" + b"0" * 300)
+        head = f"GET /n/{n['id']}/clips/a.png HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\n"
         self.sock.sendall((head + "\r\n").encode())
         code, headers, body = _read_response(self.f)
         self.assertEqual(code, 200)
@@ -109,6 +114,11 @@ class KeepAliveTest(unittest.TestCase):
         code, _, again = _read_response(self.f)
         self.assertEqual((code, again), (200, body))
         self.assert_still_usable()
+        # 跟著程式走的檔案（附的程式庫）不會自己變：照舊一天內不用問
+        self.sock.sendall(f"GET /web/vendor/lucide.LICENSE HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\n\r\n".encode())
+        code, headers, _ = _read_response(self.f)
+        self.assertEqual((code, headers.get("cache-control")), (200, "max-age=86400"))
+        self.assertTrue(headers.get("etag"))
 
     def test_normal_posts_still_work_back_to_back(self):
         for i in range(3):

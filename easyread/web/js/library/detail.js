@@ -168,6 +168,7 @@
     const setStatus = (s) => () => L.patch(id, { status: s });
     PR.menu(where, [
       { label: PR.t("打开阅读"), icon: "book", kbd: "Enter", fn: () => L.openReader(id) },
+      { label: PR.t("快速查看"), icon: "eye", kbd: PR.t("空格"), fn: () => PR.quickLook && PR.quickLook.open("paper", id) },
       { label: PR.t("打开原 PDF"), icon: "pdf", fn: () => window.open("/p/" + id + "/source.pdf") },
       "-",
       { label: i.starred ? PR.t("取消星标") : PR.t("加星标"), icon: "star", kbd: "S", fn: () => L.patch(id, { starred: !i.starred }) },

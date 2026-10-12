@@ -138,9 +138,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        # 可以快取的檔案（頁面的圖、附的程式庫）：瀏覽器留著，但每次用之前拿 ETag 來對一下（no-cache）。
-        # 以前是「一天內不用問」：萬一哪一次給出去的是壞的（寫到一半的圖），那一頁一整天怎麼開都是壞的
-        self.send_header("Cache-Control", ("no-cache" if etag else "max-age=86400") if cache else "no-store")
+        # 可以快取的檔案：文獻庫裡的東西（頁面的圖、封面、筆記的圖）瀏覽器留著，但每次用之前拿 ETag 來對一下（no-cache）——
+        # 以前是「一天內不用問」：萬一哪一次給出去的是壞的（寫到一半的圖），那一頁一整天怎麼開都是壞的。
+        # 跟著程式走的那些（cache="long"：附的程式庫、字型）不會自己變，照舊一天內不用問，開分頁才不會多幾十個請求
+        self.send_header("Cache-Control", ("max-age=86400" if cache == "long" or not etag else "no-cache") if cache else "no-store")
         if etag:
             self.send_header("ETag", etag)
         if self.close_connection:
@@ -169,10 +170,10 @@ class Handler(BaseHTTPRequestHandler):
             self._settle_body()
             self.send_response(304)
             self.send_header("ETag", etag)
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", "max-age=86400" if cache == "long" else "no-cache")
             self.end_headers()
             return
-        self._send(200, path.read_bytes(), ctype, True, etag)
+        self._send(200, path.read_bytes(), ctype, cache, etag)
 
     def _redirect(self, location: str):
         self._settle_body()
@@ -366,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/version":
             return self._json(200, open_link.version())
         if path.startswith("/web/"):
-            return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
+            return self._file(_safe(WEB, path[5:]), cache="long" if path.startswith("/web/vendor/") else False)
         if path == "/api/presence" and wsock.is_upgrade(self.headers):
             return self._presence()
         location = library_api.get(app, path)
