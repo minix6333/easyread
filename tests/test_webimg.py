@@ -143,6 +143,7 @@ class LookupTest(unittest.TestCase):
         for text in (on, off):
             self.assertIn("不要 ASCII 圖", text)   # 架構圖一律畫成真的圖
             self.assertIn("```flow", text)
+            self.assertIn('class="c2 fill"', text)   # 自己畫的 svg：怎麼塗滿、怎麼上淡色（不講的話點都是空心的）
             self.assertIn("講道理，不要只丟結論", text)
             self.assertIn("參數、函數", text)      # 提示詞自己也不能被轉成「引數、函式」
             for old in ("出發點", "一句話記住", "關鍵觀念"):  # 以前的固定格式

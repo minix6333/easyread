@@ -392,6 +392,9 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .viz svg .fill { fill: currentColor; stroke: none; }
 .viz svg .soft { fill: currentColor; fill-opacity: .16; }
 .viz svg .thick { stroke-width: 2.4; }
+/* 模型常直接寫 fill="currentColor"（塗滿的資料點）、stroke="none"：上面那條樣式會蓋過這些屬性，所以另外認，照它的意思畫 */
+.viz svg [fill="currentcolor" i] { fill: currentColor; }
+.viz svg [stroke="none" i] { stroke: none; }
 .md-drawing { display: flex; align-items: center; gap: 8px; margin: .9em 0; padding: 16px; border-radius: 14px; background: var(--surface-2); color: var(--ink-3); font: 12.5px var(--ui); }
 .card .viz { background: var(--bg); padding: 10px; }
 .card .viz .big { font-size: 26px; }
