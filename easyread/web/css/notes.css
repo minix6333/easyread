@@ -319,6 +319,18 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 /* ---------------- 示意圖（回答裡的 viz 區塊，見 js/common/viz.js） ----------------
    外框一張卡，裡面並排幾格；小方塊、箭頭、橫條都是 CSS 畫的，顏色跟著主題走。 */
 .md-viz { margin: .9em 0; }
+/* 網路上的圖（```pic，webimg.js）：找到才顯示。圖一律襯白底——維基的圖多半是白底畫的，透明底的 SVG 放在深色頁面上線會看不見 */
+.md-pic { display: none; position: relative; margin: .9em 0; }
+.md-pic.ready { display: block; }
+.md-pic .pic-slot { position: relative; }
+.md-pic .pic-img { display: block; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 0 0 .5px var(--rule-2); }
+.md-pic .pic-img img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; background: #fff; }
+:root[data-theme="dark"] .md-pic .pic-img img { filter: brightness(.94); }
+.md-pic figcaption { margin: 8px 2px 0; font-size: .93em; line-height: 1.6; color: var(--ink-2); }
+.md-pic .pic-src { margin: 3px 2px 0; font: 11.5px/1.5 var(--ui); color: var(--ink-3); overflow-wrap: anywhere; }
+.md-pic .pic-src a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 2px; }
+.md-pic .pic-next { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 8px; background: rgba(255, 255, 255, .86); color: #333; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .14); opacity: 0; transition: opacity var(--dur-fast, .12s); }
+.md-pic:hover .pic-next, .md-pic .pic-next:focus-visible { opacity: 1; }
 .md-viz > pre { margin: 0; }
 .viz { --v1: var(--accent); --v2: #1f9d8b; --v3: #d59a2a; --viz-off: color-mix(in srgb, var(--ink) 13%, transparent);
   border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); padding: 14px 14px 12px; font: 13px/1.55 var(--ui); color: var(--ink); overflow-x: auto; }

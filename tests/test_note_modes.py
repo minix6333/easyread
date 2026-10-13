@@ -69,6 +69,26 @@ class NoteModesTest(unittest.TestCase):
         self.assertIn("不要重复它", mine)
         self.assertNotIn("原页图", mine)
 
+    def test_notes_ai_knows_how_to_draw_real_figures_but_only_when_asked(self):
+        paper = self.ws.load("paper")
+        paper["meta"]["target"] = "zh-TW"
+        write_json_atomic(self.ws.paper_path, paper)
+        with patch.object(notehelp.webimg, "enabled", lambda: True):
+            write = notehelp.edit_prompt(self.ws, {"mode": "write", "note": "# 我的筆記", "ask": "畫一張這個方法的架構圖"}, "openai")
+            edit = notehelp.edit_prompt(self.ws, {"mode": "edit", "note": "# 我的筆記\n\n一段", "selection": "一段", "ask": "改清楚"}, "openai")
+            alone = notehelp.note_prompt({"title": "隨手記", "body": ""}, {"mode": "write", "ask": "畫流程圖"})
+        for text in (write, edit):
+            self.assertIn("只有他要你畫圖、或他選的那一段本來就有圖時才畫", text)  # 筆記是讀者自己的：沒要求不要自己加圖
+            self.assertIn("不要 ASCII 圖", text)
+            self.assertIn("參數、函數", text)  # 用詞那一段也在
+        for text in (write, edit, alone):
+            self.assertIn("```flow", text)
+            self.assertIn("```pic", text)
+            self.assertIn("ASCII", text)
+            self.assertLess(text.index("```flow"), text.index("<<<"))  # 規則在前，筆記和要求在後
+        with patch.object(notehelp.webimg, "enabled", lambda: False):  # 設定裡關掉網路上的圖：不提 pic
+            self.assertNotIn("```pic", notehelp.edit_prompt(self.ws, {"mode": "write", "note": "", "ask": "x"}, "openai"))
+
     def test_page_note_request_streams_and_attaches_the_page_image(self):
         sent, seen = [], {}
 

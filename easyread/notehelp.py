@@ -9,7 +9,7 @@ import json
 import threading
 
 from . import kinds, langs, tw
-from . import chat, chat_models, config, engines, pdfwork
+from . import chat, chat_models, config, engines, pdfwork, webimg
 from .i18n import tr
 from .log import log
 from .prompts import _block_text, localize
@@ -25,6 +25,18 @@ ASK = {
     "draft": ("读者还没写笔记。请帮他起一个读书笔记草稿，留出他自己思考的空间：核心问题、方法要点、主要结论、"  # i18n-ok
               "局限或疑问（这一项只列问题，不替他下结论）。用 Markdown，简洁，公式写 $TeX$。只输出笔记本身。"),  # i18n-ok
 }
+
+
+def _tone(code: str) -> str:
+    """用詞和語氣（和問 AI 同一段，chat.tone）：筆記也要是人平常會講的話、台灣的用詞。提示詞其餘部分是簡體時這段也給簡體。"""
+    text = chat.tone(code)
+    return "\n" + (text if tw.is_tw(code) else tw.to_cn(text))
+
+
+def _figures() -> str:
+    """筆記 AI 要畫圖時的寫法（和問 AI 同一段，chat.figures）：筆記頁一樣會把這幾種區塊畫成真的圖。沒要它畫就不畫——筆記是讀者自己的。"""
+    return ("\n只有他要你畫圖、或他選的那一段本來就有圖時才畫；畫的時候照下面的寫法（不要用文字或符號拼）。\n"  # i18n-ok 提示詞
+            + chat.figures(webimg.enabled()))
 
 
 # 幫這一頁寫筆記：不是摘要。講明白、好回想，但不簡化到失真。
@@ -55,7 +67,7 @@ def page_prompt(ws: Workspace, page: int, note: str, engine: str, with_image: bo
     meta = ws.load("paper").get("meta", {})
     title = meta.get("title_zh") or meta.get("title_en") or ""
     noun = kinds.noun(kinds.of(meta))
-    parts = [f"你在陪读者读一篇{noun}《{title}》。用{langs.reply_lang(meta)}。\n{PAGE_ASK}"]  # i18n-ok
+    parts = [f"你在陪读者读一篇{noun}《{title}》。用{langs.reply_lang(meta)}。\n{PAGE_ASK}" + _tone(langs.reply_code(meta))]  # i18n-ok
     if with_image:
         parts.append(f"附件是第 {page} 页的原页图：以图为准（公式、图、表都在图上），下面抽取的文字只用来对照。")  # i18n-ok
     parts.append(f"第 {page} 页抽取的文字（公式和表格可能是乱的）：\n" + (chat._page_text(ws, page)[:8000] or "（没有抽到文字）"))  # i18n-ok
@@ -115,7 +127,7 @@ def edit_prompt(ws: Workspace, body: dict, engine: str) -> str:
     ask = str(body.get("ask") or "").strip()
     if len(note) > NOTE_BUDGET:
         note = note[:NOTE_BUDGET // 2] + "\n…（中間略）…\n" + note[-NOTE_BUDGET // 2:]  # i18n-ok 提示詞
-    parts = [f"你在幫讀者寫《{title}》的筆記。用{langs.reply_lang(meta)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK)]  # i18n-ok 提示詞
+    parts = [f"你在幫讀者寫《{title}》的筆記。用{langs.reply_lang(meta)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK) + _tone(langs.reply_code(meta)) + _figures()]  # i18n-ok 提示詞
     brief = preread.text(ws, budget=6000)
     if brief:
         parts.append("這份文件的全文筆記（AI 之前讀完整份寫的，每個部分講什麼、東西在哪一頁）：\n" + brief)  # i18n-ok 提示詞
@@ -144,7 +156,7 @@ def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     title = meta.get("title_zh") or meta.get("title_en") or ""
     paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"  # i18n-ok 提示词
              if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))  # i18n-ok
-    text = (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
+    text = (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}{_tone(langs.reply_code(meta))}\n\n{paper}\n\n"  # i18n-ok
             + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
     return localize(text, langs.reply_code(meta))
 
@@ -229,7 +241,7 @@ def note_prompt(note: dict, body: dict) -> str:
     if len(md) > NOTE_BUDGET:
         md = md[:NOTE_BUDGET // 2] + "\n…（中間略）…\n" + md[-NOTE_BUDGET // 2:]  # i18n-ok 提示詞
     title = str(note.get("title") or "")
-    parts = [f"你在幫讀者寫一份筆記《{title}》。用{langs.reply_lang(None)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK).replace("，還有文件本身的內容（要補充、查證時以它為準）", "").replace("，還有文件本身的內容（以它為準，不要編造）", "")]  # i18n-ok 提示詞
+    parts = [f"你在幫讀者寫一份筆記《{title}》。用{langs.reply_lang(None)}。" + (EDIT_ASK if mode == "edit" else WRITE_ASK).replace("，還有文件本身的內容（要補充、查證時以它為準）", "").replace("，還有文件本身的內容（以它為準，不要編造）", "") + _tone(langs.reply_code(None)) + _figures()]  # i18n-ok 提示詞
     parts.append("讀者的整份筆記：\n<<<\n" + (md.strip() or "（還是空的）") + "\n>>>")  # i18n-ok 提示詞
     if mode == "edit":
         parts.append("讀者選中、要你改的那一段：\n<<<\n" + selection + "\n>>>")  # i18n-ok 提示詞

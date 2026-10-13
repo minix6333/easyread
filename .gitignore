@@ -18,6 +18,7 @@ dist/
 backdrop*.jpg.tmp
 /limits.json
 /update.json
+/cache/
 .limits.json
 .prefs.json
 .models-seen.json

@@ -18,7 +18,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from . import paths
-from . import answer_styles, claude_live, codex_live, docmap, engines, netcheck, openai_api, preread, usage
+from . import answer_styles, claude_live, codex_live, docmap, engines, netcheck, openai_api, preread, usage, webimg
 from . import kinds, langs, tw
 from .i18n import tr
 from .log import log
@@ -219,29 +219,63 @@ OVERVIEW = (
     "内容照文件写；文件没讲到的先备知识可以补，但要标明是补充。\n"  # i18n-ok
 )
 
-# 一般的寫法：讓人一次看懂、讀得下去。參考的是讀者自己覺得最好懂的那種講解——先講核心、小節標題就是結論、
-# 一個具體例子貫穿到底、式子後面馬上解釋符號、句子之間接得上。問題小就短答，不硬套。
-STYLE = (
-    "寫法（目標是讓讀者一次看懂、讀得下去）：\n"  # i18n-ok 提示詞
-    "1. 第一段直接講核心：這裡在做什麼、結論是什麼；整段最關鍵的那一句用粗體。不要先鋪陳背景。\n"  # i18n-ok 提示詞
-    "2. 問題小（問一個事實、一個詞、是不是）就幾句話答完，不要分節。要講懂一段內容、一個方法、一個概念時才分成幾小節，"  # i18n-ok 提示詞
-    "小節用「## 1. 標題」，標題本身就是那一節的結論（例如「3. Dynamic Data Selection：資料的重要性會隨訓練改變」），不要只寫名詞。\n"  # i18n-ok 提示詞
-    "3. 每一節照這個順序走：出發點（為什麼需要它、前一個做法哪裡不夠）→ 關鍵觀念（單獨一行、粗體）→ 一個具體例子 → 式子或細節 → 所以得到什麼。"  # i18n-ok 提示詞
-    "句子之間要接得上：用「因為、所以、但是、也就是說、因此」把道理連起來，上一句的結尾是下一句的開頭；不要丟出一串互不相干的條列。\n"  # i18n-ok 提示詞
-    "4. 新名詞、新符號第一次出現時當場用一句白話說它是什麼，名詞寫成「中文（English）」；之後一直用同一個說法，不要換詞。讀者還沒看過的符號不能直接拿來用。\n"  # i18n-ok 提示詞
-    "5. 例子要具體：有對象、有數字（像「CIFAR-10 的 50,000 張圖只挑 10,000 張來訓練」），而且整個回答用同一個例子，後面每一節都回到它。\n"  # i18n-ok 提示詞
-    "6. 式子寫出來之後，下一句就說明每個符號（「其中 $\\theta_t$ 是…」），再用一句白話說這條式子在講什麼。\n"  # i18n-ok 提示詞
-    "7. 比較幾種做法、流程、結構、隨時間的變化、數量的對比，用圖比用字清楚：這種地方畫示意圖（見下面「示意圖」），圖在前、解釋在後。不適合就不畫。\n"  # i18n-ok 提示詞
-    "8. 段落短（兩三句一段）；重點用粗體，但一段最多一處；條列只用在真的並列的東西上。\n"  # i18n-ok 提示詞
+# 一般的寫法。2.1.0-tw.10 以前是一套固定的格式（每節「出發點→粗體的關鍵觀念→例子→式子」、標題要寫成結論、最後「一句話記住」），
+# 回答因此每一則都長得一樣、每一節都擺一句粗體口號，小問題也被寫成一篇。讀者要的是：好吸收、自然、講得出道理，而且不要綁住模型。
+# 所以這裡只講原則（像人在講解、要講出為什麼、用平常的話、長度跟著問題），不規定格式。
+_STYLE_HEAD = (
+    "寫法——像一位很會教的學長姐坐在旁邊講給他聽，不是在寫報告：\n"  # i18n-ok 提示詞
+    "1. 先回答他問的事，第一兩句就講到重點。問題小（一個詞、一個事實、是不是、這一步怎麼來的）就幾句話講完；要把一段內容、一個方法講懂時才展開。"  # i18n-ok 提示詞
+    "長度跟著問題走，不要為了看起來完整，把每個問題都寫成一篇。\n"  # i18n-ok 提示詞
+    "2. 講道理，不要只丟結論。讓他看得到每個結論是怎麼來的：從什麼出發、中間經過哪一步、為什麼可以這樣推；需要用到他可能還不知道的東西，就先補那一塊再往下。"  # i18n-ok 提示詞
+    "句子和句子要接得上（因為…所以…、但是…、這樣一來…），不要寫成一串各講各的條列，也不要用口號式的句子代替說明。\n"  # i18n-ok 提示詞
+)
+# 用詞和語氣。讀者明講過：不要「人類根本不常用的講法跟用詞」。台灣的講法只在回答是繁體中文時才要求；別的語言只講原則。
+TONE_TW = (
+    "用平常講話會用的詞和句子：台灣的學生上課、討論時怎麼講，就怎麼寫。不要翻譯腔、公文腔和套話——「進行…」「透過…來…」「基於…」「是一個…的…」"  # i18n-ok 提示詞
+    "「值得注意的是」「扮演…的角色」「至關重要」「綜上所述」這類都換成直接的講法；也不要每一段都用「也就是說」「換句話說」「白話說」起頭。"  # i18n-ok 提示詞
+    "用詞照台灣課堂上的習慣：參數、函數、機率、演算法、資料、迴歸、變異數、最佳化；矩陣的「列」是 row、「行」是 column。"  # i18n-ok 提示詞
+    "台灣人平常就直接講英文的詞（token、batch、dropout、loss、overfitting、embedding…）直接寫英文，不要硬翻成沒人在講的中文；"  # i18n-ok 提示詞
+    "有通用中文說法的術語，第一次出現時寫「中文（English）」，之後一直用同一個說法。"  # i18n-ok 提示詞
+)
+TONE_ANY = (
+    "用平常講話會用的詞和句子：學生上課、討論時怎麼講，就怎麼寫。不要翻譯腔、公文腔和套話，也不要每一段都用同一種開頭。"  # i18n-ok 提示詞
+    "術語用這個語言裡通用的說法；大家平常就直接講英文的詞直接寫英文，其餘的第一次出現時附上英文原文，之後一直用同一個說法。"  # i18n-ok 提示詞
+)
+_STYLE_TAIL = (
+    "4. 例子比抽象的描述好懂：能舉就舉一個有對象、有數字的小例子，而且盡量同一個例子用到底。式子寫出來之後接著講它在說什麼；"  # i18n-ok 提示詞
+    "第一次出現的符號要交代，講過的不用再講一次。\n"  # i18n-ok 提示詞
+    "5. 版面為內容服務：短的回答就是幾段話，不用標題；長到需要分段時才用「## 標題」，標題寫那一段在講的事（不要「背景」「說明」「總結」這種空標題，"  # i18n-ok 提示詞
+    "也不要每一節都套同一個結構）。粗體只留給真的要他記住的一兩處；真的並列的東西才用條列。\n"  # i18n-ok 提示詞
+    "6. 讀者習慣看圖理解：只要講的東西有結構、有流程、有幾何上的樣子，或有可以比較的數量，就配一張圖——自己畫，或放一張網路上的圖（規則見下面「圖」）。"  # i18n-ok 提示詞
+    "只有兩三句話就答完的問題才不用配圖。\n"  # i18n-ok 提示詞
+    "這些是為了好讀，不是要你少講：該嚴謹的地方照樣嚴謹，需要深入就深入。\n"  # i18n-ok 提示詞
 )
 
-# 示意圖：模型寫一小段受限的 HTML（只用下面這些部件），頁面畫成卡片（web/js/common/viz.js 會過濾掉其他東西）
+
+def tone(code: str) -> str:
+    """用詞和語氣那一段（筆記的提示詞也用）：回答是繁體中文才要求台灣的講法。"""
+    return TONE_TW if tw.is_tw(code) else TONE_ANY
+
+
+def style(code: str) -> str:
+    """一般的寫法（整段，繁體；回答不是繁體時由 prompt 轉成簡體）。"""
+    return _STYLE_HEAD + "3. " + tone(code) + "\n" + _STYLE_TAIL
+
+
+STYLE = style(tw.CODE)  # 繁體回答用的那一份（測試、文件裡引用）
+
+# 圖：頁面會把這幾種程式碼區塊畫成真的圖（markup.js → flow.js／viz.js／webimg.js）。讀者明講過：架構圖不要用文字或 ASCII 拼。
 VIZ = (
-    "示意圖：寫在 ```viz 程式碼區塊裡，內容是一小段 HTML，只能用下面這些部件（class 名稱照抄），頁面會把它畫成卡片：\n"  # i18n-ok 提示詞
+    "圖：下面這幾種程式碼區塊，頁面會畫成真的圖。要畫圖就用它們；不要用文字、符號或縮排拼圖（不要 ASCII 圖），也不要把流程寫成一長串箭頭。\n"  # i18n-ok 提示詞
+    "（一）流程、架構、因果或從屬關係，用 ```flow（Mermaid flowchart 的寫法）：第一行 flowchart LR（由左到右）或 flowchart TD（由上到下）；"  # i18n-ok 提示詞
+    "節點 A[方框]、B(圓角)、C([起點或終點])、D{判斷}、E[(資料)]，文字裡有括號或引號就整段用雙引號包起來（A[\"f(x)\"]），換行用 <br>，可以寫 $TeX$；"  # i18n-ok 提示詞
+    "連線 A --> B、A -->|說明| B、虛線 A -.-> B、粗線 A ==> B，可以連寫；分層分組用 subgraph enc[編碼器] … end（組裡可以寫 direction LR，組可以巢狀、可以用組的 id 連線）。"  # i18n-ok 提示詞
+    "節點的字要短，一張圖不超過 12 個節點，多了就拆成兩張。只有 flowchart 畫得出來，Mermaid 別的圖種（sequenceDiagram、classDiagram、mindmap…）不要用。\n"  # i18n-ok 提示詞
+    "（二）並排比較、數量對比、一批資料長什麼樣，用 ```viz：內容是一小段 HTML，只能用下面這些部件（class 名稱照抄）——\n"  # i18n-ok 提示詞
     "<div class=\"viz\"><h4>圖的標題（一句話說這張圖在比什麼）</h4>\n"  # i18n-ok 提示詞
     "  <div class=\"row\">　　　　　　並排的幾格，會自動換行；一張圖 2 到 4 格\n"  # i18n-ok 提示詞
     "    <div class=\"panel\"><h5>① 小標題</h5>\n"  # i18n-ok 提示詞
-    "      <div class=\"cells\" data-map=\"10010010/01001001\"></div>　一排排小方塊：1 亮、0 暗、2 和 3 是另外兩種顏色、x 是劃掉，/ 換行（表示一批資料裡挑了哪些、矩陣、遮罩…）\n"  # i18n-ok 提示詞
+    "      <div class=\"cells\" data-map=\"10010010/01001001\"></div>　一排排小方塊：1 亮、0 暗、2 和 3 是另外兩種顏色、x 是劃掉，/ 換行（一批資料裡挑了哪些、矩陣、遮罩…）\n"  # i18n-ok 提示詞
     "      <div class=\"arrow down\"></div>　　箭頭：down 或 right，加 dashed 是虛線，可以寫字 <div class=\"arrow right\">訓練中重算</div>\n"  # i18n-ok 提示詞
     "      <div class=\"big\">🐶</div>　　　　大圖示：一個 emoji、一兩個字或一個數字\n"  # i18n-ok 提示詞
     "      <div class=\"bar\" style=\"--v:76\">標籤<b>76.2</b></div>　橫條，--v 是 0 到 100 的長度\n"  # i18n-ok 提示詞
@@ -250,18 +284,38 @@ VIZ = (
     "  </div>\n"
     "  <p class=\"note\">補充（例如：這是示意，不是原文的圖）</p>\n"  # i18n-ok 提示詞
     "</div>\n"
-    "另外可以用 <b>、<br>、<span class=\"tag\">標籤</span>、<span class=\"hl\">重點</span>、<table>，以及簡單的 <svg viewBox=\"0 0 320 160\">（畫曲線、座標軸、幾何關係；"  # i18n-ok 提示詞
-    "線條和文字的顏色用 class=\"ink\"、\"accent\"、\"muted\"、\"c2\"、\"c3\"，不要自己寫顏色）。文字裡可以寫 $TeX$。不能用 script、style、img、連結。\n"  # i18n-ok 提示詞
-    "一個回答最多兩三張圖，每張只講一件事，格子裡的字要短；圖的內容必須忠於原文，自己編的示意例子要在 note 裡說明是示意。"  # i18n-ok 提示詞
-    "流程、架構、因果關係改用 ```flow（Mermaid flowchart 的寫法：flowchart LR、A[方框] --> B(圓角)、A -->|說明| B、subgraph 名稱 … end）。\n"  # i18n-ok 提示詞
+    "另外可以用 <b>、<br>、<span class=\"tag\">標籤</span>、<span class=\"hl\">重點</span>、<table>；文字裡可以寫 $TeX$。不能用 script、style、img、連結。\n"  # i18n-ok 提示詞
+    "（三）曲線、座標軸、幾何關係（決策邊界、函數的形狀、向量），在 viz 裡放一個簡單的 <svg viewBox=\"0 0 320 160\">；"  # i18n-ok 提示詞
+    "線條和文字的顏色用 class=\"ink\"、\"accent\"、\"muted\"、\"c2\"、\"c3\"，不要自己寫顏色。svg 很佔字數、寫起來慢：畫簡單的就好；通用概念有現成的標準圖時改用（四）。\n"  # i18n-ok 提示詞
+    "{pic}"
+    "圖放在講它的那一段前面，後面用一兩句話說怎麼看；一個回答通常一到兩張。圖的內容要忠於原文，自己編的示意例子要在圖上註明是示意。\n"  # i18n-ok 提示詞
 )
+# （四）網路上的圖：設定裡開著才告訴模型（config["web_images"]，webimg.py）。模型看不到實際挑到哪一張，所以圖說只能講這類圖一般怎麼看。
+PIC = (
+    "（四）講到教科書裡有標準示意圖的通用概念（像 SVM 的最大間隔、kernel 把資料映到高維、卷積怎麼滑動、常態分佈的鐘形曲線、Transformer 的架構）時，"  # i18n-ok 提示詞
+    "優先放一張維基百科上的圖——比自己畫 svg 省字得多，圖也更準。寫成：\n"  # i18n-ok 提示詞
+    "```pic\n"
+    "條目：Support vector machine\n"  # i18n-ok 提示詞
+    "找：maximum margin hyperplane\n"  # i18n-ok 提示詞
+    "說明：一兩句話，講這類圖怎麼看、對應到你正在講的哪一點\n"  # i18n-ok 提示詞
+    "```\n"
+    "「條目」寫英文維基百科真的有的條目名，「找」用英文寫圖上要有的東西；頁面會從那個條目的圖裡挑最符合的一張，並註明出處。"  # i18n-ok 提示詞
+    "你看不到實際挑到哪一張，所以「說明」不要描述圖上的顏色、位置這類細節。這份文件自己的內容（它的方法、它的實驗結果）網路上不會有，要畫就用上面（一）到（三）自己畫。"  # i18n-ok 提示詞
+    "一個回答最多一張網路上的圖。\n"  # i18n-ok 提示詞
+)
+
+
+def figures(pics: bool = True) -> str:
+    """提示詞裡「圖」那一段；pics＝可不可以放網路上的圖。"""
+    return VIZ.replace("{pic}", PIC if pics else "")
+
 
 # 提問的幾種專門寫法（卡片上的小按鈕：推導、圖解）。key 由頁面隨問題送來（body.mode），沒有就照一般寫法。
 MODES = {
     "explain": (
-        "這次讀者要你把這裡完整講懂（以下要求優先）：照上面的寫法寫一份完整的講解——開頭一段講核心，接著分成幾個小節（標題就是結論），"  # i18n-ok 提示詞
-        "每節有出發點、粗體的關鍵觀念、同一個貫穿的具體例子、式子和符號說明；適合的地方配示意圖或流程圖（一般至少一張）。"  # i18n-ok 提示詞
-        "最後用「一句話記住」收尾：整段內容濃縮成一句。講的是選中的這一處，但要放回整份文件裡看：它前面接什麼、後面拿它做什麼。\n"  # i18n-ok 提示詞
+        "這次讀者要你把這裡完整講懂（以下要求優先）：照上面的寫法，從頭帶他走一遍——先講這裡在做什麼、為什麼需要它，再一步一步講它是怎麼運作的，"  # i18n-ok 提示詞
+        "用一個具體的例子帶著走；有式子就把式子講清楚；適合畫圖的地方配圖（一般至少一張）。"  # i18n-ok 提示詞
+        "講的是選中的這一處，但要放回整份文件裡看：它前面接什麼、後面拿它做什麼。最後用一兩句話收尾，講這一段最該記住的是什麼。\n"  # i18n-ok 提示詞
     ),
     "derive": (
         "这次读者要看的是推导（以下要求优先于上面的一般写法）。像一位认真的教授在黑板上边写边讲：\n"  # i18n-ok 提示词
@@ -287,7 +341,8 @@ MODES = {
     "diagram": (
         "这次读者想用图看懂这里（以下要求优先于上面的一般写法）：主要靠图，文字只当图注。\n"  # i18n-ok 提示词
         "- 画 1 到 3 张图。自己判断哪种图最能说明问题：流程图（步骤、数据怎么流动）、架构图（由哪些部分组成，怎么分层分组，谁连着谁）、"  # i18n-ok
-        "关系图（概念之间的因果、依赖、包含）；并列比较用 Markdown 表格。\n"  # i18n-ok
+        "关系图（概念之间的因果、依赖、包含）；并列比较、数量对比用上面说的 viz 卡片或 Markdown 表格；曲线和几何关系用 viz 里的 svg；"  # i18n-ok
+        "通用概念有标准示意图时可以再配一张网络上的图（上面说的 pic，有开放时才用）。一律画成真的图，不要用文字或 ASCII 字符拼。\n"  # i18n-ok
         "- 图写在 ```flow 代码块里，语法只能用 Mermaid flowchart 的这个子集（别的图种这里画不出来）：\n"  # i18n-ok
         "  第一行 `flowchart LR`（从左到右）或 `flowchart TD`（从上到下）。\n"  # i18n-ok
         "  节点：`A[方框]`、`B(圆角)`、`C([起点或终点])`、`D{判断}`、`E[(数据或存储)]`。文字里有括号或引号时，整段用双引号包起来，如 `A[\"f(x)\"]`；"  # i18n-ok
@@ -339,8 +394,8 @@ def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
 
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
            answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True,
-           mode: str | None = None, aside: dict | None = None) -> str:
-    """followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
+           mode: str | None = None, aside: dict | None = None, pics: bool | None = None) -> str:
+    """pics：可不可以放網路上的圖（None＝照設定）。followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
     with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。mode：這一問的專門寫法（MODES 的 key：推導、圖解；
     overview 是整份導讀）。aside：小視窗追問（aside_context 的結果）。
     整份文件（_document）：預讀寫的全文筆記＋整份文字（本文和補充資料，不超過 whole_budget 時）；更長的帶筆記＋全文地圖，
@@ -370,7 +425,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     if mode == "overview" and not followup:  # 導讀的追問走一般的追問（行程記得整份文字）
         brief = preread.text(ws)
         text = (f"你在陪读者读一篇{noun_of(ws)}《{meta.get('title_zh') or meta.get('title_en') or ''}》。"  # i18n-ok
-                + "用" + langs.reply_lang(meta) + "。" + OVERVIEW  # i18n-ok
+                + "用" + langs.reply_lang(meta) + "。" + OVERVIEW + cn(tone(langs.reply_code(meta))) + "\n"  # i18n-ok
                 + "行内公式只用 $TeX$，行间公式只用 $$TeX$$（$$ 单独占一行）。只输出内容本身，不要客套。\n\n"  # i18n-ok
                 + (("你之前读完整份后写的全文笔记：\n" + brief + "\n\n") if brief else "")  # i18n-ok
                 + "整份文件的文字（按页；公式和表格可能是乱的）：\n" + docmap.full_text(ws)  # i18n-ok
@@ -387,17 +442,17 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
         text += f"读者接着问：{ask}"  # i18n-ok
         return localize(text, langs.reply_code(meta))
     ste = answer_style == answer_styles.STE100
-    style = (answer_styles.STE100_INSTRUCTIONS if ste else "用" + langs.reply_lang(meta) + "。" + cn(STYLE))  # i18n-ok
+    style_text = (answer_styles.STE100_INSTRUCTIONS if ste else "用" + langs.reply_lang(meta) + "。" + cn(style(langs.reply_code(meta))))  # i18n-ok
     whole = _paper_context(ws) if ste and not has_all else ""
     noun = noun_of(ws)
     # 順序：不變的在前（說明、整份文件），會變的在後（讀者指著哪、對話、問題）——同一份文件接著問時前面那一大段吃得到快取
-    text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。你已经把整份{noun}读完了（下面有全文），回答时要放在整份里看，不要只看读者指着的那一小段。\n" + style  # i18n-ok
+    text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。你已经把整份{noun}读完了（下面有全文），回答时要放在整份里看，不要只看读者指着的那一小段。\n" + style_text  # i18n-ok
             + "区分“文件里写了什么”和“你的补充解释”，文件里没有的内容不要说成是文件说的。"  # i18n-ok
             "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
             r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok
             "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
             "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n"  # i18n-ok
-            + ("" if ste else cn(VIZ)) + tool
+            + ("" if ste else cn(figures(webimg.enabled() if pics is None else pics))) + tool
             + doc
             + "\n\n" + _context(ws, anchor, quote, refs, page, whole=has_all)
             + (("\n\n问题可能涉及的其他页（按问题里的关键词找到的）：\n" + near_text) if near_text else "")  # i18n-ok

@@ -26,8 +26,38 @@
   const FLOW_LANG = /^(flow|flowchart|mermaid|graph)$/, NOT_FLOW = /^\s*(sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|mindmap|timeline|journey|gitGraph)/;
   // 語言標成 viz 的是示意圖（一小段受限的 HTML，viz.js 過濾後畫成卡片）；模型偶爾會標成 html，開頭是 viz 外框的也算（\x22 是雙引號，寫成字面會干擾 i18n 檢查）
   const isViz = (t) => t.lang === "viz" || (t.lang === "html" && /^\s*<div class=\x22viz\x22/.test(t.text));
+  /* 語言標成 pic 的是「網路上的圖」：模型只寫要哪個維基條目的圖、圖上要看什麼、圖說；圖由 webimg.js 去找（只到維基百科／維基共享資源），
+     找到才顯示，找不到整塊不出現。幾行「名稱：內容」，中英文的名稱都認；沒寫名稱的第一行當條目、其餘當圖說。 */
+  const PIC_LANG = /^(pic|picture|image|img)$/i;
+  const PIC_KEYS = [["article", /^(條目|条目|維基|维基|article|wiki(?:pedia)?)\s*[:：]\s*/i], ["file", /^(檔名|檔案|档名|文件|檔|file)\s*[:：]\s*/i],
+    ["q", /^(找|看|重點|重点|關鍵詞|关键词|關鍵字|q|query|search|find|keywords?)\s*[:：]\s*/i], ["cap", /^(說明|说明|圖說|图说|怎麼看|cap(?:tion)?|note)\s*[:：]\s*/i]];
+  PR.picParse = function (src) {
+    const out = { article: "", file: "", q: "", cap: "" };
+    let last = "";
+    for (const raw of String(src || "").split("\n")) {
+      const line = raw.trim();
+      if (!line) continue;
+      const hit = PIC_KEYS.find(([, re]) => re.test(line));
+      if (hit) { last = hit[0]; out[last] = (out[last] ? out[last] + " " : "") + line.replace(hit[1], "").trim(); }
+      else if (last === "cap" || (!last && out.article)) { last = "cap"; out.cap += (out.cap && /[A-Za-z0-9,.;:)]$/.test(out.cap) ? " " : "") + line; }  // 圖說可以寫好幾行（中文接中文不加空格）
+      else if (!last) out.article = line;
+      else out[last] += " " + line;
+    }
+    for (const k of ["article", "file", "q"]) out[k] = out[k].replace(/^[\x60"'「『\[]+|[\x60"'」』\]]+$/g, "").trim().slice(0, 200);
+    return out;
+  };
+  function picHtml(src) {
+    const p = PR.picParse(src);
+    if (!p.article && !p.file && !p.q) return "";
+    const got = PR.picCached ? PR.picCached(p) : null;  // 這張問過了：直接排進來（串流時整段會重排很多次，每次重放會一直閃）
+    return '<figure class="md-pic' + (got ? " ready" : "") + '" data-article="' + PR.esc(p.article) + '" data-file="' + PR.esc(p.file) + '" data-q="' + PR.esc(p.q) + '"' +
+      (got ? ' data-asked="1" data-i="' + got.i + '"' : "") + '><div class="pic-slot">' + (got ? got.slot : "") + "</div>" +
+      (p.cap ? "<figcaption>" + PR.md(p.cap, { cite: false, xref: false }) + "</figcaption>" : "") + (got ? '<div class="pic-src">' + got.src + "</div>" : "") + "</figure>";
+  }
+
   function tokenHtml(t, block) {
     if (t.code && t.display && PR.vizHtml && isViz(t)) return '<div class="md-viz">' + PR.vizHtml(t.text) + "</div>";
+    if (t.code && t.display && PIC_LANG.test(t.lang || "")) return picHtml(t.text);
     if (t.code && t.display && FLOW_LANG.test(t.lang || "") && !NOT_FLOW.test(t.text)) {
       return '<div class="md-flow" data-flow="' + PR.esc(t.text) + '">' + (PR.flowCached ? PR.flowCached(t.text) : "") + "</div>";  // 畫過的直接放進來（串流時整段會重排很多次）
     }
@@ -147,7 +177,7 @@
     const fences = Array.from(text.matchAll(/^[ \t]*\x60\x60\x60([\w+-]*)[ \t]*$/gm));  // \x60 是反引號
     if (fences.length % 2 === 0) return null;
     const last = fences[fences.length - 1];
-    return /^(viz|flow|flowchart|mermaid|graph)$/i.test(last[1]) ? last.index : null;
+    return /^(viz|flow|flowchart|mermaid|graph|pic|picture|image|img)$/i.test(last[1]) ? last.index : null;
   }
   PR.mdBlocks = function (text, opts) {
     text = String(text || "").trim();

@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -428,6 +428,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(backdrop.path("small" if path.endswith("-s.jpg") else "full"), cache=True)
         if path == "/api/chat/models":
             return self._json(200, chat_models.listing(config.load()))
+        if path == "/api/webimg":  # 回答裡的 ```pic 區塊：到維基百科／維基共享資源找圖（webimg.py）；設定裡關掉了就回空的
+            q = parse_qs(url.query)
+            one = lambda k: (q.get(k) or [""])[0]  # noqa: E731
+            if not webimg.enabled():
+                return self._json(200, {"items": [], "off": True})
+            found = webimg.find(one("article"), one("q"), one("file"))
+            return self._json(200, {**found, "items": [{**it, "src": "/webimg?u=" + quote(it["src"], safe="")} for it in found["items"]]})
+        if path == "/webimg":  # 那張圖本身（抓一次存在本機快取）
+            return self._file(webimg.fetch((parse_qs(url.query).get("u") or [""])[0]) if webimg.enabled() else None, cache="long")
         if path == "/api/log":
             return self._json(200, {"text": tail(config.LOG_PATH, 200), "path": str(config.LOG_PATH)})
         if path == "/api/jobs":

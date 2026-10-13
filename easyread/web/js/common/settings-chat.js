@@ -163,6 +163,8 @@
       '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("關著時匯入不翻譯，只準備 PDF；要譯文時在閱讀頁按「譯文」。") + "</p>" +
       '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="preread"' + (c.preread !== false ? " checked" : "") + ">" + PR.t("匯入時讓 AI 先讀過整份") + "</label>" +
       '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("匯入、翻譯或第一次問 AI 時，在背景請模型把整份文件（含補充資料）讀一遍、寫成全文筆記，之後每一問都帶著它。每份文件用一次模型額度（很長的分幾次）；關掉就只在你按「現在讀」時才讀。") + "</p>" +
+      '<label class="check" style="margin:14px 0 0"><input type="checkbox" data-k="web_images"' + (c.web_images !== false ? " checked" : "") + ">" + PR.t("回答裡可以放網路上的圖") + "</label>" +
+      '<p class="hint" style="margin:2px 0 0 24px">' + PR.t("講到通用的概念時，回答可以附一張維基百科上的圖，圖下面會註明出處。找圖時會連到維基百科和維基共享資源（只送出要找的條目名和關鍵詞）；關掉就只用回答自己畫的圖。") + "</p>" +
       '<label class="field" style="margin:14px 0 0;max-width:340px"><span>' + PR.t("選字翻譯用的模型") + '</span><select class="input" data-k="quick.translate_model">' +
       PR.opt([["", PR.t("跟翻譯用的模型一樣")]].concat(s.chat.models.map((x) => [x.id, x.label || x.name])), (c.quick || {}).translate_model || "") + "</select></label>" +
       '<p class="hint" style="margin:2px 0 0">' + PR.t("閱讀頁選字工具列的「翻譯」用它；挑一個快的比較順。") + "</p>";

@@ -297,7 +297,7 @@
             '<div class="bk-ct">' + (title ? inline(title) : '<span class="bk-ph">' + t("標題") + "</span>") + "</div></div>" + (body && open ? '<div class="bk-cb">' + blocksHtml(body) + "</div>" : "") + "</div>";
         }
         case "code": {
-          if (/^(flow|flowchart|mermaid|graph|viz)$/.test(b.lang || "")) return '<div class="bk-fig">' + blocksHtml(one(b)) + "</div>";
+          if (/^(flow|flowchart|mermaid|graph|viz|pic|picture|image|img)$/.test(b.lang || "")) return '<div class="bk-fig">' + blocksHtml(one(b)) + "</div>";  // 圖（流程圖、示意卡、網路上的圖）：畫出來，不顯示原始碼
           return '<div class="bk-code"><span class="bk-lang">' + esc(b.lang || "") + "</span><pre><code>" + esc(text) + "</code></pre></div>";
         }
         case "math": return '<div class="bk-math">' + (text.trim() ? blocksHtml("$$\n" + text + "\n$$") : '<span class="bk-ph">' + t("公式") + "</span>") + "</div>";

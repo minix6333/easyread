@@ -142,3 +142,29 @@ test("an unfinished figure block shows the drawing placeholder only while stream
   assert.equal(PR.mdBlocks(whole, { live: true }), PR.mdBlocks(whole), "complete blocks render the same either way");
 });
 
+test("a pic block becomes a figure that asks for a Wikipedia picture; it never carries a URL from the answer", () => {
+  const PR = markup();
+  const fence = "\x60\x60\x60";
+  assert.deepEqual({ ...PR.picParse("條目：Support vector machine\n找：maximum margin hyperplane\n說明：實線是決策邊界，\n兩條虛線之間就是 margin。") },
+    { article: "Support vector machine", file: "", q: "maximum margin hyperplane", cap: "實線是決策邊界，兩條虛線之間就是 margin。" });
+  assert.equal(PR.picParse("article: K-means clustering\nq: convergence\ncaption: one step").cap, "one step");
+  assert.equal(PR.picParse("条目：Normal distribution\n说明：钟形曲线").article, "Normal distribution", "Simplified labels are accepted too");
+  assert.equal(PR.picParse("Normal distribution\n鐘形曲線：中間最高。").article, "Normal distribution", "no labels: first line is the article");
+  assert.equal(PR.picParse("檔名：`SVM margin.png`").file, "SVM margin.png");
+  const html = PR.mdBlocks("前面。\n\n" + fence + "pic\n條目：Support vector machine\n找：margin\n說明：看 $w$ 的方向\n" + fence + "\n\n後面。");
+  assert.match(html, /<figure class="md-pic" data-article="Support vector machine" data-file="" data-q="margin">/);
+  assert.match(html, /<figcaption>看 <math>w<\/math> 的方向<\/figcaption>/);
+  assert.ok(html.indexOf("前面") < html.indexOf("md-pic") && html.indexOf("md-pic") < html.indexOf("後面"));
+  assert.ok(!/<img|https?:/.test(html), "the page asks the backend; nothing in the answer is loaded directly");
+  const evil = PR.mdBlocks(fence + "pic\n條目：\"><img src=x onerror=alert(1)>\n說明：<script>x</script>\n" + fence);
+  assert.ok(!/<img|<script/.test(evil), "what the model wrote is escaped");
+  assert.equal(PR.mdBlocks(fence + "pic\n\n" + fence).trim(), "", "an empty block shows nothing");
+  assert.ok(PR.mdBlocks("x\n\n" + fence + "pic\n條目：Sup", { live: true }).includes("md-drawing"), "half-written while streaming: placeholder");
+  assert.ok(!PR.mdBlocks("![圖](https://example.com/a.png)").includes("<img"), "plain Markdown images with remote URLs are still not loaded");
+  // 這張圖已經問回來了（webimg.js 記著）：重排時直接排進去，不用再等一次——回答還在寫的時候整段會重排很多次
+  PR.picCached = (p) => (p.article === "Support vector machine" && p.q === "margin" ? { i: 1, slot: '<a class="pic-img"><img src="/webimg?u=x"></a>', src: "SVM margin · 維基共享資源" } : null);
+  const again = PR.mdBlocks(fence + "pic\n條目：Support vector machine\n找：margin\n說明：看這裡\n" + fence + "\n\n" + fence + "pic\n條目：Kernel method\n" + fence);
+  assert.match(again, /<figure class="md-pic ready" data-article="Support vector machine" data-file="" data-q="margin" data-asked="1" data-i="1"><div class="pic-slot"><a class="pic-img"><img src="\/webimg\?u=x"><\/a><\/div><figcaption>看這裡<\/figcaption><div class="pic-src">SVM margin · 維基共享資源<\/div><\/figure>/);
+  assert.match(again, /<figure class="md-pic" data-article="Kernel method" data-file="" data-q=""><div class="pic-slot"><\/div><\/figure>/, "one that was not asked yet still waits");
+});
+

@@ -1741,5 +1741,10 @@
  "這個模型沒有 Fast": "This model has no Fast tier",
  "速度": "Speed",
  "速度只能是 fast / default": "Speed must be fast or default",
- "連線斷了，重新連線中… {n} 秒": "Connection dropped, reconnecting… {n}s"
+ "連線斷了，重新連線中… {n} 秒": "Connection dropped, reconnecting… {n}s",
+ "回答裡可以放網路上的圖": "Answers may include pictures from the web",
+ "在維基共享資源看原圖": "See the original on Wikimedia Commons",
+ "換一張（{i}／{n}）": "Another picture ({i}/{n})",
+ "維基共享資源": "Wikimedia Commons",
+ "講到通用的概念時，回答可以附一張維基百科上的圖，圖下面會註明出處。找圖時會連到維基百科和維基共享資源（只送出要找的條目名和關鍵詞）；關掉就只用回答自己畫的圖。": "When an answer covers a general concept it can attach a picture from Wikipedia, with its source shown underneath. Finding the picture contacts Wikipedia and Wikimedia Commons (only the article name and keywords are sent); turn this off to use only figures the answer draws itself."
 }
