@@ -1399,3 +1399,51 @@ body.side-swap .side-panel { transition: none !important; }
 /* 回答裡的出處：小小的一顆，點了在旁邊打開那一頁 */
 .cm.ai .body a.doclink { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; margin: 0 1px; border-radius: 6px; font: 500 11.5px/1.7 var(--ui); color: var(--accent); background: var(--accent-soft); text-decoration: none; white-space: nowrap; vertical-align: 1px; }
 .cm.ai .body a.doclink:hover { background: var(--accent-soft-2); }
+
+/* ---------- 比較表（library/matrix.js）：文件 × 問題，AI 一份一份填 ---------- */
+.mx-wrap { position: fixed; inset: 0; z-index: 95; display: none; align-items: center; justify-content: center; padding: 3vh 2vw; background: rgba(0, 0, 0, .28); }
+:root[data-theme="dark"] .mx-wrap { background: rgba(0, 0, 0, .45); }
+.mx-wrap.open { display: flex; animation: mxIn .18s cubic-bezier(.23, 1, .32, 1); }
+@keyframes mxIn { from { opacity: 0; } to { opacity: 1; } }
+.mx-sheet { display: flex; flex-direction: column; width: min(1280px, 100%); height: min(860px, 100%); border-radius: 18px; background: var(--surface); box-shadow: 0 0 0 .5px var(--line), 0 24px 70px rgba(0, 0, 0, .28); overflow: hidden; animation: mxSheet .22s cubic-bezier(.23, 1, .32, 1); }
+@keyframes mxSheet { from { transform: scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mx-wrap.open, .mx-sheet { animation: none; } }
+.mx-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 8px 20px; }
+.mx-head b { font: 600 16px/1.3 var(--ui); color: var(--ink); }
+.mx-head .mx-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+.mx-head .mx-sub { font: 12.5px var(--ui); color: var(--ink-3); }
+.mx-head .grow, .mx-foot .grow { flex: 1; }
+.mx-ib { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--ink-3); }
+.mx-ib:hover:not(:disabled) { background: var(--fill); color: var(--ink); }
+.mx-ib:disabled { opacity: .35; }
+.mx-cols { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 20px 12px; }
+.mx-col { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 11px; border-radius: 9px; font: 12.5px var(--ui); color: var(--ink-2); background: var(--fill); }
+.mx-col button { width: 20px; height: 20px; border-radius: 6px; color: var(--ink-3); line-height: 1; }
+.mx-col button:hover { background: var(--fill); color: var(--ink); }
+.mx-add { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 240px; height: 28px; padding: 0 10px; border-radius: 9px; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
+.mx-add input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 12.5px var(--ui); color: var(--ink); }
+.mx-add:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mx-scroll { flex: 1; min-height: 0; overflow: auto; margin: 0 12px; border-radius: 12px; box-shadow: inset 0 0 0 .5px var(--line); overscroll-behavior: contain; }
+table.mx { border-collapse: separate; border-spacing: 0; min-width: 100%; font: 13px/1.55 var(--ui); color: var(--ink); }
+table.mx th, table.mx td { padding: 10px 12px; vertical-align: top; text-align: left; border-bottom: .5px solid var(--line); border-right: .5px solid var(--line); }
+table.mx thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); font: 600 12px/1.4 var(--ui); color: var(--ink-2); min-width: 190px; max-width: 320px; box-shadow: 0 .5px 0 var(--line); }
+table.mx .mx-doc { position: sticky; left: 0; z-index: 1; width: 200px; min-width: 180px; max-width: 220px; background: var(--surface); box-shadow: .5px 0 0 var(--line); }
+table.mx thead .mx-doc { z-index: 3; }
+table.mx tbody .mx-doc { font-weight: 400; }
+.mx-who { display: block; font: 600 12.5px var(--ui); color: var(--accent); text-decoration: none; }
+.mx-who:hover { text-decoration: underline; }
+.mx-title { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; font: 12px/1.45 var(--ui); color: var(--ink-3); }
+table.mx td.mx-c { min-width: 190px; max-width: 320px; }
+table.mx td.none .mx-t { color: var(--ink-3); }
+.mx-pgs { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 4px; vertical-align: 1px; }
+.mx-pg { padding: 0 5px; border-radius: 5px; font: 500 11px/1.6 var(--ui); color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+.mx-pg:hover { background: var(--accent-soft-2); }
+.mx-dots { display: inline-flex; gap: 4px; padding-top: 6px; }
+.mx-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); opacity: .35; animation: mxDot 1.2s ease-in-out infinite; }
+.mx-dots i.d2 { animation-delay: .15s; }  /* 用 class，不用 :nth-child（見 memory 的選擇器效能規則） */
+.mx-dots i.d3 { animation-delay: .3s; }
+@keyframes mxDot { 0%, 100% { opacity: .2; } 50% { opacity: .7; } }
+.mx-err { color: var(--danger); }
+.mx-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px 20px; font: 12.5px var(--ui); color: var(--ink-3); }
+.mx-foot .mx-state { display: inline-flex; align-items: center; gap: 8px; }
+.mx-foot .btn svg.i { width: 14px; height: 14px; margin-right: 4px; }

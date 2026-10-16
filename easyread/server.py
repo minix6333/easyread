@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, matrix, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -643,6 +643,8 @@ class Handler(BaseHTTPRequestHandler):
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
             return self._import_result(ws, fresh, q.get("translate", "1") == "1", q.get("scope"),
                                        read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""), kind=q.get("kind", ""), tags=_tags(q.get("tags", "")))
+        if path == "/api/matrix":  # 比較表：幾份文件 × 幾個問題，一份填好送一列（matrix.py），串流
+            return matrix.handle(self, lib, json.loads(self._body() or b"{}"))
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400

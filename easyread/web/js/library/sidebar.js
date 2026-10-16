@@ -184,6 +184,7 @@
         "-",
         { label: PR.t("批量操作这个分类的论文"), icon: "check", fn: () => { L.tag = c; L.view = "all"; L.startPick(L.filtered().map((paper) => paper.id)); } },
         { label: PR.t("导出这个分类的引用"), icon: "copy", fn: () => PR.openCiteExport(L.items.filter((paper) => (paper.tags || []).includes(c)), c) },
+        ...(L.openMatrix ? [{ label: PR.t("這個分類的比較表…"), icon: "table", fn: () => L.openMatrix(L.items.filter((paper) => (paper.tags || []).includes(c)), c) }] : []),
         { label: PR.t("删除分类"), icon: "trash", fn: () => L.deleteCat(c) },
       ]);
     }

@@ -51,6 +51,7 @@
       tool("status", PR.t("切换状态"), "book") +
       tool("translate", PR.t("翻译"), "sparkle") +
       tool("cite", PR.t("导出引用"), "copy") +
+      (L.openMatrix ? tool("matrix", PR.t("比較表"), "table", PR.t("勾的這幾份做成一張比較表：AI 逐份填研究問題、方法、結果、限制，每格附頁碼")) : "") +
       tool("trash", "", "trash", PR.t("移到回收站")) + "</div>" +
       '<button class="btn sm accent" data-b="done">' + PR.t("完成") + "</button>";
     PR.$$(".batch-tools button", bar).forEach((b) => (b.disabled = !n));
@@ -146,6 +147,7 @@
     else if (act === "status") statusMenu(at);
     else if (act === "translate") translateAll(at);
     else if (act === "cite") PR.openCiteExport(pickedItems(), L.tag || PR.$("#viewTitle").textContent);
+    else if (act === "matrix" && L.openMatrix) L.openMatrix(pickedItems(), L.tag || "");
     else if (act === "trash") trashAll(at);
   }
 
@@ -189,6 +191,7 @@
       { label: PR.t("切换状态…"), icon: "book", fn: () => statusMenu(at) },
       { label: PR.t("翻译"), icon: "sparkle", fn: () => translateAll(at) },
       { label: PR.t("导出引用"), icon: "copy", fn: () => run("cite") },
+      ...(L.openMatrix ? [{ label: PR.t("比較表"), icon: "table", fn: () => run("matrix") }] : []),
       "-",
       { label: PR.t("移到回收站"), icon: "trash", fn: () => trashAll(at) },
     ]);
