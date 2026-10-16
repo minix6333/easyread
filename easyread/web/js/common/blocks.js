@@ -124,6 +124,39 @@
     });
     return out;
   }
+  /* 表格的 Markdown ⇄ 一格一格（純函式）：| 甲 | 乙 |，第二行是 | --- | --- |（對齊的 :--- 記著） */
+  function splitRow(line) {
+    let s = String(line || "").trim();
+    if (s.startsWith("|")) s = s.slice(1);
+    if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
+    const out = [];
+    let cur = "";
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === "\\" && s[i + 1] === "|") { cur += "\\|"; i++; continue; }
+      if (s[i] === "|") { out.push(cur.trim()); cur = ""; continue; }
+      cur += s[i];
+    }
+    out.push(cur.trim());
+    return out;
+  }
+  function tableGrid(md) {
+    const lines = String(md || "").split("\n").filter((l) => l.trim());
+    if (!lines.length) return { rows: [["", "", ""], ["", "", ""]], align: ["", "", ""] };
+    const sep = lines[1] && /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(lines[1]);
+    const rows = [splitRow(lines[0])].concat(lines.slice(sep ? 2 : 1).map(splitRow));
+    const w = Math.max(1, ...rows.map((r) => r.length));
+    const align = sep ? splitRow(lines[1]).map((c) => (/^:-+:$/.test(c) ? "c" : /-+:$/.test(c) ? "r" : /^:-+/.test(c) ? "l" : "")) : [];
+    return { rows: rows.map((r) => r.concat(Array(w - r.length).fill("")).slice(0, w)), align: Array.from({ length: w }, (_, k) => align[k] || "") };
+  }
+  function gridTable(rows, align) {
+    const w = Math.max(1, ...rows.map((r) => r.length));
+    const cell = (c) => String(c || "").replace(/\n+/g, " ").replace(/(^|[^\\])\|/g, "$1\\|");
+    const rule = Array.from({ length: w }, (_, k) => ({ l: ":---", r: "---:", c: ":---:" })[(align || [])[k]] || "---");
+    return ["| " + Array.from({ length: w }, (_, k) => cell(rows[0][k])).join(" | ") + " |", "| " + rule.join(" | ") + " |"]
+      .concat(rows.slice(1).map((r) => "| " + Array.from({ length: w }, (_, k) => cell(r[k])).join(" | ") + " |")).join("\n");
+  }
+  PR.blocksTableGrid = tableGrid;
+  PR.blocksGridTable = gridTable;
   PR.blocksParse = parse;
   PR.blocksSerialize = serialize;
   PR.blocksOne = one;
@@ -371,9 +404,110 @@
       if (b.type === "code") return '<div class="bk-code ed"><input class="bk-lang-in" value="' + esc(b.lang || "") + '" placeholder="' + t("語言") + '" spellcheck="false">' + ta + "</div>";
       if (b.type === "callout" && b.kind !== "ref") return '<div class="bk-callout ed k-' + b.kind + ' open"><div class="bk-ch">' + calloutIcon(b).replace(' data-bk="toggle-open"', "") + ta + "</div></div>";
       if (b.type === "callout") return '<span class="bk-kind">' + t("出處") + "</span>" + ta;
+      // 表格：一格一格直接改（每一格也是排好的樣子）；Tab／Enter 走格子，旁邊的「＋」加一列、一欄，右鍵插入／刪除
+      if (b.type === "table" && useRich) return gridHtml(b);
       // 公式：上面打 TeX、下面即時排出來（打錯一眼就看得到，不用離開這一塊才知道）
       if (b.type === "math") return '<div class="bk-math ed">' + ta + '<div class="bk-live">' + ((b.text || "").trim() ? blocksHtml("$$\n" + b.text + "\n$$") : "") + "</div></div>";
       return ta;
+    }
+    function gridHtml(b) {
+      const g = tableGrid(b.text);
+      const al = (k) => ({ l: "left", r: "right", c: "center" })[g.align[k]] || "";
+      const cell = (tag, c, r, k) => "<" + tag + (al(k) ? ' style="text-align:' + al(k) + '"' : "") + '><div class="bk-cell bk-rich" contenteditable="true" spellcheck="false" data-r="' + r + '" data-c="' + k + '">' + PR.rich.html(c) + "</div></" + tag + ">";
+      return '<div class="bk-grid"><div class="bk-gscroll"><table class="bk-gt"><thead><tr>' + g.rows[0].map((c, k) => cell("th", c, 0, k)).join("") + "</tr></thead><tbody>" +
+        g.rows.slice(1).map((row, r) => "<tr>" + row.map((c, k) => cell("td", c, r + 1, k)).join("") + "</tr>").join("") + "</tbody></table></div>" +
+        '<button type="button" class="bk-gadd col" data-bk="grid-col" tabindex="-1" title="' + esc(t("加一欄")) + '">' + ico("plus") + "</button>" +
+        '<button type="button" class="bk-gadd row" data-bk="grid-row" tabindex="-1" title="' + esc(t("加一列")) + '">' + ico("plus") + "</button></div>";
+    }
+    /* 表格現在的樣子 → Markdown（打字、加減列欄之後） */
+    function gridMd(el, b) {
+      const tr = el.querySelectorAll(".bk-gt tr");
+      const rows = Array.from(tr).map((r) => Array.from(r.querySelectorAll(".bk-cell")).map((c) => PR.rich.md(c)));
+      return gridTable(rows.length ? rows : [[""]], tableGrid(b.text).align);
+    }
+    function gridFocus(el, r, c, atEnd) {
+      const rows = el.querySelectorAll(".bk-gt tr");
+      const row = rows[Math.max(0, Math.min(rows.length - 1, r))];
+      if (!row) return;
+      const cells = row.querySelectorAll(".bk-cell"), cell = cells[Math.max(0, Math.min(cells.length - 1, c))];
+      if (!cell) return;
+      cell.focus({ preventScroll: false });
+      const n = PR.rich.length(cell);
+      PR.rich.setCaret(cell, atEnd === false ? 0 : n);
+    }
+    /* 改表格的形狀：在第 r 列之後加一列、第 c 欄之後加一欄、刪掉某一列／欄。改完重畫，游標放到該去的那一格 */
+    function gridShape(id, fn, focus) {
+      const i = idx(id), el = blockEl(id); if (i < 0 || !el) return;
+      const b = state.blocks[i];
+      b.text = gridMd(el, b);
+      snapshot();
+      const g = tableGrid(b.text);
+      fn(g);
+      if (!g.rows.length || !g.rows[0].length) { state.blocks[i] = { id, type: "p", text: "" }; repaint(id); focusEdit(id, "start"); changeSoon(); return; }
+      b.text = gridTable(g.rows, g.align);
+      repaint(id);
+      gridFocus(blockEl(id), focus[0], focus[1]);
+      changeSoon();
+    }
+    const cellPos = (cell) => [+cell.dataset.r, +cell.dataset.c];
+    function cellKey(e) {
+      const cell = e.target.closest && e.target.closest(".bk-cell");
+      if (!cell || e.isComposing || e.keyCode === 229) return;
+      const el = cell.closest(".bk-b"), id = el.dataset.id, i = idx(id), b = state.blocks[i];
+      if (!b) return;
+      const [r, c] = cellPos(cell), rows = el.querySelectorAll(".bk-gt tr").length, cols = el.querySelectorAll(".bk-gt tr")[0].querySelectorAll(".bk-cell").length;
+      const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
+      if (e.key === "Escape") { e.preventDefault(); stopEdit(); select(id); return; }
+      if (mod && !e.shiftKey && key === "z") { e.preventDefault(); undo(); return; }
+      if (mod && (key === "y" || (e.shiftKey && key === "z"))) { e.preventDefault(); redo(); return; }
+      if (mod && !e.altKey) {
+        const inl = !e.shiftKey ? { b: "b", i: "i", u: "u" }[key] : { c: "code", "-": "s", _: "s", b: "hl" }[key];
+        if (inl) { e.preventDefault(); typingSnapshot(id); if (PR.rich.toggle(cell, inl)) cellInput(cell); return; }
+        if (e.key === "Enter") { e.preventDefault(); pullText(id); state.editing = null; insertAfter(i, { type: "p", text: "" }, true); return; }  // ⌘↩：跳出表格，下面接一段
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        if (e.shiftKey) { if (c > 0) gridFocus(el, r, c - 1); else if (r > 0) gridFocus(el, r - 1, cols - 1); return; }
+        if (c < cols - 1) gridFocus(el, r, c + 1);
+        else if (r < rows - 1) gridFocus(el, r + 1, 0);
+        else gridShape(id, (g) => g.rows.push(Array(cols).fill("")), [r + 1, 0]);  // 最後一格再 Tab：多一列
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (r < rows - 1) gridFocus(el, r + 1, c);
+        else gridShape(id, (g) => g.rows.push(Array(cols).fill("")), [r + 1, c]);
+        return;
+      }
+      if (e.key === "Enter") { e.preventDefault(); return; }  // 格子裡不換行（Markdown 的表格一格只有一行）
+      const caretAt = PR.rich.caret(cell) || { start: 0, end: 0 }, n = PR.rich.length(cell);
+      if (e.key === "ArrowUp" && !e.shiftKey && r > 0) { e.preventDefault(); gridFocus(el, r - 1, c); return; }
+      if (e.key === "ArrowDown" && !e.shiftKey && r < rows - 1) { e.preventDefault(); gridFocus(el, r + 1, c); return; }
+      if (e.key === "ArrowUp" && !e.shiftKey && r === 0 && i > 0) { e.preventDefault(); stopEdit(); moveTo(i - 1, "end", -1); return; }
+      if (e.key === "ArrowDown" && !e.shiftKey && r === rows - 1 && i < state.blocks.length - 1) { e.preventDefault(); stopEdit(); moveTo(i + 1, "start", 1); return; }
+      if (e.key === "ArrowLeft" && !e.shiftKey && caretAt.start === 0 && caretAt.end === 0 && (c > 0 || r > 0)) { e.preventDefault(); if (c > 0) gridFocus(el, r, c - 1); else gridFocus(el, r - 1, cols - 1); return; }
+      if (e.key === "ArrowRight" && !e.shiftKey && caretAt.start === n && caretAt.end === n && (c < cols - 1 || r < rows - 1)) { e.preventDefault(); if (c < cols - 1) gridFocus(el, r, c + 1, false); else gridFocus(el, r + 1, 0, false); return; }
+    }
+    function cellInput(cell) {
+      const el = cell.closest(".bk-b"), id = el && el.dataset.id, i = idx(id), b = state.blocks[i];
+      if (!b) return;
+      if (cell.innerHTML === "<br>") cell.innerHTML = "";
+      b.text = gridMd(el, b);
+      changeSoon();
+    }
+    function cellMenu(cell, at) {
+      if (!PR.menu) return;
+      const el = cell.closest(".bk-b"), id = el.dataset.id, [r, c] = cellPos(cell);
+      const cols = el.querySelectorAll(".bk-gt tr")[0].querySelectorAll(".bk-cell").length, rows = el.querySelectorAll(".bk-gt tr").length;
+      PR.menu(at, [
+        { label: t("在上面插入一列"), icon: has("up") ? "up" : "arrowUp", disabled: r === 0, fn: () => gridShape(id, (g) => g.rows.splice(r, 0, Array(cols).fill("")), [r, c]) },
+        { label: t("在下面插入一列"), icon: has("down") ? "down" : "arrowUp", fn: () => gridShape(id, (g) => g.rows.splice(r + 1, 0, Array(cols).fill("")), [r + 1, c]) },
+        { label: t("在左邊插入一欄"), icon: "plus", fn: () => gridShape(id, (g) => { g.rows.forEach((row) => row.splice(c, 0, "")); g.align.splice(c, 0, ""); }, [r, c]) },
+        { label: t("在右邊插入一欄"), icon: "plus", fn: () => gridShape(id, (g) => { g.rows.forEach((row) => row.splice(c + 1, 0, "")); g.align.splice(c + 1, 0, ""); }, [r, c + 1]) },
+        "-",
+        { label: t("刪掉這一列"), icon: "trash", danger: true, disabled: r === 0 && rows === 1, fn: () => gridShape(id, (g) => g.rows.splice(r, 1), [Math.max(0, r - 1), c]) },
+        { label: t("刪掉這一欄"), icon: "trash", danger: true, fn: () => gridShape(id, (g) => { g.rows.forEach((row) => row.splice(c, 1)); g.align.splice(c, 1); }, [r, Math.max(0, c - 1)]) },
+      ]);
     }
     /* 一塊畫出來長怎樣取決於這些；沒變就整個元素留著不動（公式、流程圖不用重畫，正在打字的輸入框不會被換掉） */
     const refSig = (b) => { if (b.type !== "callout" || b.kind !== "ref" || !opts.refs || !opts.refs.get) return ""; const r = opts.refs.get(b.args.split(/\s+/)[0]); return r ? [r.title, r.body, r.page].join("\u0002") : "lost"; };
@@ -505,6 +639,13 @@
       focusEdit(id, where);
     }
     function focusEdit(id, where) {
+      const gel = blockEl(id);
+      if (gel && gel.querySelector(".bk-grid")) {  // 表格：點的那一格（沒有就第一格／最後一格）
+        if (where && where.cell) gridFocus(gel, where.cell[0], where.cell[1]);
+        else if (where === "end") { const rows = gel.querySelectorAll(".bk-gt tr"); gridFocus(gel, rows.length - 1, 99); }
+        else gridFocus(gel, 0, 0, false);
+        return;
+      }
       const f = fieldOf(id);
       if (!f) return;
       f.el.focus({ preventScroll: false });
@@ -542,6 +683,7 @@
     function pullText(id) {
       const el = blockEl(id), f = fieldOf(id);
       const i = idx(id);
+      if (el && i >= 0 && el.querySelector(".bk-grid")) { state.blocks[i].text = gridMd(el, state.blocks[i]); return; }  // 表格：一格一格收回來
       if (!f || i < 0) return;
       const b = state.blocks[i];
       b.text = f.rich ? f.value().replace(/\n+$/, "") : f.value();  // 排好的那一格：最後多按的換行不存
@@ -820,6 +962,14 @@
       if (el) typingSnapshot(el.dataset.id);
     }
     function onInput(e) {
+      const cell = e.target.closest && e.target.closest(".bk-cell");
+      if (cell) {  // 表格的一格
+        if (e.isComposing) return;
+        if ((e.inputType === "insertText" || e.type === "compositionend") && /[*~+=\x60$]$/.test(e.data || "")) PR.rich.autoformat(cell);
+        cellInput(cell);
+        placeTools();
+        return;
+      }
       const ta = e.target.closest && e.target.closest(".bk-in");
       if (!ta) { const li = e.target.closest && e.target.closest(".bk-lang-in"); if (li) { pullText(li.closest(".bk-b").dataset.id); changeSoon(); } return; }
       const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i];
@@ -1037,6 +1187,13 @@
       ]);
     }
 
+    /* 排好的表格上點到第幾列、第幾欄（表頭是第 0 列） */
+    function tableCellAt(target) {
+      const td = target && target.closest && target.closest("td, th");
+      const tr = td && td.parentElement, table = tr && tr.closest("table");
+      if (!td || !table) return null;
+      return [Array.from(table.querySelectorAll("tr")).indexOf(tr), Array.from(tr.children).indexOf(td)];
+    }
     /* ---------- 點哪裡游標就到哪裡 ---------- */
     const BLOCKY = /^(P|DIV|LI|H[1-6]|BLOCKQUOTE|UL|OL|PRE|TABLE|TR)$/;
     /* 排好的樣子裡，某個位置之前看得到的字（公式、圖片當成一個佔位字元；把手、清單記號、佔位的灰字不算） */
@@ -1100,12 +1257,13 @@
 
     /* ---------- 事件 ---------- */
     root.addEventListener("keydown", onKey);
+    root.addEventListener("keydown", cellKey);
     root.addEventListener("beforeinput", onBeforeInput);
     root.addEventListener("compositionstart", onBeforeInput);
     root.addEventListener("input", onInput);
     root.addEventListener("compositionend", (e) => { if (e.target.closest && e.target.closest(".bk-rich")) setTimeout(() => onInput({ target: e.target, type: "compositionend", data: e.data, isComposing: false }), 0); });
     root.addEventListener("focusout", (e) => {
-      if (!e.target.closest || !e.target.closest(".bk-in, .bk-lang-in")) return;
+      if (!e.target.closest || !e.target.closest(".bk-in, .bk-lang-in, .bk-cell")) return;
       setTimeout(() => {
         const a = document.activeElement;
         if (a && root.contains(a) && a.closest(".bk-b.editing, .bk-menu, .bk-pop")) return;  // 公式、連結的小編輯框也算在這一塊裡
@@ -1157,7 +1315,7 @@
     root.addEventListener("mousedown", (e) => {
       const mi = e.target.closest(".bk-mi");
       if (mi) { e.preventDefault(); pickMenu(mi.dataset.k); return; }
-      if (e.target.closest(".bk-b.editing .bk-mark.todo, .bk-add")) { e.preventDefault(); return; }  // 別把輸入框的焦點搶走
+      if (e.target.closest(".bk-b.editing .bk-mark.todo, .bk-add, .bk-gadd")) { e.preventDefault(); return; }  // 別把輸入框的焦點搶走
       const h = e.target.closest(".bk-handle");
       if (h) {  // 把手：按下去就選這一塊（⇧ 連選、⌘ 加選）；放開沒拖動才開選單（click 那邊）
         const id = h.closest(".bk-b").dataset.id;
@@ -1171,7 +1329,7 @@
       if (e.button !== 0 || e.target.closest(".bk-gut, .bk-menu, .bk-tools, .bk-preview, button, a, input")) return;
       const el = e.target.closest(".bk-b");
       sweep = { from: el ? idx(el.dataset.id) : -1, x: e.clientX, y: e.clientY, on: false };
-      if (el && state.editing !== el.dataset.id && !e.shiftKey) press = { id: el.dataset.id, x: e.clientX, y: e.clientY, at: pointOffset(el, e.clientX, e.clientY), obj: !!e.target.closest("img, .katex-display, .bk-fig"), ct: !!e.target.closest(".bk-ct") };
+      if (el && state.editing !== el.dataset.id && !e.shiftKey) press = { id: el.dataset.id, x: e.clientX, y: e.clientY, at: pointOffset(el, e.clientX, e.clientY), obj: !!e.target.closest("img, .katex-display, .bk-fig"), ct: !!e.target.closest(".bk-ct"), cell: tableCellAt(e.target) };
     });
     /* 點了編輯器外面：選著的區塊放掉（不然之後在別處按 Backspace、方向鍵會動到它們）。筆記 AI、格式面板（.bk-keep）要用選取，不算外面 */
     function onDocDown(e) {
@@ -1182,6 +1340,8 @@
     }
     document.addEventListener("mousedown", onDocDown);
     root.addEventListener("contextmenu", (e) => {
+      const cell = e.target.closest(".bk-cell");
+      if (cell && getSelection().isCollapsed) { e.preventDefault(); cellMenu(cell, { x: e.clientX, y: e.clientY }); return; }  // 表格的一格：插入／刪除列、欄
       const el = e.target.closest(".bk-b");
       if (!el || !PR.menu || e.target.closest(".bk-preview, a")) return;
       const ta = e.target.closest(".bk-in");
@@ -1202,6 +1362,13 @@
           return;
         }
         if (k === "toggle-open" && b) { e.preventDefault(); b.open = !b.open; repaint(id); return; }
+        if ((k === "grid-row" || k === "grid-col") && b && el) {  // 表格旁邊的「＋」：最後加一列／一欄
+          e.preventDefault();
+          const rows = el.querySelectorAll(".bk-gt tr").length, cols = el.querySelectorAll(".bk-gt tr")[0].querySelectorAll(".bk-cell").length;
+          if (k === "grid-row") gridShape(id, (g) => g.rows.push(Array(cols).fill("")), [rows, 0]);
+          else gridShape(id, (g) => { g.rows.forEach((r) => r.push("")); g.align.push(""); }, [0, cols]);
+          return;
+        }
         if (k === "go" && b && opts.refs && opts.refs.go) { e.preventDefault(); opts.refs.go(b.args.split(/\s+/)[0]); return; }
         if (k === "add" && b) {  // 左邊的「＋」：下面（⌥：上面）多一塊空的，順便開區塊選單
           e.preventDefault(); if (state.editing) stopEdit(); snapshot();
@@ -1241,6 +1408,7 @@
       // 圖片、獨立的公式、畫出來的圖：點一下是選起來（好刪、好搬），點兩下才改原始碼
       if ((hit ? hit.obj : !!e.target.closest("img, .katex-display, .bk-fig")) && e.detail < 2) { select(b.id); return; }
       if (b.type === "callout" && b.kind === "ref" && !(hit ? hit.ct : e.target.closest(".bk-ct"))) { return; }
+      if (b.type === "table" && useRich) { startEdit(el.dataset.id, { cell: (hit ? hit.cell : tableCellAt(e.target)) || [0, 0] }); return; }  // 表格：點哪一格就編哪一格
       const at = hit ? hit.at : pointOffset(el, e.clientX, e.clientY);
       startEdit(el.dataset.id, at == null ? "end" : at);
     });
@@ -1373,6 +1541,26 @@
       if (cut) { typingSnapshot(el.closest(".bk-b").dataset.id); document.execCommand("delete"); onInput({ target: el }); }
     }
     root.addEventListener("paste", (e) => {
+      const cell = e.target.closest && e.target.closest(".bk-cell");
+      if (cell && e.clipboardData) {  // 表格的一格：一般的字就地放；試算表複製來的（Tab、換行分開）從這一格開始往右下填
+        e.preventDefault();
+        const text = (e.clipboardData.getData("text/plain") || "").replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+        if (!text) return;
+        const id = cell.closest(".bk-b").dataset.id;
+        typingSnapshot(id);
+        if (!/[\t\n]/.test(text)) { document.execCommand("insertText", false, text); cellInput(cell); return; }
+        const [r0, c0] = cellPos(cell), data = text.split("\n").map((l) => l.split("\t"));
+        gridShape(id, (g) => {
+          for (let r = 0; r < data.length; r++) {
+            while (g.rows.length <= r0 + r) g.rows.push(Array(g.rows[0].length).fill(""));
+            for (let c = 0; c < data[r].length; c++) {
+              while (g.rows[0].length <= c0 + c) { g.rows.forEach((row) => row.push("")); g.align.push(""); }
+              g.rows[r0 + r][c0 + c] = PR.rich.emit([{ t: data[r][c].trim(), m: [] }]);
+            }
+          }
+        }, [r0 + data.length - 1, c0 + data[data.length - 1].length - 1]);
+        return;
+      }
       const ta = e.target.closest && e.target.closest(".bk-in");
       if (!ta || !e.clipboardData) return;
       const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i], f = fieldOf(id);
@@ -1574,6 +1762,8 @@
       },
       convert(k) { convert(k); },
       inline(mark) {  // 粗體、斜體…：正在編的那一塊裡選起來的字（排好的那一格直接改樣子；輸入框包上記號）
+        const cell = document.activeElement && document.activeElement.closest && document.activeElement.closest(".bk-b.editing .bk-cell");
+        if (cell && root.contains(cell)) { const k = MARK_OF[mark]; if (!k) return false; typingSnapshot(state.editing); if (PR.rich.toggle(cell, k)) cellInput(cell); return true; }  // 表格的一格
         const f = state.editing && fieldOf(state.editing);
         if (!f) return false;
         if (!f.rich) { if (mark === "link") wrap(f.el, "[", "](url)"); else wrap(f.el, mark); return true; }

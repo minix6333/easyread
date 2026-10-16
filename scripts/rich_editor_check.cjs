@@ -17,7 +17,7 @@ app.whenReady().then(async () => {
   const wc = win.webContents;
   const errors = [];
   wc.on("console-message", (e) => { if ((e.level === "error" || e.level === 3) && !/presence|WebSocket/.test(e.message || "") && !/sandbox_bundle/.test(String(e.sourceId || ""))) errors.push((e.message || "") + " @ " + String(e.sourceId || "").split("/").pop() + ":" + e.lineNumber); });
-  const js = (code) => wc.executeJavaScript(code);
+  const js = (code) => wc.executeJavaScript(code).catch(async (e) => { const msg = await wc.executeJavaScript("window.__lastErr || ''").catch(() => ""); throw new Error(String(e.message || e).slice(0, 80) + " | page: " + msg + " | code: " + code.slice(0, 140)); });
   const api = (path, body) => js("PR.api(" + JSON.stringify(path) + ", " + JSON.stringify(body === undefined ? undefined : { method: "POST", body }) + ")");
   const waitFor = async (cond, what) => { for (let i = 0; i < 80; i++) { if (await js("!!(" + cond + ")").catch(() => false)) return; await sleep(100); } throw new Error("waited too long for " + what); };
   step = "create note";
@@ -42,6 +42,7 @@ app.whenReady().then(async () => {
     await sleep(150);
   };
   const HELPERS = "(" + function () {
+    window.addEventListener("error", (ev) => { window.__lastErr = String(ev.message) + " @" + ev.lineno; });
     window.__pt = (needle, dx) => {
       const w = document.createTreeWalker(document.querySelector("#noteEd"), NodeFilter.SHOW_TEXT);
       for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -212,6 +213,40 @@ app.whenReady().then(async () => {
     await key("Escape");
     const s = await st();
     check(name, /t-p/.test(mid.cls) && /\n- 清單$/.test(s.md), { mid: mid.cls, md: s.md.slice(-10) });
+  });
+  await run("表格一格一格直接改：點格子、Tab 走到下一格、最後一格 Tab 多一列、⌘B 在格子裡變粗", async (name) => {
+    await open("段落\n\n| 名稱 | 數字 |\n| --- | ---: |\n| A | 1 |");
+    await click(await pt("A"));
+    const s0 = await js("({ cell: !!document.activeElement.closest('.bk-cell'), grid: !!document.querySelector('.bk-b.editing .bk-grid') })");
+    await key("End"); await type("甲");
+    await key("Tab"); await key("End"); await type("0");
+    await key("Tab");  // 最後一格：多一列
+    await type("B");
+    await key("Tab"); await type("2");
+    await key("Home", ["shift"]);
+    await key("B", [CMD]);
+    await key("Escape");
+    const s = await st();
+    check(name, s0.cell && s0.grid && /\| 名稱 \| 數字 \|\n\| --- \| ---: \|\n\| A甲 \| 10 \|\n\| B \| \*\*2\*\* \|/.test(s.md), { s0, md: s.md.slice(-80) });
+  });
+  await run("表格：右鍵在右邊插入一欄、下面的「＋」加一列、貼上試算表的幾格從這一格開始填", async (name) => {
+    await open("| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |");
+    await click(await pt("1"));
+    const p1 = await pt("1");
+    mouse("mouseDown", p1.x, p1.y, { button: "right" }); mouse("mouseUp", p1.x, p1.y, { button: "right" }); wc.sendInputEvent({ type: "contextMenu", x: p1.x, y: p1.y });
+    await sleep(150);
+    const item = await js("(() => { const b = Array.from(document.querySelectorAll('#ctxmenu button.mi')).find((x) => /右邊插入一欄|column to the right/i.test(x.textContent)); if (!b) return null; const r = b.getBoundingClientRect(); return { x: Math.round(r.left + 20), y: Math.round(r.top + r.height / 2) }; })()");
+    if (item) await click(item);
+    const s1 = await st();
+    const add = await js("(() => { const b = document.querySelector('.bk-b.editing .bk-gadd.row'); if (!b) return { missing: true, editing: document.querySelectorAll('.bk-b.editing').length, active: document.activeElement && document.activeElement.className }; const r = b.getBoundingClientRect(); return { x: Math.round(r.left + 30), y: Math.round(r.top + r.height / 2) }; })()");
+    if (add.missing) { check(name, false, { add, item: !!item, md: s1.md }); return; }
+    mouse("mouseMove", add.x, add.y - 30); await sleep(80);
+    await click(add);
+    await js("(function(){ const dt = new DataTransfer(); dt.setData('text/plain', " + JSON.stringify("x\ty\nz\tw") + "); document.activeElement.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); })(); 1");
+    await sleep(150);
+    await key("Escape");
+    const s2 = await st();
+    check(name, !!item && s1.md.includes("| 甲 |  | 乙 |") && s1.md.includes("| 1 |  | 2 |") && /\| x \| y \|  \|\n\| z \| w \|  \|$/.test(s2.md), { item: !!item, s1: s1.md, s2: s2.md });
   });
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
   step = "cleanup";

@@ -187,3 +187,18 @@ mark.md-hl { background: var(--hl-yellow); color: inherit; border-radius: 3px; p
 .bk-pop-live { min-height: 0; text-align: center; font-size: 15px; }
 .bk-pop-live:empty { display: none; }
 .bk-pop-x { align-self: flex-start; height: 26px; padding: 0 10px; border-radius: 8px; font: 12px var(--ui); color: var(--danger); background: var(--fill); }
+/* 表格（一格一格直接改）：和排好的表同樣的格線；右邊、下面各一顆「＋」 */
+.bk-grid { position: relative; flex: 1; min-width: 0; padding: 0 22px 22px 0; }
+.bk-gscroll { overflow-x: auto; }
+.bk-gt { border-collapse: collapse; min-width: 60%; font-size: .94em; }
+.bk-gt th, .bk-gt td { border: 1px solid var(--rule-2); padding: 0; vertical-align: top; min-width: 80px; }
+.bk-gt th { background: var(--fill); font-weight: 600; }
+.bk-cell { padding: 6px 9px; min-height: 1.6em; outline: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bk-cell:focus { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 2px; }
+.bk-gadd { position: absolute; display: grid; place-items: center; border-radius: 6px; color: var(--ink-3); background: var(--fill); opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast); }
+.bk-gadd svg { width: 13px; height: 13px; }
+.bk-gadd.col { top: 0; right: 0; width: 18px; bottom: 22px; }
+.bk-gadd.row { left: 0; right: 22px; bottom: 0; height: 18px; }
+.bk-grid:hover .bk-gadd, .bk-grid:focus-within .bk-gadd { opacity: 1; }
+.bk-gadd:hover { background: var(--accent-soft-2); color: var(--accent); }
+@media (hover: none) { .bk-gadd { opacity: .7; } }

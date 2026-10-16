@@ -65,3 +65,13 @@ test("a click on rendered text maps back to the right place in the Markdown sour
   assert.equal(at("abc", "abx", ""), null);
   assert.equal(at("a \\* b", "a * ", "b"), 5);
 });
+
+test("table Markdown ⇄ grid keeps alignment, escaped pipes and pads short rows", () => {
+  const PR = load();
+  const g = PR.blocksTableGrid("| 名稱 | 數字 |\n| :--- | ---: |\n| A \\| B | 1 |\n| C |");
+  assert.deepEqual(JSON.parse(JSON.stringify(g.rows)), [["名稱", "數字"], ["A \\| B", "1"], ["C", ""]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(g.align)), ["l", "r"]);
+  assert.equal(PR.blocksGridTable(g.rows, g.align), "| 名稱 | 數字 |\n| :--- | ---: |\n| A \\| B | 1 |\n| C |  |");
+  assert.equal(PR.blocksGridTable([["x|y", "z"]], []), "| x\\|y | z |\n| --- | --- |");
+  assert.deepEqual(JSON.parse(JSON.stringify(PR.blocksTableGrid("").rows)), [["", "", ""], ["", "", ""]]);
+});
