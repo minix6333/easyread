@@ -183,7 +183,9 @@
     const tags = kind + (i.tags || []).map((t) => '<span class="chip cat">' + (L.catIcon ? L.catIcon(t) : PR.icon("folder", "sm")) + PR.esc(t) + "</span>").join("");
     // 縮圖有兩張：清單用整頁的小圖（--t），卡片用伺服器裁好的橫的封面（--c，covers.py）；用哪一張由 CSS 決定，沒用到的那張不會去載
     const kindTag = i.kind && i.kind !== "paper" ? '<span class="cv-kind">' + PR.esc(PR.kindName(i.kind)) + "</span>" : "";
-    const thumb = i.thumb ? '<div class="thumb" style="--t:url(' + i.thumb + ")" + (i.cover ? ";--c:url(" + i.cover + ")" : "") + '">' + kindTag + "</div>" : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
+    // 格子檢視：讀到哪裡是封面底邊一條細線（像書架上的書），下面那一排就只剩狀態和數字；清單檢視還是右邊那條
+    const cvProg = i.progress ? '<i class="cv-prog" style="--p:' + Math.max(2, Math.round(i.progress * 100)) + '%"></i>' : "";
+    const thumb = i.thumb ? '<div class="thumb" style="--t:url(' + i.thumb + ")" + (i.cover ? ";--c:url(" + i.cover + ")" : "") + '">' + kindTag + cvProg + "</div>" : '<div class="thumb blank">' + PR.icon("pdf") + cvProg + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
     const picked = L.picked.has(i.id);
@@ -221,6 +223,11 @@
       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) el.animate([{ translate: dx + "px " + dy + "px" }, { translate: "0px 0px" }], { duration: dur, easing: ease });
     });
   }
+  /* 換分類、換「全部／在讀…」：清單換成另一批，淡進來一下（一天點幾十次，所以只動透明度、很短） */
+  L.listIn = function () {
+    const el = PR.$("#list");
+    if (el && el.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 170, easing: "ease-out" });
+  };
   L.render = function () {
     const before = rowsBefore();
     PR.renderSide();
@@ -235,15 +242,24 @@
     const el = PR.$("#list");
     el.classList.toggle("notes-view", notesView);
     if (document.body) document.body.classList.toggle("lib-notes", notesView);
-    if (notesView) el.innerHTML = notes.length || !L.q.trim() ? L.noteCardsHtml(notes, !L.q.trim()) : '<div class="empty-state"><div class="big">' + PR.t("沒有符合的筆記") + "</div></div>";
+    if (notesView) el.innerHTML = notes.length || !L.q.trim() ? L.noteCardsHtml(notes, !L.q.trim()) : emptyState("search", PR.t("沒有符合的筆記"), "");
     else el.innerHTML = (notes.length ? '<div class="list-sec">' + PR.t("筆記") + "</div>" + L.noteCardsHtml(notes, false) + (list.length ? '<div class="list-sec">' + PR.t("論文") + "</div>" : "") : "") +
       (list.length ? list.map(rowHtml).join("") : notes.length ? "" : emptyHtml());
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
     rowsAfter(before);
   };
+  /* 空的時候（搜尋、分類裡沒有東西）：置中一顆淡淡的圖示、一句話；有搜尋字的話多一顆「清除搜尋」 */
+  function emptyState(icon, title, hint) {
+    return '<div class="empty-state"><div class="es-ic">' + PR.icon(icon) + '</div><div class="big">' + title + "</div>" + (hint ? '<div class="es-hint">' + hint + "</div>" : "") +
+      (L.q.trim() ? '<button class="btn sm" data-clear-q>' + PR.t("清除搜尋") + "</button>" : "") + "</div>";
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest || !e.target.closest("[data-clear-q]")) return;
+    L.q = ""; PR.$("#q").value = ""; L.render(); L.listIn && L.listIn();
+  });
   function emptyHtml() {
-    if (L.items.length) return '<div class="empty-state"><div class="big">' + PR.t("没有符合条件的论文") + "</div>" + PR.t("换个关键词或筛选试试。") + "</div>";
+    if (L.items.length) return emptyState(L.q.trim() ? "search" : "folder", PR.t("没有符合条件的论文"), PR.t("换个关键词或筛选试试。"));
     const ok = L.engineReady;
     return '<div class="welcome">' + PR.logo("hero") + "<h2>" + PR.t("把英文论文，读成舒服的中文") + "</h2>" +
       '<p class="sub">' + PR.t("导入 PDF，后台逐页翻译；公式、表格照原文排好，随时对照原文，边读边划线、记笔记、提问。") + "</p>" +

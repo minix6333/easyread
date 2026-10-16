@@ -157,19 +157,23 @@
     const from = was ? (PR.pdfBlockNow ? PR.pdfBlockNow() : null) : PR.readingBlock();
     const el = !was && artBlock && document.getElementById("b-" + artBlock), r = el && el.getBoundingClientRect();
     const stayed = !was && artY != null && (Math.abs(scrollY - artY) < innerHeight * 0.25 || (!!r && r.top < innerHeight * 0.75 && r.bottom > innerHeight * 0.2));
-    PR.setPref("layout", pdf ? "pdf" : "article");
-    if (pdf) {
-      if (PR.side === "pages") PR.openSide(null);
-      const b = PR.blockById[from], loc = b && S.layout[from];
-      if (!stayed && b && PR.openPage) PR.openPage(loc ? loc.page : b.page, from, { instant: true });
-      else if (!stayed && from === "head" && PR.openPage) PR.openPage(1, null, { instant: true });  // 譯文還在最上面的標題：第 1 頁
-      artBlock = artY = null;
-    } else {
-      PR.togglePages(false);
-      artBlock = from && PR.blockById[from] ? from : null;
-      if (artBlock) PR.jumpTo("b-" + artBlock, { noBack: true, instant: true, noFlash: true });
-      artY = scrollY;
-    }
+    // 整個版面換掉：用 View Transitions 淡過去（PR.morph；晚一格才換，要對到哪裡上面已經先算好了）
+    const go = () => {
+      PR.setPref("layout", pdf ? "pdf" : "article");
+      if (pdf) {
+        if (PR.side === "pages") PR.openSide(null);
+        const b = PR.blockById[from], loc = b && S.layout[from];
+        if (!stayed && b && PR.openPage) PR.openPage(loc ? loc.page : b.page, from, { instant: true });
+        else if (!stayed && from === "head" && PR.openPage) PR.openPage(1, null, { instant: true });  // 譯文還在最上面的標題：第 1 頁
+        artBlock = artY = null;
+      } else {
+        PR.togglePages(false);
+        artBlock = from && PR.blockById[from] ? from : null;
+        if (artBlock) PR.jumpTo("b-" + artBlock, { noBack: true, instant: true, noFlash: true });
+        artY = scrollY;
+      }
+    };
+    if (PR.morph && PR.sideMotion !== false) PR.morph(go, { type: "layout" }); else go();
     PR.toast(pdf ? PR.t("PDF 優先") : PR.t("文章優先"), null, 1400);
   };
 

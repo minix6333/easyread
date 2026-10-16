@@ -213,8 +213,8 @@
     if (e.target.closest("[data-add]")) { ui.adding = true; return L.render(); }
     if (e.target.closest("[data-recent]")) { ui.recentOpen = !ui.recentOpen; return L.render(); }
     if (!row) return;
-    if (row.dataset.view) { L.view = row.dataset.view; L.tag = null; L.render(); }
-    else if (row.dataset.cat) { L.tag = L.tag === row.dataset.cat ? null : row.dataset.cat; L.view = "all"; L.render(); }
+    if (row.dataset.view) { L.view = row.dataset.view; L.tag = null; L.render(); L.listIn && L.listIn(); }
+    else if (row.dataset.cat) { L.tag = L.tag === row.dataset.cat ? null : row.dataset.cat; L.view = "all"; L.render(); L.listIn && L.listIn(); }
     // 论文行是链接，直接打开
   });
   side.addEventListener("contextmenu", (e) => {

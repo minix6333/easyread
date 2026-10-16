@@ -120,7 +120,13 @@
   dlg().addEventListener("click", async (e) => {
     if (e.target === dlg() || e.target.closest("#setCancel")) { st.recording = null; return dlg().classList.remove("open"); }
     const tb = e.target.closest("[data-set-tab]");
-    if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
+    if (tb) {
+      sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render();
+      // 換頁：內容淡進來、往上浮一點點（設定一次會點好幾頁，所以很短）
+      const body = dlg().querySelector(".set-body");
+      if (body && body.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) body.animate([{ opacity: 0, translate: "0 6px" }, { opacity: 1, translate: "0 0" }], { duration: 220, easing: "cubic-bezier(.23, 1, .32, 1)" });
+      return;
+    }
     // 外觀那一頁：點了就換、馬上存，不用按儲存
     const pick = (attr, apply) => { const b = e.target.closest("[" + attr + "]"); if (!b) return false; apply(b.getAttribute(attr)); PR.$$("[" + attr + "]", dlg()).forEach((x) => x.classList.toggle("on", x === b)); return true; };
     const sk = e.target.closest("[data-skin-pick]");

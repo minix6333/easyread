@@ -51,6 +51,24 @@
     } catch (err) { PR.toast(PR.t("沒建成：{msg}", { msg: PR.esc(err.message) })); }
   }
   L.newNote = () => create(L.tag ? { folder: L.tag } : null);
+  /* ---------- 從範本新增（「新筆記」那張卡片下面的「範本」）：做研究、上課常用的幾種骨架，圖示、顏色、封面都配好，之後都可以改 ---------- */
+  const today = () => { const d = new Date(); return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate(); };
+  L.NOTE_TEMPLATES = () => [
+    { k: "paper", label: PR.t("論文閱讀筆記"), icon: "book-open", color: "blue", banner: "mist", title: "",
+      body: ["## " + PR.t("一句話總結"), "", "## " + PR.t("研究問題"), PR.t("這篇想解決什麼？為什麼重要？"), "", "## " + PR.t("方法"), "- ", "", "## " + PR.t("主要結果"), "- ", "", "## " + PR.t("限制與疑問"), "- [ ] ", "", "## " + PR.t("我的想法"), ""].join("\n") },
+    { k: "class", label: PR.t("課堂筆記"), icon: "graduation-cap", color: "purple", banner: "dusk", title: PR.t("課堂筆記") + " " + today(),
+      body: ["## " + PR.t("今天的主題"), "", "## " + PR.t("重點"), "- ", "", "## " + PR.t("例題"), "", "## " + PR.t("還不懂的地方"), "- ", "", "## " + PR.t("要複習／要做的"), "- [ ] "].join("\n") },
+    { k: "meeting", label: PR.t("會議記錄"), icon: "users", color: "teal", banner: "sea", title: PR.t("會議記錄") + " " + today(),
+      body: ["## " + PR.t("與會者"), "- ", "", "## " + PR.t("討論"), "- ", "", "## " + PR.t("決定"), "- ", "", "## " + PR.t("待辦事項"), "- [ ] "].join("\n") },
+    { k: "lab", label: PR.t("實驗紀錄"), icon: "flask-conical", color: "green", banner: "forest", title: PR.t("實驗紀錄") + " " + today(),
+      body: ["## " + PR.t("目的"), "", "## " + PR.t("設定"), "- " + PR.t("資料："), "- " + PR.t("模型與參數："), "", "## " + PR.t("結果"), "| " + PR.t("設定") + " | " + PR.t("指標") + " | " + PR.t("備註") + " |", "| --- | --- | --- |", "|  |  |  |", "", "## " + PR.t("觀察"), "", "## " + PR.t("下一步"), "- [ ] "].join("\n") },
+    { k: "idea", label: PR.t("研究想法"), icon: "lightbulb", color: "yellow", banner: "sand", title: "",
+      body: ["## " + PR.t("想法"), "", "> [!tip] " + PR.t("為什麼值得做"), "", "## " + PR.t("相關的論文"), "- ", "", "## " + PR.t("可以怎麼驗證"), "- [ ] "].join("\n") },
+  ];
+  L.templateMenu = function (at) {
+    PR.menu(at, L.NOTE_TEMPLATES().map((t) => ({ label: t.label, icon: PR.hasIcon("l-" + t.icon) ? "l-" + t.icon : "note",
+      fn: () => create(Object.assign({ title: t.title, body: t.body, icon: t.icon, color: t.color, banner: t.banner }, L.tag ? { folder: L.tag } : {})) })));
+  };
   async function duplicate(id) {
     try {
       const n = await PR.api("/api/notes/" + encodeURIComponent(id) + "/duplicate", { method: "POST", body: {} });
@@ -161,7 +179,8 @@
     return list;
   };
   L.noteCardsHtml = function (list, withNew) {
-    return (withNew ? '<button class="ncard new" data-newnote><span class="nc-plus">' + PR.icon("plus") + "</span><span>" + PR.t("新筆記") + "</span></button>" : "") + list.map(cardHtml).join("");
+    return (withNew ? '<div class="ncard new"><button type="button" class="nc-new" data-newnote><span class="nc-plus">' + PR.icon("plus") + "</span><span>" + PR.t("新筆記") + "</span></button>" +
+      '<button type="button" class="nc-tpl" data-note-tpl>' + PR.icon("template", "sm") + "<span>" + PR.t("從範本…") + "</span></button></div>" : "") + list.map(cardHtml).join("");
   };
 
   /* ---------- 事件 ---------- */
@@ -169,6 +188,8 @@
     if (e.target.closest("#side [data-notes-more]")) { ui.open = !ui.open; return PR.renderSide(); }
     const add = e.target.closest("[data-newnote]");
     if (add) { e.preventDefault(); return L.newNote(); }
+    const tpl = e.target.closest("[data-note-tpl]");
+    if (tpl) { e.preventDefault(); e.stopPropagation(); return L.templateMenu(tpl); }
     const m = e.target.closest("[data-note] [data-more]");
     if (m) { e.preventDefault(); e.stopPropagation(); return noteMenu(m.closest("[data-note]").dataset.note, m); }
   }, true);

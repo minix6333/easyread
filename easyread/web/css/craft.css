@@ -1131,3 +1131,32 @@ body.drawer-open #drawer { visibility: visible; transition: transform var(--dur)
 .lib .detail .jobbox { background: var(--sheet); border-radius: 12px; box-shadow: 0 0 0 .5px var(--line); }
 .lib .detail .jobbox .us-card { margin: 10px 0 0; padding: 12px 0 0; border-radius: 0; background: transparent; box-shadow: none; border-top: .5px solid var(--line); }
 .lib .detail .jobbox .us-card .us-limits { border-top-width: .5px; border-top-color: var(--line); }
+
+/* ---------- 格子卡片：讀到哪裡是封面底邊的一條細線（library/app.js 的 .cv-prog），下面那一排只剩狀態、譯了幾頁、筆記數 ---------- */
+.thumb .cv-prog { display: none; }
+.list.grid .thumb { position: relative; }
+.list.grid .thumb .cv-prog { display: block; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p, 0%); background: var(--accent); border-radius: 0 3px 3px 0; box-shadow: 0 0 0 .5px color-mix(in srgb, var(--accent) 40%, transparent); }
+.list.grid .row .side-info .meter { display: none; }
+.list.grid .row .side-info { justify-content: flex-start; }
+.list.grid .row .side-info > .pill { margin-right: auto; }
+
+/* ---------- 空的時候（文獻庫搜尋、分類裡沒有東西）：整片置中、一顆淡淡的圖示、一句話（格子檢視裡要橫跨整排，不然擠在第一格） ---------- */
+.list.grid > .empty-state, .list.grid > .welcome { grid-column: 1 / -1; }
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 96px 20px 120px; text-align: center; color: var(--ink-3); }
+.empty-state .es-ic { width: 54px; height: 54px; margin-bottom: 10px; border-radius: 17px; display: grid; place-items: center; color: var(--ink-3); background: var(--fill); box-shadow: inset 0 0 0 .5px var(--line); }
+.empty-state .es-ic svg.i { width: 24px; height: 24px; stroke-width: 1.6; }
+.empty-state .big { margin: 0; font: 600 16px/1.4 var(--ui); letter-spacing: -.01em; color: var(--ink-2); }
+.empty-state .es-hint { font: 13px/1.5 var(--ui); color: var(--ink-3); }
+.empty-state .btn { margin-top: 14px; }
+.list:not(.grid) > .empty-state { padding: 64px 20px 80px; }
+
+/* 「新筆記」卡片：上面一大塊是空白筆記，底下一顆「從範本…」（library/notes.js 的 L.templateMenu） */
+.ncard.new { gap: 0; padding: 0; }
+.ncard.new > .nc-new { flex: 1; align-self: stretch; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: inherit; font: inherit; }
+.ncard.new > .nc-tpl { flex: none; align-self: stretch; height: 34px; margin: 0 10px 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  font: 500 12px var(--ui); color: var(--ink-2); background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); transition: background var(--dur-fast), color var(--dur-fast); }
+.ncard.new > .nc-tpl svg.i { width: 14px; height: 14px; }
+@media (hover: hover) and (pointer: fine) { .ncard.new > .nc-tpl:hover { background: var(--ctl-hover); color: var(--ink); } }
+.list:not(.grid) .ncard.new { flex-direction: row; align-items: center; }
+.list:not(.grid) .ncard.new > .nc-new { flex-direction: row; justify-content: flex-start; height: 100%; padding: 0 12px; }
+.list:not(.grid) .ncard.new > .nc-tpl { margin: 0 10px 0 0; height: 30px; padding: 0 12px; }

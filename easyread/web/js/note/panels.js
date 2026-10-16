@@ -155,7 +155,10 @@
     const body = ({ insert: insertHtml, format: formatHtml, style: styleHtml, info: infoHtml })[ui.insp]();
     if (tabs) {  // 分頁列留著（滑塊才滑得過去），只換下面的內容
       tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.niTab === ui.insp));
-      const bd = el.querySelector(".ni-body"); bd.dataset.tab = ui.insp; bd.innerHTML = body; bd.scrollTop = keep;
+      const bd = el.querySelector(".ni-body"), swap = bd.dataset.tab !== ui.insp;
+      bd.dataset.tab = ui.insp; bd.innerHTML = body; bd.scrollTop = swap ? 0 : keep;
+      // 換分頁（插入⇄格式⇄樣式⇄資訊）：內容淡進來；同一頁重畫（打字、選字時）不動
+      if (swap && bd.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) bd.animate([{ opacity: 0, translate: "0 5px" }, { opacity: 1, translate: "0 0" }], { duration: 200, easing: "cubic-bezier(.23, 1, .32, 1)" });
       return;
     }
     el.innerHTML = '<div class="ni-top"><div class="seg ni-tabs" id="niTabs">' + TABS().map(([k, l]) => '<button type="button" data-ni-tab="' + k + '" class="' + (ui.insp === k ? "on" : "") + '">' + l + "</button>").join("") +

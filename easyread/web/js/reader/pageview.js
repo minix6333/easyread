@@ -16,9 +16,10 @@
      從舊位置、舊大小滑到新的，面板從右邊滑進來——以前是 PDF 頁一下子變窄、重新解碼時整頁白一下，左邊的目錄還閃出來一塊。 */
   PR.side = null;
   PR.openSide = function (name) {
-    const layout = body.classList.contains("side-open") !== !!name;
+    const layout = body.classList.contains("side-open") !== !!name, prev = PR.side;
     PR.side = name;  // 馬上就是新的（後面接著叫的程式要看）；畫面上的 class 在 apply 裡換
     if (layout && PR.morph && PR.sideMotion !== false) PR.morph(() => applySide(name), { type: "side", names: PR.readerNames });
+    else if (name && prev && prev !== name && PR.morph && PR.sideMotion !== false) PR.morph(() => applySide(name), { type: "tab" });  // 面板之間切換（筆記⇄問 AI⇄資訊）：淡過去
     else applySide(name);
   };
   /* 跟著滑的東西（PR.morph 的 names）：畫布、頂欄兩邊那幾顆、頁碼膠囊、「問 AI」、看得到的 PDF 頁（上下各多一頁）、

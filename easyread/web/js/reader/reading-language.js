@@ -15,9 +15,13 @@
     };
   };
   /* 切换显示方式：mode 和 lead / biOrder 一起改，再走 setPref 保住阅读位置 */
+  /* 換原文／譯文／雙語：整篇重排，用 View Transitions 淡過去（PR.morph，沒有要跟著滑的東西），不是一下子整頁跳掉 */
   PR.setView = function (view) {
-    if (view !== "both") PR.prefs.lead = view;
-    PR.setPref("mode", view === "both" ? "bi" : "zh");
+    const go = () => {
+      if (view !== "both") PR.prefs.lead = view;
+      PR.setPref("mode", view === "both" ? "bi" : "zh");
+    };
+    if (PR.morph && PR.sideMotion !== false && PR.readingView && PR.readingView() !== view) PR.morph(go, { type: "view" }); else go();
   };
   PR.setBiOrder = function (first) {
     PR.prefs.biOrder = first;
