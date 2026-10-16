@@ -80,7 +80,8 @@
   }
   /* 面板滑進滑出要 .22 秒（CSS --dur）：重的工作排到那之後；連著叫幾次只做最後一次 */
   let slideT = null;
-  PR.afterSlide = function (fn) { clearTimeout(slideT); slideT = setTimeout(fn, 240); };
+  // 整個畫面正在用 View Transitions 換（<html data-vt>，PR.morph）：等它換完再做，邊註卡片才是在看得到的時候滑到新位置
+  PR.afterSlide = function (fn) { clearTimeout(slideT); slideT = setTimeout(fn, document.documentElement.dataset.vt ? 620 : 240); };
 
   PR.togglePages = function (force) {
     if (PR.pdfMain && PR.pdfMain()) { PR.toggleArticle && PR.toggleArticle(force); return; }  // PDF 優先：這顆按鈕開關的是譯文
