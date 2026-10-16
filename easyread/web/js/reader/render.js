@@ -232,6 +232,7 @@
     const paperEl = document.getElementById("paper");
     if (paperEl) paperEl.lang = target === "zh" ? "zh-CN" : target;  // 让浏览器选对日文、韩文字形，西文能断词
     PR.emit("rendered");
+    if (PR.painted && !(PR.pdfMain && PR.pdfMain())) PR.painted();  // 文章優先：文章排好就算畫好了（外殼才換上這一格）
   };
 
   /* 只重排一个块（编辑保存后用），不动别的块 */

@@ -37,6 +37,9 @@ body.split .pane.on::before { content: ""; position: absolute; inset: 0 0 auto 0
 .gap:hover, body.sizing .gap { background: var(--accent); }
 #frames iframe { position: fixed; border: 0; background: var(--bg); }
 #frames iframe.hidden { visibility: hidden; pointer-events: none; }
+/* 新開的分頁還沒畫好：透明地排在那一格上（原來的分頁在底下蓋著），畫好了淡入（shell.js 的 revealed） */
+#frames iframe { transition: opacity .16s cubic-bezier(.23, 1, .32, 1); }
+#frames iframe.warming { opacity: 0; pointer-events: none; }
 body.sizing { cursor: col-resize; }
 body.sizing #frames iframe { pointer-events: none; opacity: .92; }
 /* 拖分隔線時跟著滑鼠走的那條線；放開才真的重排兩邊 */

@@ -24,7 +24,16 @@
     if (framed) post({ type: "missing" });
     return framed;
   };
+  /* 這一格第一次畫好了（主要的內容出來了：閱讀頁的第一張頁面圖、文獻庫的清單、筆記的內容）：告訴外殼，
+     它才把這一格換上來——在那之前還是讓原來的分頁蓋著，不會先閃一下只有工具列的空白畫面。載完一秒半還沒說就自己說（保底） */
+  let painted = false;
+  PR.painted = function () {
+    if (painted || !framed) return;
+    painted = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => post({ type: "painted" })));  // 等真的畫到畫面上
+  };
   if (!framed) return;
+  window.addEventListener("load", () => setTimeout(PR.painted, 1500));
   document.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest("a[href]");
     if (!a || e.defaultPrevented || e.button !== 0 || a.target === "_blank" || a.hasAttribute("download")) return;

@@ -276,4 +276,5 @@
     return true;
   }
   PR.note.ready = boot();
+  Promise.resolve(PR.note.ready).finally(() => PR.painted && PR.painted());  // 外殼等這一格畫好才換上來
 })(window.PR);

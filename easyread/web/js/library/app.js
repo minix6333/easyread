@@ -418,6 +418,6 @@
       sessionStorage.removeItem("easyread-lib-snap");
       if (snap && Date.now() - snap.t < 15000) apply(snap.d);
     } catch (e) { /* 没有就等下面取 */ }
-    Promise.all([prefsReady, L.load()]).then(restoreReturn).catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
+    Promise.all([prefsReady, L.load()]).then(restoreReturn).then(() => PR.painted && PR.painted()).catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
   });
 })(window.PR);

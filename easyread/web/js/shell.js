@@ -156,6 +156,19 @@
   /* ---------- iframe ---------- */
   const frames = {};  // tab id → iframe
   const framesBox = PR.$("#frames");
+  /* 新開的分頁：iframe 先透明地排在那一格上載入，等它說「畫好了」（frame-bridge.js 的 PR.painted）才淡入換上來；
+     這段時間原來顯示在那一格的分頁繼續蓋著——不會先閃一下只有工具列、還沒有內容的空白頁。最多等 0.9 秒。
+     那一格本來是空的（剛開 App、並排多開一格）就直接露出來。已經載好的分頁切過去不受影響（一樣是立刻換）。 */
+  const warm = new Map();  // 還沒畫好、先不露出來的分頁 id → 保底的計時器
+  let lastIn = [];         // 每一格現在看得到的是哪個分頁（換新分頁的那一下，舊的先留著蓋住）
+  function revealed(id) {
+    if (!warm.has(id)) return;
+    clearTimeout(warm.get(id));
+    warm.delete(id);
+    const f = frames[id];
+    if (f) f.classList.remove("warming");
+    setTimeout(layout, 190);  // 淡入（shell.css，.16 秒）做完才把底下原來那個藏起來
+  }
   function frame(tab) {
     let f = frames[tab.id];
     if (f) return f;
@@ -163,7 +176,8 @@
     f.src = tab.url + (tab.jump ? "#" + tab.jump : "");  // jump：這次要直接看哪裡（見 openUrl），只用一次
     delete tab.jump;
     f.title = tab.title || tab.id;
-    f.className = "hidden";
+    f.className = "hidden warming";
+    warm.set(tab.id, setTimeout(() => revealed(tab.id), 900));
     framesBox.append(f);
     frames[tab.id] = f;
     return f;
@@ -233,14 +247,25 @@
   function layout() {
     const slots = PR.$$(".pane", panesEl).map((el) => el.getBoundingClientRect());
     const cur = slots[st.focus] || slots[0];
+    // 還沒畫好的新分頁：那一格原來顯示的分頁先留著蓋住；原來是空的就不用等，直接露出來
+    const cover = new Map(), now = [];
+    st.panes.forEach((p, i) => {
+      const was = lastIn[i];
+      if (warm.has(p.tab) && was && was !== p.tab && frames[was] && !warm.has(was) && M.paneOf(st, was) < 0) cover.set(was, i);
+      else if (warm.has(p.tab)) revealed(p.tab);
+      now[i] = cover.has(was) && cover.get(was) === i ? was : p.tab;
+    });
     for (const t of st.tabs) {
       const f = frames[t.id];
       if (!f) continue;
-      const i = M.paneOf(st, t.id), r = i >= 0 ? slots[i] : cur;
+      let i = M.paneOf(st, t.id);
+      if (i < 0 && cover.has(t.id)) i = cover.get(t.id);
+      const r = i >= 0 ? slots[i] : cur;
       if (!r) continue;
       Object.assign(f.style, { left: Math.round(r.left) + "px", top: Math.round(r.top) + "px", width: Math.round(r.width) + "px", height: Math.round(r.height) + "px" });
       f.classList.toggle("hidden", i < 0);
     }
+    lastIn = now;
   }
   function render() {
     for (const p of st.panes) frame(st.tabs.find((t) => t.id === p.tab));  // 顯示中的才載入
@@ -327,6 +352,7 @@
     else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*FOLI$/, ""); renderTabs(); save(); }
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
     else if (d.type === "key") key(String(d.key), !!d.shift);
+    else if (d.type === "painted" && from) revealed(from.id);  // 新開的分頁畫好了：淡入換上來
     else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方
     else if (d.type === "close-self" && from) { closeTab(from.id); goHome(""); tellLibrary(); }  // 筆記把自己刪了：關掉那個分頁、回文獻庫（那邊會出「復原」）
     else if (d.type === "notes-changed") tellLibrary(e.source);  // 筆記改了名字、圖示、建了副本…：文獻庫的清單馬上跟上

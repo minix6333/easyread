@@ -125,7 +125,7 @@
     if (cur === src || entry.want === src) return;
     if (cur && entry.ok === cur) { swapPage(entry, n, src); return; }
     if (!cur) entry.node.classList.add("loading");  // 只是記著「這一頁的圖在路上」；畫面上就是一張空白的紙（不閃骨架、不淡入，見 reader-panels.css）
-    img.onload = () => { entry.node.classList.remove("loading"); entry.ok = img.getAttribute("src"); entry.fails = 0; };
+    img.onload = () => { entry.node.classList.remove("loading"); entry.ok = img.getAttribute("src"); entry.fails = 0; if (PR.painted) PR.painted(); };
     // 載不到（伺服器正忙、那張圖還在做）：換清晰度沒成功就先用回原來那張。還在附近的話等一下再試
     img.onerror = () => {
       entry.node.classList.remove("loading");
@@ -183,6 +183,7 @@
     scroller.replaceChildren(...pageNodes.map(p => p.node));
     PR.resetTextLayers && PR.resetTextLayers();
     PR.emit && PR.emit("pages-built", pageNodes);  // pdfmode / pdftext 在頁上加文字層、標記、筆記欄
+    if (PR.painted) setTimeout(PR.painted, 500);  // 外殼等這一格畫好才換上來：第一張圖載得慢的話，頁框排好半秒後也算
   }
   PR.preloadPage = () => {}; // Images are loaded near the panel viewport.
   function updatePageLabel() {
