@@ -113,13 +113,14 @@
       .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + PR.icon(QICON[m] || (l === PR.t("翻譯") ? "en" : "list"), "sm") + "<span>" + l + "</span></button>").join("") + "</div>";
     const body = editing
       ? (PR.mdEd || ((h) => h))('<textarea rows="1" placeholder="' + (isQ ? PR.t("想問什麼？") : PR.t("寫筆記…")) + '">' + PR.esc(d.body || "") + "</textarea>", { bar: !isQ }) + quick +
-        '<div class="kinds"><span class="kseg"><button data-k="note" class="' + (!isQ ? "on" : "") + '">' + PR.t("笔记") + '</button><button data-k="question" class="' + (isQ ? "on" : "") + '">' + PR.t("提問") + "</button></span>" +
+        '<div class="kinds"><span class="kseg"><button data-k="note" class="' + (!isQ ? "on" : "") + '" title="' + PR.t("笔记") + '" aria-label="' + PR.t("笔记") + '">' + PR.icon(PR.hasIcon("sticky") ? "sticky" : "note", "sm") +
+          '</button><button data-k="question" class="' + (isQ ? "on" : "") + '" title="' + PR.t("提問") + '" aria-label="' + PR.t("提問") + '">' + PR.icon("help", "sm") + "</button></span>" +
         (isQ ? "" : colorDots(d)) + '<span class="grow"></span>' +
         (isQ && canAsk ? '<button class="ask-model" data-a="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
           '<button class="send" data-a="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("arrowUp", "sm") + "</button>"
           : "") + "</div>"
       : (d.body ? '<div class="body">' + PR.mdBlocks(d.body) + "</div>" : "");
-    return '<div class="card mine k-' + (d.kind || "note") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
+    return '<div class="card mine k-' + (d.kind || "note") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + (isQ && !answered ? (asking ? " asking" : " pending") : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       head + quote + body + replies.map(replyHtml).join("") + liveHtml(d.id) + linksHtml + "</div>";
   }
   PR.cardHtml = cardHtml;

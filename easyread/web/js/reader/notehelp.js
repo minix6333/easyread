@@ -14,9 +14,10 @@
     if (!PR.noteHelpOn()) return "";
     const empty = !noteNow().trim();
     const dis = ai.streaming ? " disabled" : "";
-    return '<span class="nh-btns">' + (empty ? '<button class="btn sm" data-nh="draft"' + dis + ">" + PR.icon("sparkle", "sm") + PR.t("AI 起个草稿") + "</button>"
-      : '<button class="btn sm" data-nh="review"' + dis + ">" + PR.icon("sparkle", "sm") + PR.t("AI 点评") + "</button>" +
-        '<button class="btn sm" data-nh="revise"' + dis + ">" + PR.t("AI 帮我改") + "</button>") + "</span>";
+    // 圖示鈕（字在滑鼠提示裡）：空的時候「起草稿」，有字了「點評」「幫我改」
+    const b = (k, icon, label) => '<button class="btn icon" data-nh="' + k + '" title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '"' + dis + ">" + PR.icon(icon, "sm") + "</button>";
+    return '<span class="nh-btns">' + (empty ? b("draft", PR.hasIcon("wand") ? "wand" : "sparkle", PR.t("AI 起个草稿"))
+      : b("review", PR.hasIcon("chats") ? "chats" : "sparkle", PR.t("AI 点评")) + b("revise", "edit", PR.t("AI 帮我改"))) + "</span>";
   };
 
   PR.noteHelpBox = function () {

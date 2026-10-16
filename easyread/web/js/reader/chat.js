@@ -291,10 +291,11 @@
     }
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
-      (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
+      (m.answer_style === "ste100" ? '<span class="cm-style" title="' + PR.t("简明回答") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("brief") ? "brief" : "list", "sm") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i>' + (live ? PR.waitStatus.html("chat") : "") + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
       (live ? '<div class="web-live" hidden></div>' : "") + '<div class="src-slot">' + PR.sourcesHtml(m.sources, live ? { live: true } : null) + "</div>" +
-      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + '</button><button data-c="tonote" title="' + PR.t("加進論文筆記的某個分類，或這一頁的筆記") + '">' + PR.icon("notebook", "sm") + PR.t("加入筆記") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
+      // 回答底下一排圖示：複製、加入筆記、放到頁邊（字在滑鼠提示裡）
+      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy" title="' + PR.t("复制") + '" aria-label="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + '</button><button data-c="tonote" title="' + PR.t("加入筆記：加進論文筆記的某個分類，或這一頁的筆記") + '" aria-label="' + PR.t("加入筆記") + '">' + PR.icon("notebook", "sm") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("放到页边：作为 AI 讨论放到这段旁边") + '" aria-label="' + PR.t("放到页边") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("sticky") ? "sticky" : "note", "sm") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
@@ -321,7 +322,7 @@
     // 简明回答（ASD-STE100 写作规则）：一个小开关放在模型旁边，不单独占一行
     const brief = st.answerStyle === "ste100";
     const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
-      PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
+      PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '" aria-label="' + PR.t("简明回答") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("brief") ? "brief" : "list", "sm") + "</button>";
     // 上網查資料：一顆地球（開著是強調色）；模型不能上網時是灰的、說明為什麼
     const webOk = PR.web.ok(m), webOn = webOk && PR.web.on();
     const web = '<button class="ch-web' + (webOn ? " on" : "") + '" data-c="web"' + (st.streaming || !webOk ? " disabled" : "") + ' aria-pressed="' + webOn + '" title="' +

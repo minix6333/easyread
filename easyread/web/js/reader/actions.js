@@ -47,8 +47,10 @@
 
   function showBar() {
     const acts = actionsFor(current).filter((a) => !a.menuOnly);
-    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" title="' + PR.esc(a.label) + (a.kbd ? PR.t("（{k}）", { k: a.kbd }) : "") + '">' + PR.icon(a.icon, "sm") + "<span>" + PR.esc(a.label) + "</span></button>").join("") +
-      '<button data-i="more" title="' + PR.t("更多（右键段落也可以）") + '">⋯</button>';
+    // 一排圖示（字在滑鼠提示裡），和選字工具列一樣；「PDF 第幾頁」那顆留著頁碼（數字一眼看得懂）
+    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" class="' + (a.k === "page" ? "pg" : "") + '" title="' + PR.esc(a.label) + (a.kbd ? PR.t("（{k}）", { k: a.kbd }) : "") + '" aria-label="' + PR.esc(a.label) + '">' + PR.icon(a.icon, "sm") +
+      (a.k === "page" && PR.blockById[current] && PR.blockById[current].page ? "<span>" + PR.blockById[current].page + "</span>" : "") + "</button>").join("") +
+      '<button data-i="more" title="' + PR.t("更多（右键段落也可以）") + '">' + PR.icon("more", "sm") + "</button>";
     bar().onclick = (e) => {
       const b = e.target.closest("[data-i]");
       if (!b) return;

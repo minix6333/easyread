@@ -35,7 +35,7 @@ async function reader(threads = [], options = {}) {
     api: async () => ({ threads: structuredClone(threads), models: [{ id: "m", label: "Model" }, { id: "m2", label: "Other model" }], default: "m" }),
     confirm: async opts => { confirmations.push(opts); return true; },
     nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {},
-    esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
+    esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), icon: () => "", hasIcon: () => true, logo: () => "", md: text => text, mdBlocks: text => text,
     throttle: fn => fn, debounce: fn => fn, usageChip: () => "", usagePop: () => "", toast() {},
     // 上網查資料的開關（util.js）、來源清單（markup.js）、狀態的字：照真的那幾個的樣子
     webState: true,
@@ -103,7 +103,7 @@ test("STE selection reaches the request, stays fixed during streaming, and copie
   await sending;
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "ste100");
   assert.equal(r.nodes.get("#chatAnswerStyle").disabled, false);
-  assert.ok(r.panel.innerHTML.includes('class="cm-style">简明回答</span>'));
+  assert.ok(r.panel.innerHTML.includes('class="cm-style" title="简明回答"'));
   assert.ok(r.panel.innerHTML.includes('class="ch-pill on"'));
   assert.ok(!r.panel.innerHTML.includes("英文在前"));
   assert.ok(r.panel.innerHTML.includes(answer));

@@ -76,11 +76,14 @@
 
   function syncBar() {
     const L = PR.viewLabels(), v = PR.readingView();
+    // 頂欄的原文／譯文／雙語是三顆圖示（書本、翻譯、兩欄），字在滑鼠提示裡
+    const VICON = { original: "origtext", translation: "langs", both: "cols2" };
     PR.$$("#bar [data-view]").forEach((btn) => {
-      const k = btn.dataset.view;
-      btn.textContent = L[k];
+      const k = btn.dataset.view, ic = PR.hasIcon(VICON[k]) ? PR.icon(VICON[k], "sm") : PR.esc(L[k]);
+      if (btn._ic !== ic) { btn._ic = ic; btn.innerHTML = ic; }
       btn.classList.toggle("on", v === k);
       btn.title = viewTitle(k, L);
+      btn.setAttribute("aria-label", L[k]);
     });
     const caret = PR.$("#bar [data-order-menu]");
     if (caret) {

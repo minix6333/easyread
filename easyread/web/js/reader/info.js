@@ -8,7 +8,7 @@
   const open = () => PR.side === "info";
   const meta = () => (S.paper && S.paper.meta) || {};
   const item = () => S.item || {};
-  const STATUS = [["unread", PR.t("未读")], ["reading", PR.t("在读")], ["done", PR.t("已读")]];
+  const STATUS = [["unread", PR.t("未读"), "unread"], ["reading", PR.t("在读"), "reading"], ["done", PR.t("已读"), "check2"]];  // 閱讀狀態：三顆圖示（虛線圈、圈中一點、打勾）
 
   function counts() {
     const c = { highlight: 0, note: 0, question: 0, ai: 0 };
@@ -20,8 +20,10 @@
     c.ai = ((S.discussion || {}).entries || []).length;
     return c;
   }
-  const row = (icon, label, value) => (value ? '<div class="in-row">' + PR.icon(icon, "sm") + "<span>" + label + "</span><b>" + value + "</b></div>" : "");
-  const act = (icon, label, attrs) => "<" + (attrs.href ? "a" : "button") + ' class="in-act"' + Object.entries(attrs).map(([k, v]) => " " + k + '="' + PR.esc(v) + '"').join("") + ">" + PR.icon(icon, "sm") + "<span>" + label + "</span></" + (attrs.href ? "a" : "button") + ">";
+  // 一列：圖示＋值（欄位名稱在滑鼠提示裡，畫面上不寫「來源」「日期」這些字）
+  const row = (icon, label, value) => (value ? '<div class="in-row" title="' + PR.esc(label) + '">' + PR.icon(icon, "sm") + "<b>" + value + "</b></div>" : "");
+  // 操作是一排圖示鈕（開原 PDF、複製引用、匯出筆記），字在滑鼠提示裡
+  const act = (icon, label, attrs) => "<" + (attrs.href ? "a" : "button") + ' class="in-act" title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '"' + Object.entries(attrs).map(([k, v]) => " " + k + '="' + PR.esc(v) + '"').join("") + ">" + PR.icon(icon, "sm") + "</" + (attrs.href ? "a" : "button") + ">";
 
   function render() {
     const m = meta(), it = item(), n = (m.pages || []).length || m.page_count || 0;
@@ -34,20 +36,20 @@
     panel.innerHTML = '<div class="in-body">' +
       '<div class="in-head"><h2>' + PR.esc(zh || en || m.short_zh || "") + "</h2>" + (zh && en ? '<p class="in-en">' + PR.esc(en) + "</p>" : "") +
       (m.authors ? '<p class="by">' + PR.esc(m.authors) + (m.affiliation ? " · " + PR.esc(m.affiliation) : "") + "</p>" : "") + "</div>" +
-      (PR.store.mode === "server" ? '<div class="in-status"><div class="seg">' + STATUS.map(([k, l]) => '<button data-in-status="' + k + '"' + (k === status ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>" +
+      (PR.store.mode === "server" ? '<div class="in-status"><div class="seg">' + STATUS.map(([k, l, ic]) => '<button data-in-status="' + k + '" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '"' + (k === status ? ' class="on"' : "") + ">" + PR.icon(PR.hasIcon(ic) ? ic : "check", "sm") + "</button>").join("") + "</div>" +
         '<button class="btn icon in-star' + (starred ? " on" : "") + '" data-in="star" title="' + (starred ? PR.t("取消星标") : PR.t("加星标")) + '">' + PR.icon("star", "sm") + "</button></div>" : "") +
-      '<h4 class="in-h">' + PR.t("屬性") + '</h4><div class="in-rows">' +
+      '<div class="in-rows">' +
       row("link", PR.t("來源"), src ? (m.url ? '<a href="' + PR.esc(m.url) + '" target="_blank" rel="noopener">' + PR.esc(src) + "</a>" : PR.esc(src)) : "") +
       row("clock", PR.t("日期"), PR.esc(m.date || m.year || "")) +
       row("page", PR.t("頁數"), n ? PR.t("{n} 页", { n }) + (m.kind && m.kind !== "paper" ? " · " + PR.esc(PR.kindName(m.kind)) : "") : "") +
       row("book", PR.t("譯文"), n ? (done >= n ? PR.t("都譯好了") : done ? PR.t("已译 {done} / {n} 页", { done, n }) : PR.t("還沒有")) : "") +
       row("plus", PR.t("加入"), it.added ? PR.esc(PR.relTime(it.added)) : "") +
       "</div>" +
-      (n && page ? '<h4 class="in-h">' + PR.t("進度") + '</h4><div class="in-prog"><i style="width:' + Math.round((Math.min(n, page) / n) * 100) + '%"></i></div><p class="in-note">' + PR.t("第 {p} / {n} 页", { p: page, n }) + "</p>" : "") +
-      '<h4 class="in-h">' + PR.t("標記") + '</h4><div class="in-chips">' +
-      [["highlight", PR.t("畫線"), "marker"], ["note", PR.t("筆記"), "note"], ["question", PR.t("提問"), "question"], ["ai", "AI", "sparkle"]].map(([k, l, ic]) =>
-        '<button data-in="notes"' + (c[k] ? "" : ' class="zero"') + ">" + PR.icon(ic, "sm") + "<span>" + l + "</span><b>" + c[k] + "</b></button>").join("") + "</div>" +
-      '<h4 class="in-h">' + PR.t("操作") + '</h4><div class="in-acts">' +
+      (n && page ? '<div class="in-prog" title="' + PR.t("第 {p} / {n} 页", { p: page, n }) + '"><i style="width:' + Math.round((Math.min(n, page) / n) * 100) + '%"></i></div><p class="in-note">' + PR.t("第 {p} / {n} 页", { p: page, n }) + "</p>" : "") +
+      '<div class="in-chips">' +
+      [["highlight", PR.t("畫線"), "highlighter"], ["note", PR.t("筆記"), "sticky"], ["question", PR.t("提問"), "help"], ["ai", "AI", "sparkle"]].map(([k, l, ic]) =>
+        '<button data-in="notes" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '"' + (c[k] ? "" : ' class="zero"') + ">" + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + "<b>" + c[k] + "</b></button>").join("") + "</div>" +
+      '<div class="in-acts">' +
       (pdf ? act("pdf", PR.t("打开原 PDF"), { href: pdf, target: "_blank", rel: "noopener" }) : "") +
       (PR.cite ? act("copy", PR.t("复制引用"), { "data-in": "cite" }) : "") +
       act("download", PR.t("导出笔记…"), { "data-in": "export" }) +

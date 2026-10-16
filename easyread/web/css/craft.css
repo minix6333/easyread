@@ -1274,3 +1274,61 @@ body.resizing #inspTabs { transition: none; }
 /* 面板之間切換（筆記⇄問 AI⇄資訊）：兩個都不滑，新的淡進來（pageview.js 的 swapSide） */
 body.side-swap .side-panel { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { body.insp-col #inspTabs { transition: visibility 0s; } }
+
+/* ======================= 閱讀頁：字換成圖示（第三次大更新之後）=======================
+   面板分頁、原文／譯文／雙語、筆記面板的本頁／全部／總結和篩選、本頁的 AI 鈕、資訊面板的閱讀狀態和操作、段落操作條、
+   問 AI 的回答動作和簡明回答、便利貼的筆記／提問：都只剩圖示（字在滑鼠提示裡），數字留著（一眼看得懂）。 */
+#inspTabs > button[role="tab"] { width: 36px; padding: 0; display: grid; place-items: center; opacity: .5; }
+#inspTabs > button[role="tab"] svg.i { width: 17px; height: 17px; }
+#inspTabs > button[role="tab"].on { opacity: 1; background: var(--row-on); color: var(--accent); }
+#bar .view-seg > button[data-view] { width: 34px; padding: 0; display: inline-grid; place-items: center; }
+#bar .view-seg > button[data-view] svg.i { width: 16px; height: 16px; }
+#bar .view-seg [data-view="both"] { padding-right: 0; }
+.np-head .seg > button[data-np] { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.np-head .seg > button[data-np] svg.i { width: 16px; height: 16px; }
+.np-head .seg > button[data-np] .n, .np-filters > button .n { font: 600 11px var(--ui); font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-3); }
+.np-filters > button[data-nf] { display: inline-flex; align-items: center; gap: 4px; min-width: 32px; justify-content: center; padding: 0 9px; }
+.np-filters > button[data-nf] svg.i { width: 14px; height: 14px; }
+.np-filters > button[data-nf].on .n { color: inherit; opacity: .8; }
+.np-ptools { display: flex; gap: 6px; padding: 8px 14px 0; }
+.np-ptools .btn.icon { width: 34px; height: 32px; border-radius: 10px; background: var(--ctl-bg, var(--fill)); box-shadow: inset 0 0 0 .5px var(--ctl-line, var(--line)); color: var(--ink-2); }
+.np-ptools .btn.icon:hover { color: var(--ink); background: var(--ctl-hover, var(--fill-2)); }
+.np-sub { display: flex; align-items: center; gap: 5px; color: var(--ink-3); font: 600 11.5px var(--ui); }
+.np-sub svg.i { width: 13px; height: 13px; }
+.nh-btns { display: inline-flex; gap: 4px; }
+.np-tools .btn.icon, .nh-btns .btn.icon { width: 32px; height: 30px; border-radius: 9px; color: var(--ink-2); }
+.np-tools .btn.icon:hover, .nh-btns .btn.icon:hover { background: var(--row-hover); color: var(--accent); }
+/* 資訊面板：閱讀狀態三顆圖示、標記數一排四格、操作一排圖示鈕 */
+.in-status .seg > button { display: inline-grid; place-items: center; }
+.in-status .seg > button svg.i { width: 16px; height: 16px; }
+.in-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.in-chips button { justify-content: center; gap: 6px; padding: 0 8px; }
+.in-chips button.zero { opacity: .45; }
+.in-acts { display: flex; gap: 6px; }
+.in-acts .in-act { width: 40px; height: 36px; padding: 0; border-radius: 11px; display: inline-grid; place-items: center; justify-content: center; }
+.in-acts .in-act svg.i { width: 16px; height: 16px; }
+.in-rows { margin-top: 16px; }
+.in-prog { margin-top: 18px; }
+.in-chips, .in-acts { margin-top: 16px; }
+/* 段落操作條：一排圖示；「PDF 第幾頁」那顆留著頁碼 */
+#blockbar button { width: 32px; padding: 0; justify-content: center; }
+#blockbar button.pg { width: auto; padding: 0 9px 0 7px; gap: 4px; font: 600 11.5px var(--ui); font-variant-numeric: tabular-nums; }
+/* 問 AI：回答底下的動作是一排圖示；簡明回答是一顆圖示開關；右下角的「問 AI」只剩 ✦ */
+.cm.ai .acts button { width: 30px; height: 28px; padding: 0; justify-content: center; border-radius: 8px; }
+.cm.ai .acts button svg.i { width: 15px; height: 15px; }
+.ch-pill { width: 32px; padding: 0; display: inline-grid; place-items: center; }
+.ch-pill svg.i { width: 16px; height: 16px; }
+.cm-style svg.i { width: 13px; height: 13px; vertical-align: -2px; }
+.pv-ai .fab.primary::after { content: none; }
+.pv-ai .fab.primary { width: 44px; height: 44px; padding: 0; border-radius: 14px; display: grid; place-items: center; }
+.pv-ai .fab.primary svg.i { width: 19px; height: 19px; color: var(--accent); }
+/* 便利貼的「筆記／提問」：兩顆圖示；標題列只留圖示和時間（「我的筆記」這幾個字藏起來給讀屏用），還沒回答的提問圖示旁一個小點 */
+.card .kseg button { width: 34px; padding: 0; display: inline-grid; place-items: center; }
+.card .kseg button svg.i { width: 15px; height: 15px; }
+.card.mine > .hd > .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.card.mine.pending > .hd > .ic { position: relative; }
+.card.mine.pending > .hd > .ic::after { content: ""; position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--note-bg); }
+.card.mine.asking > .hd > .ic { animation: ic-pulse 1.1s ease-in-out infinite; }
+@keyframes ic-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .card.mine.asking > .hd > .ic { animation: none; } }
+.in-row > b { flex: 1; text-align: left; font-weight: 500; }

@@ -143,12 +143,12 @@
       (writing ? '<div class="np-pview writing"><div class="pw-body">' + PR.mdBlocks(joined(pw.base, pw.text), { live: true }) + '</div><p class="thinking"><i></i><i></i><i></i></p></div>'
         : '<div class="np-bk page" id="npPageEd" data-page="' + p + '"></div>') +
       '<div class="np-ptools">' +
-      (writing ? '<button class="btn sm line" data-np-act="pwstop">' + PR.icon("stop", "sm") + PR.t("停止") + "</button>"
-        : canWrite ? '<button class="btn sm line" data-np-act="pwrite"' + (pw ? " disabled" : "") + ' title="' + PR.t("AI 把這一頁講明白，寫進這一頁的筆記（接在你寫的後面）") + '">' + PR.icon("sparkle", "sm") + PR.t("幫這頁寫筆記") + "</button>" : "") +
-      (canAsk() ? '<button class="btn sm line" data-np-act="explain">' + PR.icon("help", "sm") + PR.t("解釋這一頁") + "</button>" : "") +
-      (pdf() ? '<button class="btn sm line" data-np-act="region">' + PR.icon("region", "sm") + PR.t("框選") + "</button>" : "") + "</div>" +
-      '<div class="np-sub">' + PR.t("這一頁的標記") + (items.length ? " · " + items.length : "") + "</div>" +
-      '<div class="np-list">' + (items.length ? items.map((it) => PR.cardHtml(it, editing)).join("") : '<p class="hint np-empty">' + PR.t("選取文字就能畫線、寫筆記、問 AI") + "</p>") + "</div>" +
+      (writing ? '<button class="btn icon" data-np-act="pwstop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
+        : canWrite ? '<button class="btn icon" data-np-act="pwrite"' + (pw ? " disabled" : "") + ' title="' + PR.t("幫這頁寫筆記：AI 把這一頁講明白，寫進這一頁的筆記（接在你寫的後面）") + '">' + PR.icon(PR.hasIcon("wand") ? "wand" : "sparkle", "sm") + "</button>" : "") +
+      (canAsk() ? '<button class="btn icon" data-np-act="explain" title="' + PR.t("解釋這一頁") + '">' + PR.icon("bulb", "sm") + "</button>" : "") +
+      (pdf() ? '<button class="btn icon" data-np-act="region" title="' + PR.t("框選一塊問 AI 或寫筆記") + '">' + PR.icon("region", "sm") + "</button>" : "") + "</div>" +
+      (items.length ? '<div class="np-sub">' + PR.icon("highlighter", "sm") + "<span>" + items.length + "</span></div>" : "") +
+      '<div class="np-list">' + items.map((it) => PR.cardHtml(it, editing)).join("") + "</div>" +
       (PR.notesAi ? PR.notesAi.bar("page") : "") + "</div>";
   }
 
@@ -158,7 +158,7 @@
   };
   function paperHtml() {
     const body = (S.reader.paper_note || {}).body || "";
-    return '<div class="np-paper"><div class="np-tools"><button class="btn sm line" data-np-act="template"' + (body.trim() ? " hidden" : "") + ">" + PR.icon("template", "sm") + PR.t("套用範本") + '</button><span class="grow"></span>' + PR.noteHelpButtons() + "</div>" +
+    return '<div class="np-paper"><div class="np-tools"><button class="btn icon" data-np-act="template" title="' + PR.t("套用範本") + '"' + (body.trim() ? " hidden" : "") + ">" + PR.icon("template", "sm") + '</button><span class="grow"></span>' + PR.noteHelpButtons() + "</div>" +
       '<div class="np-bk paper" id="npPaperEd"></div>' + PR.noteHelpBox() + (PR.notesAi ? PR.notesAi.bar("paper") : "") + "</div>";
   }
 
@@ -167,9 +167,10 @@
     const all = allItems(), count = { all: all.length, mine: 0, hl: 0, q: 0, agent: 0, star: 0 };
     for (const it of all) { const k = KEEP(it); for (const key of ["mine", "hl", "q", "agent", "star"]) if (k[key]) count[key]++; }
     const used = new Set(all.filter((it) => it.src === "mine" && it.data.kind !== "question" && (it.data.quote || it.data.region)).map((it) => it.data.color || "yellow"));
-    const chips = [["all", PR.t("全部")], ["mine", PR.t("笔记")], ["hl", PR.t("划线")], ["q", PR.t("提問")], ["agent", "AI"], ["star", PR.t("重點頁")]]
+    // 篩選：一排圖示＋條數（全部、筆記、畫線、提問、AI、重點頁），字在滑鼠提示裡
+    const chips = [["all", PR.t("全部"), "layers"], ["mine", PR.t("笔记"), "sticky"], ["hl", PR.t("划线"), "highlighter"], ["q", PR.t("提問"), "help"], ["agent", "AI", "sparkle"], ["star", PR.t("重點頁"), "star"]]
       .filter(([k]) => k === "all" || count[k] || filter === k)
-      .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + (k !== "all" && count[k] ? '<i class="n">' + count[k] + "</i>" : "") + "</button>").join("");
+      .map(([k, l, ic]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '">' + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + (k !== "all" && count[k] ? '<i class="n">' + count[k] + "</i>" : "") + "</button>").join("");
     const dots = used.size > 1 || color ? '<span class="dots">' + PR.HL_COLORS.filter(([c]) => used.has(c) || color === c).map(([c, name]) => '<button data-nc="' + c + '" class="dot-' + c + (color === c ? " on" : "") + '" title="' + name + '"></button>').join("") + "</span>" : "";
     return '<div class="np-search">' + PR.icon("search", "sm") + '<input id="npSearch" placeholder="' + PR.t("搜尋筆記…") + '" value="' + PR.esc(query) + '">' +
       '<button class="btn icon sm np-sort' + (sortBy === "recent" ? " on" : "") + '" data-np-act="sort" title="' + (sortBy === "recent" ? PR.t("現在照時間排（最新的在前）；點一下改成照頁") : PR.t("現在照頁排；點一下改成照時間（最新的在前）")) + '">' + PR.icon(sortBy === "recent" ? "clock" : "sort", "sm") + "</button>" +
@@ -192,8 +193,9 @@
     flushPageNote();
     if (tab === "page" && !detached) panelPage = Math.max(1, Math.min(pageCount() || 1, curPage()));
     const count = allItems().length;
-    const seg = [["page", PR.t("本頁")], ["notes", PR.t("全部") + (count ? ' <i class="n">' + count + "</i>" : "")], ["paper", PR.t("總結")]]
-      .map(([k, l]) => '<button data-np="' + k + '" class="' + (tab === k ? "on" : "") + '">' + l + "</button>").join("");
+    // 本頁／全部／總結：三顆圖示（頁、一疊、捲軸），字在滑鼠提示裡；全部的旁邊是條數
+    const seg = [["page", PR.t("本頁"), "page"], ["notes", PR.t("全部"), "layers", count], ["paper", PR.t("總結"), "summary"]]
+      .map(([k, l, ic, n]) => '<button data-np="' + k + '" class="' + (tab === k ? "on" : "") + '" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '">' + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + (n ? '<i class="n">' + n + "</i>" : "") + "</button>").join("");
     const keep = el.querySelector(".np-list") ? el.querySelector(".np-list").scrollTop : 0;
     el.innerHTML = '<div class="np-head"><div class="seg">' + seg + '</div><span class="grow"></span><button class="btn icon" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.icon("download", "sm") + "</button>" +
       (PR.notesOnly ? "" : '<button class="btn icon" data-np-act="popout" title="' + PR.t("拉成獨立視窗") + '">' + PR.icon("popout", "sm") + "</button>" +

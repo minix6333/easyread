@@ -20,6 +20,9 @@ const UI = {
   folderopen: "folder-open", folderplus: "folder-plus", notes: "notebook-text", doc: "file-text", insert: "between-horizontal-start", textsize: "a-large-small",
   emphasis: "baseline", caption: "subscript", check2: "circle-check", circle: "circle", history: "history", words: "whole-word", map: "map-pin",
   globe: "globe", linkout: "external-link", websearch: "search-check",
+  // 2.1.0-tw.13：閱讀頁的字換成圖示（原文／譯文／雙語、面板分頁、筆記面板、閱讀狀態、簡明回答…）
+  langs: "languages", cols2: "columns-2", sticky: "sticky-note", unread: "circle-dashed", reading: "circle-dot", chats: "messages-square",
+  layers: "layers", summary: "scroll-text", brief: "text", gauge: "gauge", origtext: "book-open-text", notepen: "notebook-pen",
 };
 
 const PICK = [

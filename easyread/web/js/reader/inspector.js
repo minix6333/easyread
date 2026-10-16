@@ -8,13 +8,14 @@
   const pdf = () => !!(PR.pdfMain && PR.pdfMain());
   function paint() {
     // PDF 優先時「譯文」不是側面板（它開在 PDF 和面板中間，頂欄那顆書本鈕在管）：分頁只有筆記、問 AI；文章優先時多一個「原頁」
+    // 分頁是一排圖示（字在滑鼠提示裡）：筆記、問 AI、資訊；文章優先時多一個原頁
     const tabs = [
-      ["pages", PR.t("原頁"), body.classList.contains("pv-open"), !pdf() && (PR.feature ? PR.feature("pages") !== false : true)],
-      ["notes", PR.t("筆記"), body.classList.contains("np-open"), true],
-      ["chat", PR.t("問 AI"), body.classList.contains("ch-open"), PR.feature ? PR.feature("chat") !== false : true],
-      ["info", PR.t("資訊"), body.classList.contains("in-open"), !!PR.toggleInfo],
+      ["pages", PR.t("原頁"), body.classList.contains("pv-open"), !pdf() && (PR.feature ? PR.feature("pages") !== false : true), "pdf"],
+      ["notes", PR.t("筆記"), body.classList.contains("np-open"), true, PR.hasIcon("notepen") ? "notepen" : "note"],
+      ["chat", PR.t("問 AI"), body.classList.contains("ch-open"), PR.feature ? PR.feature("chat") !== false : true, "sparkle"],
+      ["info", PR.t("資訊"), body.classList.contains("in-open"), !!PR.toggleInfo, "info"],
     ];
-    strip.innerHTML = tabs.filter((t) => t[3]).map(([k, label, on]) => '<button role="tab" data-insp="' + k + '"' + (on ? ' class="on" aria-selected="true"' : "") + ">" + label + "</button>").join("") +
+    strip.innerHTML = tabs.filter((t) => t[3]).map(([k, label, on, , icon]) => '<button role="tab" data-insp="' + k + '" title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '"' + (on ? ' class="on" aria-selected="true"' : "") + ">" + PR.icon(icon, "sm") + "</button>").join("") +
       '<span class="grow"></span><button class="btn icon insp-x" data-insp="close" title="' + PR.t("關閉") + '">' + PR.icon("x", "sm") + "</button>";
     const b = PR.$('[data-act="insp"]');
     if (b) b.classList.toggle("on", !!PR.side);
