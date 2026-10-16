@@ -123,13 +123,15 @@
     if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
     // 外觀那一頁：點了就換、馬上存，不用按儲存
     const pick = (attr, apply) => { const b = e.target.closest("[" + attr + "]"); if (!b) return false; apply(b.getAttribute(attr)); PR.$$("[" + attr + "]", dlg()).forEach((x) => x.classList.toggle("on", x === b)); return true; };
+    const sk = e.target.closest("[data-skin-pick]");
+    if (sk) { PR.setSkin(sk.dataset.skinPick); return render(); }  // 換主題：整套一起換（強調色、背景跟著主題），畫面淡入淡出
     if (pick("data-accent-pick", (v) => PR.setLook("accent", v))) return;
     if (pick("data-paper-pick", (v) => PR.setLook("paper", v))) return;
     if (pick("data-backdrop-pick", (v) => PR.setLook("backdrop", v))) return;
     if (e.target.closest("[data-backdrop-add]")) { PR.$("[data-backdrop-file]", dlg()).click(); return; }
     if (pick("data-look-theme", (v) => { st.theme = v; PR.setTheme(v); })) return;
     if (e.target.closest("[data-look-reset]")) {
-      for (const [key, v] of [["accent", "violet"], ["paper", "white"], ["backdrop", "mist"], ["tint", 0], ["hl", 100]]) PR.setLook(key, v);
+      for (const [key, v] of [["skin", ""], ["accent", "violet"], ["paper", "white"], ["backdrop", "auto"], ["tint", 0], ["hl", 100]]) PR.setLook(key, v);
       if (PR.setGlass) { PR.setGlass(60); PR.setClear(75); }
       return render();
     }
@@ -144,6 +146,13 @@
     if (!r) return;
     r.style.setProperty("--p", Math.round(((+r.value - +r.min) / (+r.max - +r.min)) * 100) + "%");  // 軌道填到哪裡
     if (r.dataset.look) PR.setLook(r.dataset.look, +r.value);
+    else if (r.dataset.skinCustom) {  // 自訂主題的滑桿：拉著就換；滑桿自己的顏色（色相軌道）、上面的預覽卡跟著變
+      const c = Object.assign({}, PR.look().skinCustom, { [r.dataset.skinCustom]: +r.value });
+      PR.setLook("skinCustom", c);
+      PR.$$("input[data-skin-custom]", dlg()).forEach((x) => { x.style.setProperty("--h", c.h); x.style.setProperty("--a", c.a); });
+      const card = PR.$('.skin-card[data-skin-pick="custom"] .sk-scope', dlg());
+      if (card) card.setAttribute("style", PR.customSkin(c));
+    }
     else if (r.hasAttribute("data-glass-level") && PR.setGlass) PR.setGlass(+r.value);  // 不能用 data-glass：那是玻璃元素自己的記號
     else if (r.hasAttribute("data-clear-level") && PR.setClear) PR.setClear(+r.value);
   });

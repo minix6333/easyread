@@ -1,0 +1,152 @@
+/* FOLI 的主題（2.1.0-tw.12，設定 → 外觀 → 主題）。照 Craft 的主題做法：一個主題只決定幾個基本色——
+   紙（--sk-sheet：卡片、筆記、文獻的紙面）、字（--sk-ink）、材質（--sk-mat：視窗、側欄、頂欄那一層）、畫布（--sk-canvas）、強調色（--sk-accent）、
+   背景（--sk-bd：整個視窗後面那張漸層，「背景：跟著主題」時用），淺色、深色各一份；其餘的顏色（次要字、髮線、控制項、選取、浮層…）都從這幾個算出來，
+   所以每個主題的每一頁、每個元件都是同一套配色。每組都量過對比度：內文 ≥ 11:1、次要字 ≥ 4.8、淡字 ≥ 3、連結 ≥ 4.8（scratch 的 palette.py）。
+   預設（原色）不加 data-skin，照舊是 base.css＋craft.css 那一套。這個檔排在每一頁最後。
+   [data-skin] 不限 <html>：設定裡的預覽卡（.sk-scope）也用同一套，卡片自己就是那個主題的樣子。 */
+/* 霧藍 */
+[data-skin="mist"] { --sk-sheet: #F7F9FC; --sk-ink: #1C2733; --sk-mat: #E3E8EF; --sk-canvas: #ECF0F5; --sk-accent: #3B6BB0;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(255,255,255,.9), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(170,192,224,.7), transparent 62%), linear-gradient(180deg, #dfe5ee 0%, #cfd8e4 55%, #bccadb 100%); }
+[data-theme="dark"][data-skin="mist"], [data-theme="dark"] [data-skin="mist"], .sk-scope[data-skin="mist"][data-mode="dark"] { --sk-sheet: #19212B; --sk-ink: #DFE7F0; --sk-mat: #11171F; --sk-canvas: #151C25; --sk-accent: #86ABE8;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(110,140,190,.45), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(80,100,140,.35), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #2a3442 0%, #1c2430 50%, #10151b 100%); }
+/* 紙本 */
+[data-skin="paper"] { --sk-sheet: #FCF8F1; --sk-ink: #3A3026; --sk-mat: #EAE1D2; --sk-canvas: #F2EBDF; --sk-accent: #A9572F;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(255,247,232,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(232,196,160,.7), transparent 62%), linear-gradient(180deg, #ece2d1 0%, #e2d4bf 55%, #d3c3ab 100%); }
+[data-theme="dark"][data-skin="paper"], [data-theme="dark"] [data-skin="paper"], .sk-scope[data-skin="paper"][data-mode="dark"] { --sk-sheet: #25211B; --sk-ink: #EEE5D7; --sk-mat: #1A1713; --sk-canvas: #1F1B16; --sk-accent: #E3A07A;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(190,130,90,.42), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(140,110,80,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #3a3128 0%, #28221c 50%, #171410 100%); }
+/* 鼠尾草 */
+[data-skin="sage"] { --sk-sheet: #F6F8F3; --sk-ink: #243127; --sk-mat: #E0E6DA; --sk-canvas: #EAEEE5; --sk-accent: #3B7553;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(244,250,240,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(188,214,190,.75), transparent 62%), linear-gradient(180deg, #dfe7da 0%, #d2ddcc 55%, #c1cfba 100%); }
+[data-theme="dark"][data-skin="sage"], [data-theme="dark"] [data-skin="sage"], .sk-scope[data-skin="sage"][data-mode="dark"] { --sk-sheet: #1C221E; --sk-ink: #DCE6DE; --sk-mat: #141915; --sk-canvas: #181E1A; --sk-accent: #82C69F;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(110,160,125,.42), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(130,140,100,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #2a3a30 0%, #1d2822 50%, #121814 100%); }
+/* 海鹽 */
+[data-skin="sea"] { --sk-sheet: #F3F9F9; --sk-ink: #12383D; --sk-mat: #DBEAEB; --sk-canvas: #E6F1F2; --sk-accent: #0F7379;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(236,250,252,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(158,214,218,.7), transparent 62%), linear-gradient(180deg, #d8e9eb 0%, #c9dfe2 55%, #b6d0d4 100%); }
+[data-theme="dark"][data-skin="sea"], [data-theme="dark"] [data-skin="sea"], .sk-scope[data-skin="sea"][data-mode="dark"] { --sk-sheet: #15242A; --sk-ink: #D4ECEE; --sk-mat: #0E191D; --sk-canvas: #121F24; --sk-accent: #62C7CD;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(60,150,160,.45), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(50,110,140,.35), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #1f3a40 0%, #15282d 50%, #0c171a 100%); }
+/* 薰衣草 */
+[data-skin="lavender"] { --sk-sheet: #F9F7FD; --sk-ink: #2C2542; --sk-mat: #E7E2F3; --sk-canvas: #EFEBF8; --sk-accent: #6450BE;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(250,246,255,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(204,190,240,.75), transparent 62%), linear-gradient(180deg, #e6e0f2 0%, #dad2ec 55%, #cbc1e2 100%); }
+[data-theme="dark"][data-skin="lavender"], [data-theme="dark"] [data-skin="lavender"], .sk-scope[data-skin="lavender"][data-mode="dark"] { --sk-sheet: #201D2B; --sk-ink: #E5E0F4; --sk-mat: #16141F; --sk-canvas: #1B1925; --sk-accent: #AB9BF2;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(140,120,220,.45), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(170,110,170,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #322c4a 0%, #221f33 50%, #14121f 100%); }
+/* 玫瑰 */
+[data-skin="rose"] { --sk-sheet: #FDF7F7; --sk-ink: #44252C; --sk-mat: #F0E1E3; --sk-canvas: #F6EBED; --sk-accent: #B4435F;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(255,244,244,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(236,186,198,.7), transparent 62%), linear-gradient(180deg, #efe0e2 0%, #e6d1d5 55%, #d9c0c5 100%); }
+[data-theme="dark"][data-skin="rose"], [data-theme="dark"] [data-skin="rose"], .sk-scope[data-skin="rose"][data-mode="dark"] { --sk-sheet: #291F21; --sk-ink: #F2DEE2; --sk-mat: #1D1517; --sk-canvas: #231A1C; --sk-accent: #F093A9;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(200,100,130,.42), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(150,90,120,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #3c2a2f 0%, #2a1e22 50%, #181114 100%); }
+/* 蜂蜜 */
+[data-skin="honey"] { --sk-sheet: #FFFAEE; --sk-ink: #463210; --sk-mat: #F0E3C3; --sk-canvas: #F7EED8; --sk-accent: #9A5F06;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(255,250,228,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(240,206,130,.65), transparent 62%), linear-gradient(180deg, #f1e5c6 0%, #eadab0 55%, #dfcb98 100%); }
+[data-theme="dark"][data-skin="honey"], [data-theme="dark"] [data-skin="honey"], .sk-scope[data-skin="honey"][data-mode="dark"] { --sk-sheet: #28210F; --sk-ink: #F5E6C4; --sk-mat: #1C170B; --sk-canvas: #221C0E; --sk-accent: #EFB455;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(220,160,60,.4), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(160,120,50,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #3d3218 0%, #2a2312 50%, #18140a 100%); }
+/* 夜空 */
+[data-skin="night"] { --sk-sheet: #F6F8FE; --sk-ink: #18213F; --sk-mat: #E1E6F6; --sk-canvas: #EBEFFA; --sk-accent: #3852C4;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(246,248,255,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(170,184,240,.7), transparent 62%), linear-gradient(180deg, #e0e6f6 0%, #d0d8f0 55%, #bdc8e8 100%); }
+[data-theme="dark"][data-skin="night"], [data-theme="dark"] [data-skin="night"], .sk-scope[data-skin="night"][data-mode="dark"] { --sk-sheet: #141B31; --sk-ink: #DCE3FA; --sk-mat: #0C1124; --sk-canvas: #10162B; --sk-accent: #93AAFF;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(90,110,220,.5), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(120,90,200,.35), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #1e2a52 0%, #141c38 50%, #0a0f20 100%); }
+/* 拿鐵 */
+[data-skin="latte"] { --sk-sheet: #FAF6F2; --sk-ink: #3A2E27; --sk-mat: #E6DCD2; --sk-canvas: #EFE8E0; --sk-accent: #87573A;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(253,248,242,.95), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(212,184,160,.7), transparent 62%), linear-gradient(180deg, #e8ddd2 0%, #ddcfc2 55%, #cfbfaf 100%); }
+[data-theme="dark"][data-skin="latte"], [data-theme="dark"] [data-skin="latte"], .sk-scope[data-skin="latte"][data-mode="dark"] { --sk-sheet: #231E1A; --sk-ink: #ECE1D8; --sk-mat: #181411; --sk-canvas: #1D1915; --sk-accent: #D6A584;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(190,140,110,.4), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(140,110,90,.3), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #3a2f28 0%, #29221d 50%, #171310 100%); }
+/* 墨 */
+[data-skin="ink"] { --sk-sheet: #FFFFFF; --sk-ink: #0A0A0A; --sk-mat: #EFEFEF; --sk-canvas: #F6F6F6; --sk-accent: #1A1A1A;
+  --sk-bd: var(--grain), radial-gradient(120% 80% at 16% 4%, rgba(255,255,255,.9), transparent 60%), radial-gradient(90% 75% at 88% 22%, rgba(230,230,230,.6), transparent 62%), linear-gradient(180deg, #eeeeee 0%, #e4e4e4 55%, #d8d8d8 100%); }
+[data-theme="dark"][data-skin="ink"], [data-theme="dark"] [data-skin="ink"], .sk-scope[data-skin="ink"][data-mode="dark"] { --sk-sheet: #000000; --sk-ink: #F5F5F5; --sk-mat: #000000; --sk-canvas: #0A0A0A; --sk-accent: #EDEDED;
+  --sk-bd: var(--grain), radial-gradient(110% 80% at 14% 3%, rgba(255,255,255,.07), transparent 60%), radial-gradient(90% 80% at 88% 22%, rgba(255,255,255,.04), transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, #121212 0%, #080808 50%, #000000 100%); }
+/* 原色：只有預覽卡用（頁面本身是原色時不加 data-skin，照 base.css＋craft.css） */
+.sk-scope[data-skin="graphite"] { --sk-sheet: #FFFFFF; --sk-ink: #1C1C1E; --sk-mat: #ECECEE; --sk-canvas: #F1F1F3; --sk-accent: #5E5BD1;
+  --sk-bd: var(--bd-mist); }
+[data-theme="dark"] .sk-scope[data-skin="graphite"], .sk-scope[data-skin="graphite"][data-mode="dark"] { --sk-sheet: #222222; --sk-ink: #F2F2F3; --sk-mat: #262626; --sk-canvas: #2B2B2B; --sk-accent: #8D89F3;
+  --sk-bd: var(--bd-mist); }
+
+/* 自訂：設定裡選的色調、濃淡、強調色，util.js（PR.customSkin）算成這幾個變數寫在 <html> 上（每一頁一開頭就從 localStorage 套上，不會先閃一下別的顏色） */
+[data-skin="custom"] { --sk-sheet: var(--skc-l-sheet); --sk-ink: var(--skc-l-ink); --sk-mat: var(--skc-l-mat); --sk-canvas: var(--skc-l-canvas); --sk-accent: var(--skc-l-accent); --sk-bd: var(--skc-l-bd); }
+[data-theme="dark"][data-skin="custom"], [data-theme="dark"] [data-skin="custom"], .sk-scope[data-skin="custom"][data-mode="dark"] {
+  --sk-sheet: var(--skc-d-sheet); --sk-ink: var(--skc-d-ink); --sk-mat: var(--skc-d-mat); --sk-canvas: var(--skc-d-canvas); --sk-accent: var(--skc-d-accent); --sk-bd: var(--skc-d-bd); }
+
+/* ---------- 從基本色推出來的（整個頁面：:root；設定裡的預覽卡：.sk-scope）----------
+   選擇器疊三次 [data-skin]：要蓋過 base.css／craft.css 的 :root[data-theme="dark"]、紙張色調的 html[data-paper][data-theme] 那幾條。 */
+:root[data-skin][data-skin][data-skin], .sk-scope[data-skin] {
+  --sheet: var(--sk-sheet); --card: var(--sk-sheet); --surface: var(--sk-sheet); --note-bg: var(--sk-sheet);
+  --mat: color-mix(in srgb, var(--accent) calc(var(--tint, 0) * .14%), var(--sk-mat));
+  --canvas-bg: color-mix(in srgb, var(--accent) calc(var(--tint, 0) * .09%), var(--sk-canvas));
+  --bg: var(--mat); --bg-2: var(--mat);
+  --ink: var(--sk-ink);
+  --ink-2: color-mix(in oklab, var(--sk-ink) 70%, var(--sk-sheet));
+  --ink-3: color-mix(in oklab, var(--sk-ink) 53%, var(--sk-sheet));
+  --line: color-mix(in srgb, var(--sk-ink) 9%, transparent);
+  --rule: color-mix(in srgb, var(--sk-ink) 8%, transparent); --rule-2: color-mix(in srgb, var(--sk-ink) 14%, transparent);
+  --fill: color-mix(in srgb, var(--sk-ink) 5.5%, transparent); --fill-2: color-mix(in srgb, var(--sk-ink) 10%, transparent);
+  --row-hover: color-mix(in srgb, var(--sk-ink) 4.5%, transparent); --row-on: color-mix(in srgb, var(--sk-ink) 8.5%, transparent);
+  --select: var(--row-on); --surface-2: var(--row-hover);
+  --seg-track: color-mix(in srgb, var(--sk-ink) 6.5%, transparent); --seg-on: color-mix(in srgb, var(--sk-ink) 9%, transparent);
+  --seg-knob: var(--sk-sheet); --seg-knob-shadow: 0 0 0 .5px color-mix(in srgb, var(--sk-ink) 7%, transparent), 0 1px 3px color-mix(in srgb, var(--sk-ink) 14%, transparent);
+  --ctl-bg: color-mix(in srgb, var(--sk-sheet) 72%, transparent); --ctl-hover: color-mix(in srgb, var(--sk-sheet) 96%, transparent);
+  --ctl-press: color-mix(in srgb, var(--sk-ink) 9%, transparent); --ctl-line: color-mix(in srgb, var(--sk-ink) 8%, transparent);
+  --on-ink: var(--sk-sheet);
+  --glass: var(--ctl-bg);
+  --lg-tint-2: color-mix(in srgb, var(--sk-sheet) 88%, transparent);
+  --lg-edge: color-mix(in srgb, var(--sk-ink) 9%, transparent); --lg-hover: color-mix(in srgb, var(--sk-ink) 5%, transparent); --lg-press: color-mix(in srgb, var(--sk-ink) 9%, transparent);
+  --shadow-page: 0 0 0 .5px var(--line);
+  color-scheme: light;
+}
+:root[data-skin][data-skin][data-skin][data-theme="dark"], [data-theme="dark"] .sk-scope[data-skin], .sk-scope[data-skin][data-mode="dark"] {
+  --ink-3: color-mix(in oklab, var(--sk-ink) 46%, var(--sk-sheet));
+  --line: color-mix(in srgb, var(--sk-ink) 10%, transparent);
+  --rule: color-mix(in srgb, var(--sk-ink) 9%, transparent); --rule-2: color-mix(in srgb, var(--sk-ink) 15%, transparent);
+  --fill: color-mix(in srgb, var(--sk-ink) 7%, transparent); --fill-2: color-mix(in srgb, var(--sk-ink) 12%, transparent);
+  --row-hover: color-mix(in srgb, var(--sk-ink) 5%, transparent); --row-on: color-mix(in srgb, var(--sk-ink) 9%, transparent);
+  --seg-track: color-mix(in srgb, var(--sk-ink) 10%, transparent); --seg-on: color-mix(in srgb, var(--sk-ink) 15%, transparent);
+  --seg-knob: color-mix(in oklab, var(--sk-sheet) 88%, var(--sk-ink)); --seg-knob-shadow: 0 0 0 .5px color-mix(in srgb, var(--sk-ink) 6%, transparent);
+  --ctl-bg: color-mix(in srgb, color-mix(in oklab, var(--sk-sheet) 86%, var(--sk-ink)) 80%, transparent);
+  --ctl-hover: color-mix(in srgb, color-mix(in oklab, var(--sk-sheet) 76%, var(--sk-ink)) 90%, transparent);
+  --ctl-press: color-mix(in srgb, #000 22%, transparent); --ctl-line: color-mix(in srgb, var(--sk-ink) 8%, transparent);
+  --on-ink: var(--sk-sheet);
+  --note-bg: color-mix(in oklab, var(--sk-sheet) 93%, var(--sk-ink));
+  --lg-tint-2: color-mix(in srgb, color-mix(in oklab, var(--sk-sheet) 90%, var(--sk-ink)) 88%, transparent);
+  --lg-edge: rgba(0, 0, 0, .3); --lg-hover: color-mix(in srgb, var(--sk-ink) 8%, transparent); --lg-press: rgba(0, 0, 0, .22);
+  color-scheme: dark;
+}
+/* 強調色：主題自己的；在設定裡另外挑了強調色（data-accent）就用挑的那個 */
+:root[data-skin][data-skin][data-skin]:not([data-accent]), .sk-scope[data-skin] { --accent: var(--sk-accent); }
+/* 背景「跟著主題」：用主題的那張；原色就是霧 */
+html[data-backdrop="auto"] { --bd: var(--sk-bd, var(--bd-mist)); }
+
+/* ---------- 設定 → 外觀：主題的預覽卡 ----------
+   一張卡就是一個小視窗：材質（主題的背景＋材質那層紗）、左邊幾條是側欄、中間一張紙（標題、兩行字、強調色的一顆鈕）。選中的那張外圈一道強調色的框。 */
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 10px; margin: 2px 0 16px; }
+.skin-card { display: flex; flex-direction: column; align-items: stretch; gap: 7px; padding: 0; background: none; border: 0; text-align: center; cursor: pointer; }
+.sk-prev { position: relative; display: block; aspect-ratio: 16 / 11; border-radius: 12px; overflow: hidden; isolation: isolate;
+  background: linear-gradient(color-mix(in srgb, var(--mat) 55%, transparent), color-mix(in srgb, var(--mat) 55%, transparent)), var(--sk-bd, var(--mat));
+  box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 14%, transparent); transition: box-shadow .18s ease-out, transform .22s var(--spring); }
+.sk-prev .sk-side { position: absolute; left: 9%; top: 18%; width: 22%; display: flex; flex-direction: column; gap: 5px; }
+.sk-prev .sk-side b { display: block; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 30%, transparent); }
+.sk-prev .sk-side b:first-child { width: 80%; background: color-mix(in srgb, var(--ink) 55%, transparent); }
+.sk-prev .sk-side b:last-child { width: 60%; }
+.sk-prev .sk-paper { position: absolute; left: 37%; right: 7%; top: 12%; bottom: -10%; display: flex; flex-direction: column; gap: 5px; padding: 11% 9%; border-radius: 7px;
+  background: var(--sheet); box-shadow: 0 0 0 .5px var(--line), 0 6px 14px -8px color-mix(in srgb, var(--ink) 35%, transparent); }
+.sk-prev .sk-paper b { display: block; width: 62%; height: 6px; border-radius: 3px; background: var(--ink); }
+.sk-prev .sk-paper em { display: block; height: 4px; border-radius: 2px; background: var(--ink-3); }
+.sk-prev .sk-paper em + em { width: 74%; }
+.sk-prev .sk-paper u { display: block; width: 34%; height: 9px; margin-top: 3px; border-radius: 5px; background: var(--accent); }
+.skin-card .sk-name { font: 500 12px/1.3 var(--ui); color: var(--ink-2); }
+.skin-card.on .sk-name { color: var(--ink); font-weight: 600; }
+.skin-card.on .sk-prev { box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 14%, transparent), 0 0 0 2px var(--sheet), 0 0 0 4px var(--ring); }
+@media (hover: hover) and (pointer: fine) { .skin-card:hover .sk-prev { transform: translateY(-1px); } }
+.skin-card:active .sk-prev { transform: scale(.97); transition-duration: .1s; }
+.skin-card:focus-visible { outline: none; }
+.skin-card:focus-visible .sk-prev { box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--ring); }
+/* 自訂主題的滑桿：色相的軌道是一圈彩虹，濃淡的軌道從灰到這個色調 */
+.skin-custom { margin: -4px 0 16px; padding: 0 16px; border-radius: 14px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+.skin-custom .look-row + .look-row { border-top: .5px solid var(--line); }
+input[type=range].look-range.hue::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, oklch(.72 .13 0), oklch(.72 .13 60), oklch(.72 .13 120), oklch(.72 .13 180), oklch(.72 .13 240), oklch(.72 .13 300), oklch(.72 .13 360)); }
+input[type=range].look-range.chroma::-webkit-slider-runnable-track { background: linear-gradient(90deg, oklch(.8 0 0), oklch(.72 .13 calc(var(--h) * 1))); }
+input[type=range].look-range.hue::-webkit-slider-thumb { background: oklch(.72 .13 calc(var(--h) * 1)); box-shadow: 0 0 0 2.5px #fff, 0 1px 5px rgba(0, 0, 0, .35); }
+input[type=range].look-range.accent-hue::-webkit-slider-thumb { background: oklch(.62 .15 calc(var(--a) * 1)); }
+.bdc-auto { background: var(--sk-bd, var(--bd-mist)); }
+.bdc-auto::after { content: "A"; position: absolute; inset: 0; display: grid; place-items: center; font: 700 11px var(--ui); color: color-mix(in srgb, var(--ink) 70%, transparent); }
+/* 換主題、換深淺時整個畫面淡入淡出（util.js 的 PR.lookTransition 用 View Transitions）：短一點，不要拖 */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }

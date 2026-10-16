@@ -1766,5 +1766,20 @@
  "滿版": "Full width",
  "版面寬度": "Page width",
  "窄": "Narrow",
- "自訂 {n} px": "Custom {n} px"
+ "自訂 {n} px": "Custom {n} px",
+ "墨": "Ink",
+ "夜空": "Night sky",
+ "拿鐵": "Latte",
+ "海鹽": "Sea salt",
+ "深淺色": "Light / dark",
+ "濃淡": "Strength",
+ "玫瑰": "Rose",
+ "紙本": "Paper",
+ "自訂": "Custom",
+ "色調": "Hue",
+ "薰衣草": "Lavender",
+ "蜂蜜": "Honey",
+ "跟著主題": "Follow the theme",
+ "霧藍": "Mist blue",
+ "鼠尾草": "Sage"
 }

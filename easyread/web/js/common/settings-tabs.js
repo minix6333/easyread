@@ -30,6 +30,23 @@
     const pct = Math.round(((val - min) / (max - min)) * 100);
     return '<input type="range" class="look-range" ' + attr + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" style="--p:' + pct + '%">';
   }
+  /* 主題的預覽卡：一個小視窗——材質、側欄的幾條線、一張紙（標題、兩行字、一顆強調色的鈕），全部用那個主題自己的顏色（.sk-scope，css/themes.css） */
+  function skinCard(id, name, k) {
+    const sid = id || "graphite", on = (k.skin || "") === id;
+    const vars = id === "custom" ? ' style="' + PR.esc(PR.customSkin(k.skinCustom)) + '"' : "";
+    return '<button type="button" class="skin-card' + (on ? " on" : "") + '" data-skin-pick="' + id + '" aria-pressed="' + on + '" title="' + PR.esc(name) + '">' +
+      '<span class="sk-scope sk-prev" data-skin="' + sid + '"' + vars + '><i class="sk-side"><b></b><b></b><b></b></i><i class="sk-paper"><b></b><em></em><em></em><u></u></i></span>' +
+      '<span class="sk-name">' + PR.esc(name) + "</span></button>";
+  }
+  /* 自訂主題：色調、濃淡、強調色三條滑桿（拉著就看得到） */
+  function customHtml(k) {
+    const c = k.skinCustom;
+    const r = (key, min, max, val, cls) => '<input type="range" class="look-range ' + cls + '" data-skin-custom="' + key + '" min="' + min + '" max="' + max + '" step="1" value="' + val + '" style="--p:' + Math.round(((val - min) / (max - min)) * 100) + "%;--h:" + c.h + ";--a:" + c.a + '">';
+    return '<div class="skin-custom">' +
+      '<div class="look-row"><span>' + PR.t("色調") + "</span>" + r("h", 0, 360, c.h, "hue") + "</div>" +
+      '<div class="look-row"><span>' + PR.t("濃淡") + "</span>" + r("c", 0, 100, c.c, "chroma") + "</div>" +
+      '<div class="look-row"><span>' + PR.t("強調色") + "</span>" + r("a", 0, 360, c.a, "hue accent-hue") + "</div></div>";
+  }
   T.look = {
     render(s) {
       const now = PR.sharedPrefs().theme, k = PR.look(), theme = now === "dark" || now === "light" ? now : "auto";  // 現在實際的主題（不是開對話框時記下的）
@@ -37,8 +54,10 @@
       return '<div class="look">' +
         '<div class="look-prev" aria-hidden="true"><div class="lp-canvas"><div class="lp-sheet"><div class="lp-top"><b>Finetuning with Sampling</b><i class="lp-ai">' + PR.icon("sparkle", "sm") + PR.t("問 AI") + "</i></div><p>" +
         HL_WORDS.map((w, i) => HL_TEXT[i] + '<mark class="hl c-' + PR.HL_COLORS[i][0] + '">' + w + "</mark>").join("") + HL_TEXT[8] + "</p></div></div></div>" +
+        '<div class="skin-grid" role="radiogroup" aria-label="' + PR.esc(PR.t("主題")) + '">' + PR.SKINS.map(([id, name]) => skinCard(id, name, k)).join("") + "</div>" +
+        (k.skin === "custom" ? customHtml(k) : "") +
         '<div class="look-list">' +
-        row(PR.t("主題"), '<div class="seg">' + [["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]].map(([v, l]) => '<button type="button" data-look-theme="' + v + '"' + (v === theme ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>") +
+        row(PR.t("深淺色"), '<div class="seg">' + [["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]].map(([v, l]) => '<button type="button" data-look-theme="' + v + '"' + (v === theme ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>") +
         row(PR.t("背景"), '<div class="bds">' + PR.BACKDROPS.map(([v, name]) => '<button type="button" class="bdc bdc-' + v + (k.backdrop === v ? " on" : "") + '" data-backdrop-pick="' + v + '" title="' + name + '"></button>').join("") +
           (location.protocol === "file:" ? "" : (k.backdropV ? '<button type="button" class="bdc bdc-image' + (k.backdrop === "image" ? " on" : "") + '" data-backdrop-pick="image" title="' + PR.t("自選的圖片") + '" style="background-image:url(/backdrop-s.jpg?v=' + k.backdropV + ')"></button>' : "") +
             '<button type="button" class="bdc bdc-add" data-backdrop-add title="' + PR.t("挑一張圖片當背景…") + '">' + PR.icon("plus", "sm") + '</button><input type="file" accept="image/*" data-backdrop-file hidden>') + "</div>") +

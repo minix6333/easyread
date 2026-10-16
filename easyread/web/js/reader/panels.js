@@ -58,7 +58,7 @@
     const shared = PR.SHARED_PREFS.includes(k);
     if (shared) { const s = PR.ls.get("easyread-prefs", {}) || {}; s[k] = v; PR.ls.set("easyread-prefs", s); }  // 共用的先寫進 localStorage（applyPrefs 會從那裡拿回來）
     PR.prefs[k] = v;
-    PR.applyPrefs();
+    if (k === "theme" && PR.lookTransition) PR.lookTransition(() => PR.applyPrefs()); else PR.applyPrefs();  // 深淺色：整個畫面淡入淡出換過去
     if (shared) PR.flushPrefs();  // 換主題馬上存，別等 0.7 秒
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 调字号时阅读位置不跳
     if (!quiet) PR.renderSettings();

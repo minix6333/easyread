@@ -240,11 +240,32 @@ window.PR = window.PR || {};
   PR.ACCENTS = [["violet", PR.t("紫")], ["blue", PR.t("蓝")], ["teal", PR.t("青")], ["green", PR.t("绿")], ["orange", PR.t("橙")], ["pink", PR.t("粉")], ["red", PR.t("红")], ["graphite", PR.t("石墨")]];
   PR.PAPERS = [["white", PR.t("白")], ["warm", PR.t("暖")], ["cool", PR.t("冷")], ["green", PR.t("绿")]];
   /* 背景：整個視窗後面的一張圖（像 Craft 文件的背景）。內建幾張漸層；"image" 是自選的圖片（存在伺服器，見 backdrop.py），"none" 是不放（桌面版就是透出桌面） */
-  PR.BACKDROPS = [["none", PR.t("無")], ["mist", PR.t("霧")], ["dawn", PR.t("晨")], ["sea", PR.t("海")], ["forest", PR.t("林")], ["dusk", PR.t("暮")]];
+  PR.BACKDROPS = [["auto", PR.t("跟著主題")], ["none", PR.t("無")], ["mist", PR.t("霧")], ["dawn", PR.t("晨")], ["sea", PR.t("海")], ["forest", PR.t("林")], ["dusk", PR.t("暮")]];
+  /* 主題（2.1.0-tw.12）：一組配色（紙、字、材質、畫布、強調色、背景，淺深各一份），顏色寫在 css/themes.css。"" 是原色（不加 data-skin）；
+     custom 是自己調的：色調（h）、濃淡（c，0–100）、強調色的色相（a），PR.customSkin 算成 CSS 變數 */
+  PR.SKINS = [["", PR.t("原色")], ["mist", PR.t("霧藍")], ["paper", PR.t("紙本")], ["sage", PR.t("鼠尾草")], ["sea", PR.t("海鹽")], ["lavender", PR.t("薰衣草")],
+    ["rose", PR.t("玫瑰")], ["honey", PR.t("蜂蜜")], ["latte", PR.t("拿鐵")], ["night", PR.t("夜空")], ["ink", PR.t("墨")], ["custom", PR.t("自訂")]];
+  const num = (v, d, lo, hi) => { const n = Number(v); return Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : d)); };
+  PR.customSkin = function (o) {
+    o = o || {};
+    const h = num(o.h, 250, 0, 360), c = num(o.c, 45, 0, 100) / 100, a = num(o.a, 265, 0, 360);
+    const k = (x) => (x * c).toFixed(4), ok = (l, ch, hue, alpha) => "oklch(" + l + " " + ch + " " + hue + (alpha != null ? " / " + alpha : "") + ")";
+    const v = {
+      "l-sheet": ok(0.985, k(0.012), h), "l-ink": ok(0.25, k(0.04), h), "l-mat": ok(0.915, k(0.024), h), "l-canvas": ok(0.952, k(0.018), h), "l-accent": ok(0.53, 0.15, a),
+      "d-sheet": ok(0.235, k(0.02), h), "d-ink": ok(0.93, k(0.022), h), "d-mat": ok(0.18, k(0.018), h), "d-canvas": ok(0.208, k(0.02), h), "d-accent": ok(0.78, 0.12, a),
+      "l-bd": "var(--grain), radial-gradient(120% 80% at 16% 4%, " + ok(0.99, k(0.01), h, 0.9) + ", transparent 60%), radial-gradient(90% 75% at 88% 22%, " + ok(0.86, 0.07, a, 0.55) +
+        ", transparent 62%), linear-gradient(180deg, " + ok(0.91, k(0.026), h) + " 0%, " + ok(0.87, k(0.032), h) + " 55%, " + ok(0.82, k(0.036), h) + " 100%)",
+      "d-bd": "var(--grain), radial-gradient(110% 80% at 14% 3%, " + ok(0.5, 0.09, a, 0.42) + ", transparent 60%), radial-gradient(90% 80% at 88% 22%, " + ok(0.42, k(0.06), h, 0.32) +
+        ", transparent 62%), radial-gradient(120% 90% at 50% 108%, rgba(6, 7, 10, .82), transparent 62%), linear-gradient(180deg, " + ok(0.32, k(0.04), h) + " 0%, " + ok(0.24, k(0.03), h) + " 50%, " + ok(0.15, k(0.02), h) + " 100%)",
+    };
+    return Object.keys(v).map((key) => "--skc-" + key + ":" + v[key]).join(";");
+  };
   const LOOK = {
+    skin: (v) => (PR.SKINS.some(([k]) => k === v) ? v : ""),
+    skinCustom: (v) => ({ h: num((v || {}).h, 250, 0, 360), c: num((v || {}).c, 45, 0, 100), a: num((v || {}).a, 265, 0, 360) }),
     accent: (v) => (PR.ACCENTS.some(([k]) => k === v) ? v : "violet"),
     paper: (v) => (PR.PAPERS.some(([k]) => k === v) ? v : "white"),
-    backdrop: (v) => ((v === "image" && location.protocol !== "file:") || PR.BACKDROPS.some(([k]) => k === v) ? v : "mist"),
+    backdrop: (v) => ((v === "image" && location.protocol !== "file:") || PR.BACKDROPS.some(([k]) => k === v) ? v : "auto"),
     backdropV: (v) => Math.max(0, Math.round(Number(v)) || 0),                       // 自選圖片的版本（換一張就變，網址帶著）
     tint: (v) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0)),          // 視窗染上多少強調色
     hl: (v) => Math.max(50, Math.min(160, Math.round(Number(v)) || 100)),         // 螢光筆濃度（百分比）
@@ -257,6 +278,9 @@ window.PR = window.PR || {};
   PR.accent = () => PR.look().accent;
   PR.applyLook = function () {
     const k = PR.look(), d = document.documentElement;
+    if (k.skin) d.dataset.skin = k.skin; else delete d.dataset.skin;
+    if (k.skin === "custom") PR.customSkin(k.skinCustom).split(";").forEach((kv) => { const i = kv.indexOf(":"); d.style.setProperty(kv.slice(0, i), kv.slice(i + 1)); });
+    else Array.from(d.style).filter((n) => n.startsWith("--skc-")).forEach((n) => d.style.removeProperty(n));
     if (k.accent === "violet") delete d.dataset.accent; else d.dataset.accent = k.accent;
     if (k.paper === "white") delete d.dataset.paper; else d.dataset.paper = k.paper;
     if (k.backdrop === "none") delete d.dataset.backdrop; else d.dataset.backdrop = k.backdrop;
@@ -268,14 +292,36 @@ window.PR = window.PR || {};
     d.style.setProperty("--hl-k", String(k.hl / 100));
   };
   PR.applyAccent = PR.applyLook;
-  PR.setLook = function (key, value) {
+  PR.setLook = function (key, value, opts) {
     if (!LOOK[key]) return;
     const v = LOOK[key](value), p = PR.ls.get("easyread-prefs", {}) || {};
     p[key] = v;
+    if (key === "skinCustom" || (key === "skin" && v === "custom")) p.skinVars = PR.customSkin(p.skinCustom);  // 每一頁一開頭直接套這一串（不用等 util.js）
     PR.ls.set("easyread-prefs", p);
     if (PR.prefs) PR.prefs[key] = v;
-    if (PR.savePrefs) PR.savePrefs("reader", { [key]: v }, key !== "tint" && key !== "hl");  // 滑桿（染色、濃度）拉的時候一直在變：等停了再存
-    PR.applyLook();
+    const slider = key === "tint" || key === "hl" || key === "skinCustom";
+    if (PR.savePrefs) PR.savePrefs("reader", Object.assign({ [key]: v }, p.skinVars && (key === "skinCustom" || key === "skin") ? { skinVars: p.skinVars } : {}), !slider);  // 滑桿拉的時候一直在變：等停了再存
+    if (opts && opts.apply === false) return;  // 一次改好幾樣（換主題）：都寫好再一起套
+    if (opts && opts.animate) PR.lookTransition(PR.applyLook); else PR.applyLook();
+  };
+  /* 換主題：照 Craft 選主題的整個主題一起換——強調色回到主題自己的、背景跟著主題（自選的圖片留著）。用畫面淡入淡出換（不是一塊塊跳色） */
+  PR.setSkin = function (id) {
+    const p = PR.ls.get("easyread-prefs", {}) || {};
+    // 先把設定都寫好（馬上讀得到新的主題：設定對話框接著重畫要知道），畫面在淡入淡出裡一次換過去
+    PR.setLook("accent", "violet", { apply: false });
+    if (p.backdrop !== "image" && p.backdrop !== "none") PR.setLook("backdrop", "auto", { apply: false });
+    PR.setLook("skin", id, { apply: false });
+    PR.lookTransition(PR.applyLook);
+  };
+  /* 外觀換了（主題、深淺）：整個畫面淡入淡出換過去（View Transitions），不是每個元件各自跳色；減少動態、不支援的瀏覽器就直接換 */
+  PR.lookTransition = function (fn) {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (still || !document.startViewTransition || document.visibilityState !== "visible") { fn(); return; }
+    try {
+      const t = document.startViewTransition(fn);
+      if (t && t.ready) t.ready.catch(() => {});
+      if (t && t.finished) t.finished.catch(() => {});
+    } catch (e) { fn(); }
   };
   PR.setAccent = (a) => PR.setLook("accent", a);
   /* 自選背景圖：在瀏覽器裡先縮好再送——大的那張最長邊 2560，小的那張 72（放大就是糊的，材質那一層用） */
@@ -304,7 +350,7 @@ window.PR = window.PR || {};
     PR.ls.set("easyread-prefs", p);
     if (PR.prefs) PR.prefs.theme = theme;
     if (PR.savePrefs) PR.savePrefs("reader", { theme }, true);
-    PR.applyTheme(theme);
+    PR.lookTransition(() => PR.applyTheme(theme));  // 深淺色換過去是整個畫面淡入淡出，不是每個元件各自跳色
   };
   /* 標誌：一張文件加一道勾（單色線條，顏色由 CSS 的 .mark / .hero 給，預設是強調色） */
   /* FOLI 的標誌：藍色的方塊、白色的折紙（顏色由 CSS 的 .lg-tile/.lg-s/.lg-a/.lg-b 決定）。和 web/logo.svg、electron/assets/icon.svg 是同一個形狀 */
@@ -351,7 +397,7 @@ window.PR = window.PR || {};
      - 系統外觀變了：主題是「跟隨系統」才重算，一樣不寫；明確選了淺色／深色的不理它；
      - 閱讀頁重新套用設定（applyPrefs）之前先 PR.pullShared()，記憶裡過期的值套不回去。
      scripts/theme_loop_check.cjs 會開外殼＋兩份文件實際換一遍，數有沒有在閃。 */
-  PR.SHARED_PREFS = ["theme", "accent", "paper", "backdrop", "backdropV", "tint", "hl", "glass", "clear"];
+  PR.SHARED_PREFS = ["theme", "skin", "skinCustom", "skinVars", "accent", "paper", "backdrop", "backdropV", "tint", "hl", "glass", "clear"];
   PR.sharedPrefs = function () {
     const s = PR.ls.get("easyread-prefs", {}) || {}, o = {};
     for (const k of PR.SHARED_PREFS) if (s[k] !== undefined) o[k] = s[k];
@@ -380,10 +426,12 @@ window.PR = window.PR || {};
   };
   addEventListener("storage", (e) => {
     if (e.key !== "easyread-prefs") return;
-    const s = PR.sharedPrefs();
+    const s = PR.sharedPrefs(), root = document.documentElement;
     PR.pullShared();
-    PR.applyTheme(s.theme);
-    PR.applyLook && PR.applyLook();
+    const dark = s.theme === "dark" || (s.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    const big = root.dataset.theme !== (dark ? "dark" : "light") || (root.dataset.skin || "") !== (s.skin || "");  // 深淺、主題換了：跟著淡入淡出；拉滑桿那種一直在變的直接套
+    const go = () => { PR.applyTheme(s.theme); if (PR.applyLook) PR.applyLook(); };
+    if (big && PR.lookTransition) PR.lookTransition(go); else go();
     PR.emit && PR.emit("shared-prefs", s);  // 閱讀頁的 Aa 開著的話，選中的那一格跟上
   });
   if (typeof matchMedia === "function") {

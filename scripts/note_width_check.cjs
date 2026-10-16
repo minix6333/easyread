@@ -8,7 +8,7 @@ const base = opt("--base", "http://localhost:8765");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let step = "start", nid = null, token = null;
 const api = async (path, body, method) => (await fetch(base + path, { method: method || (body ? "POST" : "GET"), headers: { "Content-Type": "application/json", "X-Token": token || "" }, body: body ? JSON.stringify(body) : undefined })).json();
-const cleanup = async () => { if (nid) { await fetch(base + "/api/notes/" + nid, { method: "DELETE", headers: { "X-Token": token } }).catch(() => {}); nid = null; } };
+const cleanup = async () => { if (nid) { await api("/api/notes/" + nid + "/delete", {}).catch(() => {}); nid = null; } };  // 刪掉暫時的筆記（POST /delete：移到回收站）
 process.on("unhandledRejection", async (e) => { console.log("FAILED at " + step + " — " + String((e && e.stack) || e).slice(0, 400)); await cleanup(); app.exit(2); });
 setTimeout(async () => { console.log("TIMEOUT at " + step); await cleanup(); app.exit(3); }, 120000);
 app.whenReady().then(async () => {
