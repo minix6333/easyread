@@ -1759,5 +1759,12 @@
  "搜尋「{q}」": "Searching “{q}”",
  "讀 {site}": "Reading {site}",
  "這個模型不能上網查": "This model can't search the web",
- "還有 {n} 個": "{n} more"
+ "還有 {n} 個": "{n} more",
+ "{n} · 預設": "{n} · default",
+ "寬": "Wide",
+ "拖拉調整寬度（雙擊回到預設）": "Drag to change the width (double-click for the default)",
+ "滿版": "Full width",
+ "版面寬度": "Page width",
+ "窄": "Narrow",
+ "自訂 {n} px": "Custom {n} px"
 }

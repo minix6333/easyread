@@ -4,7 +4,7 @@
 - paper_ids／Library.all 只認有 paper.json／item.json 的資料夾，_notes 不會被當成論文。
 - 內容是 Markdown（區塊編輯器 web/js/common/blocks.js 寫的），貼進去的圖放 clips/。
 - note.json 除了標題、時間、關聯的論文，還有外觀和整理用的幾個欄位（STYLE_KEYS）：
-  圖示和顏色（側欄、筆記清單上那顆）、放在哪個分類、收藏、寬頁、字型。
+  圖示和顏色（側欄、筆記清單上那顆）、放在哪個分類、收藏、寬頁、字型、寫字那一欄的寬度（width：0＝預設，-1＝滿版，其他是像素）。
 - 刪除是挪到文獻庫的 .trash/note-<id>-<時間>（和論文同一個回收站，見 trash.py），可以復原。
 """
 from __future__ import annotations
@@ -27,7 +27,8 @@ _CLIP = re.compile(r"[A-Za-z0-9._-]{1,80}")
 _SLUG = re.compile(r"[a-z0-9-]{1,32}")
 FONTS = ("", "serif", "mono", "round")
 # 外觀和整理用的欄位：前端傳什麼都先過這裡（別的鍵不收，值不對就當沒設）
-STYLE_KEYS = ("icon", "color", "folder", "star", "wide", "font")
+STYLE_KEYS = ("icon", "color", "folder", "star", "wide", "font", "width")
+WIDTH_MIN, WIDTH_MAX = 440, 2400
 
 
 def _style(key: str, value):
@@ -41,6 +42,12 @@ def _style(key: str, value):
     if key == "font":
         v = str(value or "").strip().lower()
         return v if v in FONTS else ""
+    if key == "width":  # 寫字那一欄多寬（拖兩邊、或檢閱器裡選）：0 預設、-1 滿版、其餘夾在 WIDTH_MIN～WIDTH_MAX
+        try:
+            v = int(round(float(value or 0)))
+        except (TypeError, ValueError):
+            return 0
+        return -1 if v < 0 else 0 if v == 0 else max(WIDTH_MIN, min(WIDTH_MAX, v))
     return None
 
 

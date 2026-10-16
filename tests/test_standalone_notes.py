@@ -27,6 +27,9 @@ class StandaloneNotesTest(unittest.TestCase):
         cleared = notes.save(self.root, n["id"], style={"icon": "../x", "font": "comic", "folder": "", "star": False})
         self.assertEqual((cleared["icon"], cleared["font"], cleared["folder"], cleared["star"]), ("", "", "", False))
         self.assertEqual(cleared["color"], "teal")  # 沒提到的欄位不動
+        # 寫字那一欄的寬度（拖紙的兩邊）：0 預設、-1 滿版、其他夾在 440～2400
+        for given, want in ((1040, 1040), (-1, -1), (0, 0), (120, 440), (9999, 2400), ("902.6", 903), ("x", 0)):
+            self.assertEqual(notes.save(self.root, n["id"], style={"width": given})["width"], want, given)
 
     def test_preview_keeps_only_readable_text(self):
         md = "# 梯度下降\n\n有**粗體**、*斜體*、`碼`和 $\\nabla f$，[連結](https://e.com)在這。\n\n> [!note] 重點\n> 會發散。\n\n```python\nprint(1)\n```\n\n$$\nE=mc^2\n$$\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n1. 一\n- [x] 做完\n![](clips/a.png)"

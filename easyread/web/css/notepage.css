@@ -9,9 +9,24 @@ body.note-page.in-open { --in-w: 300px; }
 .note-page .topbar { left: calc(var(--nav-now) + var(--pad)); right: calc(var(--insp-now) + var(--pad)); }
 .note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); transition: padding .34s var(--ease); }
 /* 紙：左邊的留白裡有一道 44px 是區塊的槽（「＋」和把手），所以左邊的內距少 44px，字的左右留白才一樣寬 */
-.note-page .note-main { max-width: 820px; padding-left: 12px; margin-bottom: 26px; min-height: calc(100vh - var(--bar-h) - 38px); box-sizing: border-box; transition: max-width .34s var(--ease); }
+.note-page .note-main { position: relative; max-width: var(--note-w, 820px); padding-left: 12px; margin-bottom: 26px; min-height: calc(100vh - var(--bar-h) - 38px); box-sizing: border-box; transition: max-width .38s var(--spring); }
 @media (max-width: 900px) { .note-page .note-main { padding-left: 0; padding-right: 22px; } }
 body.note-page.wide .note-main { max-width: 1240px; }
+body.note-page.nw-full .note-main { max-width: none; margin-left: 18px; margin-right: 18px; }
+/* 寫字那一欄的寬度（js/note/width.js）：紙的兩邊各一道看不見的把手，滑鼠靠近才出現一條細線；拖的時候不要動畫（跟手），上方出現寬度 */
+body.nw-live .note-main { transition: none; }
+.nw-grip { position: absolute; top: 18px; bottom: 18px; width: 16px; z-index: 4; cursor: ew-resize; touch-action: none; outline: none; }
+.nw-grip.nw-l { left: -8px; }
+.nw-grip.nw-r { right: -8px; }
+.nw-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: 7px; width: 2px; border-radius: 2px; background: var(--accent); opacity: 0; transform: scaleY(.6); transition: opacity .18s ease-out, transform .32s var(--spring); }
+@media (hover: hover) and (pointer: fine) { .nw-grip:hover::after { opacity: .5; transform: none; } }
+body.nw-dragging .nw-grip::after, .nw-grip:focus-visible::after { opacity: .85; transform: none; }
+body.nw-dragging, body.nw-dragging * { cursor: ew-resize !important; user-select: none; }
+.nw-tip { position: absolute; top: 12px; left: 50%; translate: -50% 0; z-index: 5; padding: 3px 9px; border-radius: 7px; font: 600 11.5px/1.4 var(--ui); font-variant-numeric: tabular-nums;
+  color: var(--on-ink, #fff); background: var(--ink); opacity: 0; scale: .96; pointer-events: none; transition: opacity .15s ease-out, scale .2s var(--spring); }
+body.nw-dragging .nw-tip { opacity: .92; scale: 1; }
+@media (max-width: 900px) { .nw-grip, .nw-tip { display: none; } }
+@media print { .nw-grip, .nw-tip { display: none; } }
 .note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); transition: left .34s var(--ease), width .34s var(--ease); }
 /* 筆記 AI：平常是右下角一顆鈕（和閱讀頁的「問 AI」同一個樣子），展開才是整條輸入列 */
 .note-page .note-ai:not(.open) { left: auto; right: calc(var(--insp-now) + var(--pad) + 16px); bottom: 16px; width: auto; transform: none; }
@@ -182,3 +197,7 @@ body.in-open .note-insp { opacity: 1; visibility: visible; transform: none; tran
 .note-find button svg { width: 14px; height: 14px; }
 ::highlight(note-find) { background-color: color-mix(in srgb, var(--gold, #d9a520) 34%, transparent); }
 ::highlight(note-find-cur) { background-color: var(--gold, #d9a520); color: #1b1503; }
+/* 檢閱器的「版面寬度」 */
+.note-insp .ni-width { display: flex; width: 100%; }
+.note-insp .ni-width > button { flex: 1; }
+.note-insp .ni-hint { margin: 6px 4px 0; font: 11.5px/1.5 var(--ui); color: var(--ink-3); }

@@ -92,7 +92,15 @@
     return sec(PR.t("圖示")) + '<div class="ni-iconrow"><button type="button" class="ni-bigicon" data-style="icon" title="' + PR.t("圖示與顏色") + '">' + PR.tintIcon(n.icon, n.color, "notes") + "</button>" +
       '<div class="ni-dots">' + PR.TINTS.map(([c, name]) => '<button type="button" data-tint="' + c + '" class="' + (c ? "" : "none") + ((n.color || "") === c ? " on" : "") + '" title="' + PR.esc(name) + '"' + (c ? ' data-c="' + c + '"' : "") + "></button>").join("") + "</div></div>" +
       sec(PR.t("字型")) + '<div class="ni-fonts">' + FONTS().map(([k, sample, label]) => '<button type="button" data-font="' + k + '" class="f-' + (k || "sys") + ((n.font || "") === k ? " on" : "") + '"><b>' + sample + "</b><span>" + PR.esc(label) + "</span></button>").join("") + "</div>" +
-      sec(PR.t("版面")) + '<label class="ni-switch"><span>' + PR.t("寬頁") + '</span><input type="checkbox" data-style="wide"' + (n.wide ? " checked" : "") + '><i></i></label>';
+      sec(PR.t("版面寬度")) + widthHtml();
+  }
+  /* 寫字那一欄多寬：四個常用的（窄、標準、寬、滿版），拖紙的兩邊拉出來的別的寬度顯示成「自訂 ○○○」（note/width.js） */
+  function widthHtml() {
+    const W = PR.noteWidth;
+    if (!W) return "";
+    const now = W.preset(), names = { narrow: PR.t("窄"), normal: PR.t("標準"), wide: PR.t("寬"), full: PR.t("滿版") };
+    return '<div class="seg ni-width" role="group" aria-label="' + PR.esc(PR.t("版面寬度")) + '">' + W.PRESETS.map(([k, v]) => '<button type="button" data-width="' + v + '"' + (now === k ? ' class="on"' : "") + ">" + names[k] + "</button>").join("") + "</div>" +
+      (now === "custom" ? '<p class="ni-hint">' + PR.t("自訂 {n} px", { n: W.get() }) + "</p>" : "");  // 只有拖出別的寬度時說一下現在多寬（畫面上不放說明句）
   }
   const fullTime = (iso) => { try { return new Date(iso).toLocaleString(PR.lang === "en" ? "en" : "zh-TW", { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return iso || ""; } };
   function folderLabel() { const n = note(); return n.folder ? PR.tintIcon((catStyle[n.folder] || {}).icon, (catStyle[n.folder] || {}).color, "folder") + "<span>" + PR.esc(n.folder) + "</span>" : PR.icon("folder", "sm") + "<span>" + PR.t("未分類") + "</span>"; }
@@ -159,7 +167,7 @@
     if (b.dataset.tint !== undefined) { N.patch({ color: b.dataset.tint }); return paintInsp(); }
     if (b.dataset.font !== undefined) { N.patch({ font: b.dataset.font }); return paintInsp(); }
     if (b.dataset.style === "icon") return PR.pickIcon(b, { icon: note().icon, color: note().color, onChange: (v) => { N.patch(v); paintInsp(); } });
-    if (b.dataset.style === "wide") { N.patch({ wide: b.checked }); return; }
+    if (b.dataset.width !== undefined && PR.noteWidth) { PR.noteWidth.set(+b.dataset.width === PR.noteWidth.DEFAULT ? 0 : +b.dataset.width); return paintInsp(); }
     if (b.dataset.act) return act(b.dataset.act, b);
   });
 
@@ -190,7 +198,7 @@
     if (a === "folder") return folderMenu(at);
     if (a === "rename") { const t = $("#noteTitle"); t.focus(); t.select(); return; }
     if (a === "icon") return PR.pickIcon($("#noteIcon"), { icon: n.icon, color: n.color, onChange: (v) => { N.patch(v); paintInsp(); } });
-    if (a === "wide") { N.patch({ wide: !n.wide }); return paintInsp(); }
+    if (a === "wide") { if (PR.noteWidth) PR.noteWidth.set(PR.noteWidth.preset() === "wide" ? 0 : 1040); else N.patch({ wide: !n.wide }); return paintInsp(); }
     if (a === "copymd") return navigator.clipboard.writeText(markdown()).then(() => PR.toast(PR.t("已複製"), null, 1200));
     if (a === "export") {
       const link = PR.el("a", { href: URL.createObjectURL(new Blob([markdown()], { type: "text/markdown;charset=utf-8" })), download: (n.title || PR.t("未命名筆記")).replace(/[\\/:*?"<>|]/g, "_").slice(0, 80) + ".md" });
@@ -228,7 +236,7 @@
       { label: PR.t("移到分類"), icon: has("movefolder") ? "movefolder" : "folder", fn: () => setTimeout(() => folderMenu(at), 0) },
       "-",
       PR.noteFind ? { label: PR.t("在這份筆記裡找"), icon: "search", kbd: "⌘F", fn: () => setTimeout(() => PR.noteFind(), 0) } : null,
-      { label: PR.t("寬頁"), icon: has("wide") ? "wide" : "panel", checked: !!n.wide, fn: () => act("wide") },
+      { label: PR.t("寬頁"), icon: has("wide") ? "wide" : "panel", checked: PR.noteWidth ? PR.noteWidth.preset() === "wide" : !!n.wide, fn: () => act("wide") },
       { label: PR.t("目錄"), icon: has("outline") ? "outline" : "list", checked: !!ui.outline, fn: () => $("#outlineBtn").click() },
       "-",
       { label: PR.t("複製一份"), icon: has("duplicate") ? "duplicate" : "copy", fn: () => act("duplicate") },

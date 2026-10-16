@@ -110,7 +110,7 @@
     star.innerHTML = PR.icon("star", "sm");
     star.classList.toggle("on", !!n.star);
     star.title = n.star ? PR.t("取消收藏") : PR.t("收藏");
-    document.body.classList.toggle("wide", !!n.wide);
+    if (PR.noteWidth) PR.noteWidth.apply(); else document.body.classList.toggle("wide", !!n.wide);  // 寫字那一欄的寬度（note/width.js）
     if (n.font) document.body.dataset.font = n.font; else delete document.body.dataset.font;
   }
   $("#noteIcon").addEventListener("click", (e) => PR.pickIcon(e.currentTarget, { icon: st.note.icon, color: st.note.color, onChange: (v) => patch(v) }));
