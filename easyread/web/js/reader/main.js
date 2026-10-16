@@ -141,9 +141,16 @@
   }
 
   /* ---------- 启动 ---------- */
+  /* 讀取中（craft.css 的 body.rd-loading）：文件畫出來（頁面排好、或文章排好）、出錯、或十秒後就拿掉 */
+  body.classList.add("rd-loading");
+  const loaded = () => body.classList.remove("rd-loading");
+  PR.on("pages-built", loaded);
+  PR.on("rendered", loaded);
+  setTimeout(loaded, 10000);
   async function boot() {
     PR.applyPrefs(true);  // 先照瀏覽器記的畫出來（不存：見 panels.js）
     try { await PR.load(); } catch (e) {
+      loaded();
       PR.$("#paper").innerHTML = '<div class="pending">' + PR.t("读不到论文：{msg}。", { msg: PR.esc(e.message) }) + '<a href="/">' + PR.t("回文献库") + "</a></div>";
       if (e.status === 404 && PR.docMissing) PR.docMissing();  // 已經刪掉的文件（分頁是上次留下來的）：請外殼把這個分頁收掉
       return;
@@ -158,6 +165,7 @@
     PR.applyFeatures();
     const m = S.paper.meta || {};
     if (PR.notesOnly) {  // 筆記的獨立視窗（notes-link.js）：只要筆記面板
+      loaded();
       document.title = PR.t("筆記") + " · " + (m.short_zh || m.title_zh || m.title_en || PR.t("论文"));
       PR.buildIndex();
       PR.startPolling();
@@ -165,6 +173,7 @@
       return;
     }
     if (PR.chatOnly) {  // 問 AI 的獨立視窗（chat-link.js）：只要面板，不畫正文和 PDF，也不記閱讀進度
+      loaded();
       document.title = PR.t("問 AI") + " · " + (m.short_zh || m.title_zh || m.title_en || PR.t("论文"));
       PR.buildIndex();
       PR.startPolling();

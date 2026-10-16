@@ -1160,3 +1160,73 @@ body.drawer-open #drawer { visibility: visible; transition: transform var(--dur)
 .list:not(.grid) .ncard.new { flex-direction: row; align-items: center; }
 .list:not(.grid) .ncard.new > .nc-new { flex-direction: row; justify-content: flex-start; height: 100%; padding: 0 12px; }
 .list:not(.grid) .ncard.new > .nc-tpl { margin: 0 10px 0 0; height: 30px; padding: 0 12px; }
+
+/* ======================= 閱讀頁的浮層 v3（第三次大更新）=======================
+   選字工具列、PDF 上的便利貼（筆記／提問）、頁邊的筆記卡、快速提問、框選、讀取中。
+   原則：浮在紙上的東西是一張紙（實色、柔和的大陰影、.5px 細線），不畫粗的彩色外框；顏色只出現在該出現的地方
+   （卡片上緣一道細的色帶、原話前那一道色條、色點）；按鈕在一塊塊淡底的群組裡，主要動作用強調色。 */
+
+/* ---- 選字工具列 ---- */
+#selbar { gap: 2px; padding: 5px; border-radius: 15px; }
+#selbar > button { width: 32px; height: 30px; border-radius: 9px; color: var(--ink); transition: background var(--dur-fast), transform .1s ease-out; }
+@media (hover: hover) and (pointer: fine) { #selbar > button:not(.primary):hover { background: var(--row-hover, var(--fill)); } }
+#selbar > button:active { transform: scale(.93); }
+#selbar .pens { display: inline-flex; gap: 0; padding: 2px; margin-right: 2px; border-radius: 11px; background: var(--fill); }
+#selbar .pens button { width: 30px; height: 26px; border-radius: 8px; color: var(--ink-2); }
+#selbar .pens button.on { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .14), inset 0 0 0 .5px var(--line); }
+#selbar .dots { display: inline-flex; align-items: center; gap: 7px; padding: 0 11px 0 8px; margin-right: 3px; border-right: .5px solid var(--line); }
+#selbar .dots button { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .18); transition: transform .14s cubic-bezier(.23, 1, .32, 1); }
+#selbar .dots.pen-underline button { height: 4px; border-radius: 2px; box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { #selbar .dots button:hover { transform: scale(1.22); } }
+#selbar > button.primary { width: 34px; margin-left: 5px; border-radius: 10px; background: var(--accent); color: var(--accent-ink, #fff); box-shadow: 0 5px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+@media (hover: hover) and (pointer: fine) { #selbar > button.primary:hover { background: color-mix(in srgb, var(--accent) 86%, #000); } }
+
+/* ---- 便利貼、頁邊卡片正在寫的時候：不畫彩色外框，上緣一道細色帶說它是什麼顏色 ---- */
+.pv-sticky .card { padding: 15px 16px 12px; border-radius: 16px; background: var(--note-bg);
+  box-shadow: 0 0 0 .5px var(--line), 0 2px 6px -2px rgba(0, 0, 0, .12), 0 28px 64px -24px rgba(0, 0, 0, .48); }
+.pv-sticky .card.editing, .pv-sticky .card.editing:hover { background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line), 0 2px 6px -2px rgba(0, 0, 0, .12), 0 28px 64px -24px rgba(0, 0, 0, .48); }
+.pv-sticky .card::after { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: var(--nc); opacity: .85; pointer-events: none; }
+.card.editing { box-shadow: 0 0 0 1px color-mix(in srgb, var(--nc) 46%, transparent), 0 14px 34px -18px rgba(0, 0, 0, .45); }
+/* 最下面那一排（筆記／提問、顏色、模型、送出）：和上面隔一道細線 */
+.card .kinds { margin-top: 11px; padding-top: 10px; border-top: .5px solid var(--line); gap: 8px; }
+.card .kseg { padding: 2px; border-radius: 9px; background: var(--fill); }
+.card .kseg button { height: 24px; padding: 0 11px; border-radius: 7px; font: 500 12px var(--ui); color: var(--ink-2); }
+.card .kseg button.on { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12), inset 0 0 0 .5px var(--line); }
+.card .kinds .dots { gap: 7px; }
+.card .kinds .dots button { width: 15px; height: 15px; }
+.card .kinds > .ask-model { height: 28px; padding: 0 10px; border-radius: 9px; }
+.card .kinds > .send { width: 30px; height: 30px; border-radius: 10px; background: var(--accent); color: var(--accent-ink, #fff); box-shadow: 0 5px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent); transition: transform .1s ease-out, background var(--dur-fast); }
+.card .kinds > .send:active { transform: scale(.92); }
+/* 快速提問：一顆顆有圖示的淡底小鈕（解釋、舉例、解題、推導、圖解、翻譯） */
+.card .qchips { gap: 6px; margin-top: 10px; }
+.card .qchips button { height: 28px; padding: 0 11px 0 9px; display: inline-flex; align-items: center; gap: 5px; border-radius: 9px; background: var(--fill); box-shadow: none; color: var(--ink-2); font: 500 12.5px var(--ui); transition: background var(--dur-fast), color var(--dur-fast), transform .1s ease-out; }
+.card .qchips button svg.i { width: 13px; height: 13px; color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .card .qchips button:hover { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--ink); box-shadow: none; } }
+.card .qchips button:active { transform: scale(.95); }
+/* 原話：前面一道色條、最多四行，太長的漸漸淡掉 */
+.pv-sticky .card .quote { max-height: 6.4em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.pv-sticky .card .quote:not(:has(+ *)) { -webkit-mask-image: none; mask-image: none; }
+
+/* ---- 閱讀頁的提示條：PDF 優先時底下有一顆頁碼膠囊，提示條放在它上面（以前疊在一起） ---- */
+body.pdf-main #toast { bottom: 74px; }
+
+/* ---- 讀取中：資料還沒到，不先露出一條空的紙（文章那一格是空的，深色時是一條深色的帶子）；0.35 秒還沒好才在畫布正中間轉一個小圈 ---- */
+body.rd-loading #paper, body.rd-loading #margin { visibility: hidden; }
+body.rd-loading::after { content: ""; position: fixed; left: 50%; top: 46%; z-index: 5; width: 22px; height: 22px; margin: -11px 0 0 -11px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--ink) 16%, transparent); border-top-color: var(--ink-2); opacity: 0; pointer-events: none; animation: rd-spin .8s linear infinite, rd-show .3s ease-out .35s forwards; }
+@keyframes rd-spin { to { rotate: 360deg; } }
+@keyframes rd-show { to { opacity: 1; } }
+/* 便利貼裡的筆記也有一排標題（圖示、「筆記」、時間）：和提問的一樣，也是拖動的把手；頁邊的小卡片還是把它收在右上角 */
+.pv-sticky .card.mine:is(.k-note, .k-highlight) > .hd { float: none; position: static; display: flex; min-height: 20px; margin: 0 0 8px; gap: 6px; }
+.pv-sticky .card.mine:is(.k-note, .k-highlight) > .hd > :is(.ic, .lbl, .meta, .grow) { display: revert; }
+.pv-sticky .card.mine:is(.k-note, .k-highlight) > .hd > .ic { display: inline-grid; place-items: center; }
+.pv-sticky .card.mine:is(.k-note, .k-highlight) > .hd .acts { position: static; padding: 0; background: none; box-shadow: none; }
+/* AI 的回答（卡片、便利貼裡）：淡淡一層強調色的底，標題列是「✦ 模型名字」，和自己寫的分得出來 */
+.card .reply { margin-top: 11px; padding: 10px 12px 11px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 6%, var(--fill)); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--accent) 14%, transparent); }
+.card .reply .rhd { margin-bottom: 6px; }
+.card .reply .rhd .ic.ai { color: var(--accent); }
+.card .reply .rhd .who { color: var(--ink-2); font-weight: 600; }
+.card .reply .body { font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.7; }
+.card .reply.err { background: color-mix(in srgb, var(--danger) 7%, var(--fill)); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--danger) 20%, transparent); }
+/* 頁邊（PDF 旁）的小卡片：左邊一道細細的顏色，一眼看出是哪個顏色畫的（那一欄不顯示原話） */
+.pv-margin .card.mine::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 0 3px 3px 0; background: var(--nc); opacity: .9; }

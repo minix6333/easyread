@@ -65,6 +65,8 @@
   }
   const pageOf = (d) => (d.side === "pdf" && d.page) || (PR.blockById[d.anchor] || {}).page || 0;
 
+  // 快速提問的小圖示：解釋＝燈泡、解題＝勾、推導＝Σ、圖解＝流程圖；舉例是清單、翻譯是文字
+  const QICON = { explain: "bulb", solve: "check", derive: "sigma", diagram: "flow" };
   function cardHtml(item, editingId) {
     const d = item.data;
     if (item.src === "agent") {
@@ -108,7 +110,7 @@
         [PR.t("圖解"), PR.t("用圖講解這個區域。"), "diagram"], [PR.t("翻譯"), PR.t("把這個區域裡的文字翻譯出來。")]]
       : [[PR.t("解釋"), PR.t("用白話解釋這段在說什麼。"), "explain"], [PR.t("舉例"), PR.t("舉一個具體的例子說明這段。")], [PR.t("解題"), PR.t("把這題完整解出來，算式和答案都寫清楚。"), "solve"],
         [PR.t("推導"), PR.t("把這裡的推導一步一步寫出來，每一步都講清楚為什麼可以這樣寫。"), "derive"], [PR.t("圖解"), PR.t("用圖講解這段。"), "diagram"]])
-      .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + l + "</button>").join("") + "</div>";
+      .map(([l, q, m]) => '<button data-q="' + PR.esc(q) + '"' + (m ? ' data-mode="' + m + '"' : "") + ">" + PR.icon(QICON[m] || (l === PR.t("翻譯") ? "en" : "list"), "sm") + "<span>" + l + "</span></button>").join("") + "</div>";
     const body = editing
       ? (PR.mdEd || ((h) => h))('<textarea rows="1" placeholder="' + (isQ ? PR.t("想問什麼？") : PR.t("寫筆記…")) + '">' + PR.esc(d.body || "") + "</textarea>", { bar: !isQ }) + quick +
         '<div class="kinds"><span class="kseg"><button data-k="note" class="' + (!isQ ? "on" : "") + '">' + PR.t("笔记") + '</button><button data-k="question" class="' + (isQ ? "on" : "") + '">' + PR.t("提問") + "</button></span>" +

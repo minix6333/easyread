@@ -151,10 +151,12 @@
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
     bar.classList.add("open");
     if (pdf && canAsk && PR.warmQuick) PR.warmQuick();  // 選了字就先把選字翻譯的模型行程拉起來（不連網、不花額度）
-    const r = pendingSel.rect, w = bar.offsetWidth;
+    const r = pendingSel.rect, w = bar.offsetWidth, h = bar.offsetHeight || 40;
     const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
-    const y = r.top - 46 < 58 ? r.bottom + 8 : r.top - 46;
+    const below = r.top - h - 8 < 58, y = below ? r.bottom + 8 : r.top - h - 8;
     bar.style.left = x + "px"; bar.style.top = y + "px";
+    // 從選的字那裡長出來（base.css 的浮層是縮小、糊的→清楚）：縮放的原點在選取的正中間、靠字的那一邊
+    bar.style.transformOrigin = Math.round(Math.max(0, Math.min(w, r.left + r.width / 2 - x))) + "px " + (below ? "0" : "100%");
   }
   document.addEventListener("mouseup", (e) => { if (!(e.target.closest && e.target.closest("#selbar, #blockbar"))) setTimeout(showSelbar, 10); });
   document.addEventListener("keyup", (e) => { if (e.shiftKey && e.key.startsWith("Arrow")) showSelbar(); });
