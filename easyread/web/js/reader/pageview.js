@@ -194,6 +194,35 @@
     });
   }
   PR.pageNodes = () => pageNodes;
+  /* 第 n 頁的圖（預覽卡用的小圖）：w 是要多寬，伺服器做一次就快取 */
+  PR.pageImg = function (n, w) {
+    const p = pages()[n - 1];
+    if (!p) return "";
+    const base = PR.imageUrl(p.img);
+    return PR.store.mode === "server" ? base + "?w=" + (w || 1600) + "&v=2" : base;
+  };
+  /* 捲到第 page 頁的 y（0–1，那一頁從上往下的位置）：那一點放在畫面上方四分之一處，閃一下標出那一行。
+     y 不給就是那一頁的頂端。預覽卡的「跳過去」用；跳之前要能回來的話先叫 PR.rememberPdfSpot（jumpback.js） */
+  PR.pdfGoto = function (page, y) {
+    if (!pageNodes.length) return;
+    const n = Math.min(pageNodes.length, Math.max(1, page)), { node } = pageNodes[n - 1];
+    pvPage = n; remember(n);
+    ensurePages(); loadNearby(n); updatePageLabel();
+    programmaticUntil = Date.now() + 1500;
+    const room = scroller.clientHeight, from = scroller.scrollTop;
+    const top = Math.max(0, pageTop(node) + (y == null ? -18 : y * node.offsetHeight - room * 0.22));
+    if (Math.abs(top - from) > room * 2) scroller.scrollTop = top + (top > from ? -1 : 1) * room * 0.5;  // 很遠：只滑最後一小段（同 showPage）
+    scroller.scrollTo({ top, behavior: "smooth" });
+    PR.pdfSpotAt && PR.pdfSpotAt(top, true);
+    if (y == null) return;
+    const old = node.querySelector(".pv-flash");
+    if (old) old.remove();
+    const f = document.createElement("i");
+    f.className = "pv-flash";
+    f.style.top = (y * 100).toFixed(2) + "%";
+    node.append(f);
+    setTimeout(() => f.remove(), 1900);
+  };
   PR.pdfPage = () => pvPage;
   PR.pdfBlock = () => pvBlock;
   PR.reloadPages = () => loadNearby(pvPage);  // 面板寬度、縮放變了：按新寬度換圖，不動捲動位置

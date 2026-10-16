@@ -95,7 +95,8 @@ window.PR = window.PR || {};
     }
     const sum = threadSum(msgs);
     if (sum) return '<button class="' + cls + '" data-c="usage" title="' + PR.t("用量") + '"><span>' + tokens(sum.input + sum.output) + " token</span></button>";
-    return latest && latest.limits ? '<button class="' + cls + '" data-c="usage" title="' + PR.t("用量") + '"><span>' + PR.t("用量") + "</span></button>" : "";
+    // 還沒有數字可以顯示：一個儀表圖示，字在滑鼠提示裡
+    return latest && latest.limits ? '<button class="' + cls + ' us-ic" data-c="usage" title="' + PR.t("用量") + '" aria-label="' + PR.t("用量") + '">' + (PR.hasIcon && PR.hasIcon("gauge") ? PR.icon("gauge", "sm") : "<span>" + PR.t("用量") + "</span>") + "</button>" : "";
   };
 
   /* 上下文条（学 Claude 的 Context window）：最近一次回答时发给模型的全部内容。每次提问都会连同之前的对话一起发，

@@ -66,6 +66,15 @@
   /* 程式自己要捲去某個位置（翻到某一頁、跳到某一段，pageview.js 的 showPage）時叫：馬上以那個位置為準。
      不能等捲動事件——它下一格才來，這中間要是版面寬度變了（跳頁的同時開了面板、釘了導覽欄），會照舊的位置捲回去，等於沒跳。
      smooth：平滑捲動途中的捲動事件不要把目標換掉（使用者自己動了滾輪就不管了，見下面） */
+  /* 現在讀到哪（第幾頁、頁內多高）：跳走前記下來，回來時照它捲（jumpback.js） */
+  PR.pdfSpotNow = () => capture();
+  PR.pdfRestoreSpot = function (s, smooth) {
+    const sc = PR.$(".pv-scroll"), e = s && (PR.pageNodes ? PR.pageNodes() : [])[s.i];
+    if (!sc || !e || !e.node.offsetHeight) return;
+    const top = Math.max(0, topOf(sc, e.node) + s.frac * e.node.offsetHeight - (s.at == null ? sc.clientHeight / 3 : s.at));
+    sc.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+    PR.pdfSpotAt(top, smooth);
+  };
   PR.pdfSpotAt = function (top, smooth) {
     const s = capture(null, top);
     if (!s) return;

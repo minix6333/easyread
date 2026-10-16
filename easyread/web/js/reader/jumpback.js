@@ -24,8 +24,19 @@
     show();
   };
 
+  /* PDF 上跳（預覽卡的「跳過去」）：記下 PDF 讀到哪（第幾頁、頁內多高）；按鈕、瀏覽器後退一樣回得去 */
+  PR.rememberPdfSpot = function () {
+    const spot = PR.pdfSpotNow && PR.pdfSpotNow();
+    if (!spot) return;
+    stack.push({ pdf: spot });
+    if (stack.length > 30) stack.shift();
+    try { history.pushState({ easyreadBack: stack.length }, "", location.href); } catch (e) { /* file:// 下可能不让改历史 */ }
+    show();
+  };
+
   function label() {
     const s = stack[stack.length - 1];
+    if (s && s.pdf) return PR.t("回到第 {page} 頁", { page: s.pdf.i + 1 });
     const sec = s && PR.blockById[s.id] && PR.sectionOf ? PR.sectionOf(s.id) : "";
     return sec ? PR.t("返回刚才读的地方：{sec}", { sec }) : PR.t("返回刚才读的地方");
   }
@@ -41,6 +52,11 @@
   function goBack() {
     const s = stack.pop();
     if (!s) return;
+    if (s.pdf) {
+      if (PR.pdfRestoreSpot) PR.pdfRestoreSpot(s.pdf, true);
+      if (stack.length) show(); else btn.hidden = true;
+      return;
+    }
     const el = document.getElementById("b-" + s.id);
     if (el && s.exact) {  // 知道是从哪段跳走的：把那段放回屏幕中间并高亮
       PR.centerOn(el);
@@ -52,9 +68,16 @@
   window.addEventListener("popstate", () => { if (stack.length) goBack(); });
 
   /* 自己滚回原处了，按钮就收起来 */
+  const sc = PR.$(".pv-scroll");
+  if (sc) sc.addEventListener("scroll", PR.debounce(() => {  // PDF：捲回記下的那一頁附近
+    const s = stack[stack.length - 1], now = s && s.pdf && PR.pdfSpotNow && PR.pdfSpotNow();
+    if (!now || !btn || btn.hidden) return;
+    const node = (PR.pageNodes()[s.pdf.i] || {}).node, h = node ? node.offsetHeight : 0;
+    if (h && now.i === s.pdf.i && Math.abs(now.frac - s.pdf.frac) * h < sc.clientHeight * 0.4) { stack.pop(); if (stack.length) show(); else btn.hidden = true; }
+  }, 300), { passive: true });
   window.addEventListener("scroll", PR.debounce(() => {
     const s = stack[stack.length - 1];
-    if (!s || !btn || btn.hidden) return;
+    if (!s || s.pdf || !btn || btn.hidden) return;
     const el = document.getElementById("b-" + s.id);
     if (el && Math.abs(el.getBoundingClientRect().top - s.off) < innerHeight * 0.4) { stack.pop(); if (stack.length) show(); else btn.hidden = true; }
   }, 300), { passive: true });

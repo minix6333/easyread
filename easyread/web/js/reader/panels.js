@@ -439,6 +439,9 @@
     pop.onclick = null;
     popSticky = !!(opts && opts.sticky);
     pop.classList.toggle("wide", !!(opts && opts.wide));
+    if (pop._cls) pop.classList.remove(pop._cls);  // 各自的樣式（PDF 預覽卡 peek.js 是 "peek"）：換人用時拿掉
+    pop._cls = (opts && opts.cls) || "";
+    if (pop._cls) pop.classList.add(pop._cls);
     pop.innerHTML = html;
     pop.classList.add("open");
     const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;

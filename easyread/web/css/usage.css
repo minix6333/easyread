@@ -45,3 +45,4 @@
 .us-legend { display: flex; gap: 12px; margin-top: 7px; font-size: 11px; color: var(--ink-3); }
 .us-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .us-legend i { width: 7px; height: 7px; border-radius: 2px; }
+.us-chip.us-ic { width: 26px; padding: 0; justify-content: center; }

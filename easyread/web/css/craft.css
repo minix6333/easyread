@@ -1332,3 +1332,28 @@ body.side-swap .side-panel { transition: none !important; }
 @keyframes ic-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .card.mine.asking > .hd > .ic { animation: none; } }
 .in-row > b { flex: 1; text-align: left; font-weight: 500; }
+
+/* ---------- PDF 預覽卡（reader/peek.js）：指到引用、圖號、公式號時那一張 ---------- */
+#popover.peek { width: min(476px, calc(100vw - 20px)); max-width: none; padding: 8px 10px 8px 12px; }
+#popover.peek .pk-hd { display: flex; align-items: center; gap: 7px; min-height: 28px; margin-bottom: 4px; color: var(--ink-3); font: 12.5px/1.2 var(--ui); }
+#popover.peek .pk-hd b { font-weight: 600; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; }
+#popover.peek .grow { flex: 1; }
+#popover.peek button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; min-width: 28px; padding: 0 6px; border-radius: 9px; color: var(--ink-3); font: 12px var(--ui); }
+#popover.peek button:hover { background: var(--fill); color: var(--ink); }
+#popover.peek button:disabled { opacity: .45; pointer-events: none; }
+#popover.peek .pk-pg span { font-variant-numeric: tabular-nums; }
+#popover.peek .pk-text { font: 13px/1.62 var(--serif-en); color: var(--ink); overflow-wrap: anywhere; max-height: 10em; overflow: auto; padding-right: 4px; user-select: text; }
+#popover.peek .pk-text b { font-weight: 600; }
+#popover.peek .pk-lib { display: flex; width: 100%; justify-content: flex-start; gap: 8px; margin-top: 8px; height: 34px; padding: 0 10px; background: var(--fill); color: var(--ink-2); font-size: 12.5px; }
+#popover.peek .pk-lib span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#popover.peek .pk-acts { display: flex; gap: 2px; margin: 6px -4px 0; }
+#popover.peek .pk-view { overflow: auto; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 .5px var(--line); overscroll-behavior: contain; scrollbar-width: thin; }
+:root[data-theme="dark"] #popover.peek .pk-view { background: var(--night-page-bg, #fff); }
+:root[data-theme="dark"] #popover.peek .pk-view img { filter: var(--night-filter, none); }
+#popover.peek .pk-view img { display: block; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; }
+#popover.peek .pk-url { font: 12px/1.5 var(--ui); color: var(--ink-3); overflow-wrap: anywhere; }
+.pv-page.pv-onlink, .pv-page.pv-onlink .pv-text span { cursor: pointer; }
+/* 跳過去之後閃一下標出那一行（只在那一頁上放一個、兩秒就拿掉，不在每一頁常駐，見 pdfview.css 的合成層規則） */
+.pv-flash { position: absolute; left: -6px; right: -6px; height: 2.6%; margin-top: -.5%; border-radius: 6px; background: var(--accent-soft-2); box-shadow: inset 3px 0 0 var(--accent); pointer-events: none; animation: pvFlash 1.8s ease-out forwards; }
+@keyframes pvFlash { 0%, 50% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pv-flash { animation: pvFlash 1.8s steps(1, end) forwards; } }

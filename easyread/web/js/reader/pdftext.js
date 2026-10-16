@@ -91,6 +91,12 @@
     if (!segCache[n]) { const chars = await PR.charsFor(n); segCache[n] = { chars, segs: order(segment(chars)) }; }
     return segCache[n];
   };
+  /* 這一頁一行一行的字（閱讀順序），每行 {t, x0, y0, x1, y1, h, items}；預覽卡讀目標那一塊的字用 */
+  PR.pageLines = async function (n) {
+    const { chars, segs } = await PR.pageSegs(n);
+    if (!segs.lines) segs.lines = segs.map((s) => ({ t: textOf(s, chars), x0: s.x0, y0: s.y0, x1: s.x1, y1: s.y1, h: s.h, items: s.items }));
+    return { chars, lines: segs.lines };
+  };
   PR.buildTextLayer = async function (entry, n) {
     if (built[n] || entry.textPending) return;
     entry.textPending = true;
