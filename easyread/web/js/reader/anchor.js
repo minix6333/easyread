@@ -146,6 +146,7 @@
       (pdf && canAsk ? btn("translate", "en", PR.t("翻譯") + key("T")) : "") +
       (pendingSel.side ? "" : btn("en", "en", PR.t("看这段英文"))) +
       btn("copy", "copy", PR.t("复制")) +
+      (pdf && PR.openFind && pendingSel.quote.length < 80 && !/\n/.test(pendingSel.quote) ? btn("find", "search", PR.t("在這份文件裡找這個詞") + key("⌘F")) : "") +
       (PR.store.mode === "server" && PR.excerptMenu ? btn("excerpt", "notebook", PR.t("加到筆記（可以直接拖進旁邊開著的筆記）") + key("E")) : "") +
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
@@ -200,7 +201,9 @@
       PR.$(".dots", selbar()).className = "dots pen-" + p.dataset.pen;
       return;
     }
-    const b = e.target.closest("button[data-s]"); if (b) PR.selectionAction(b.dataset.s, b.dataset.color);
+    const b = e.target.closest("button[data-s]");
+    if (b && b.dataset.s === "find") { selbar().classList.remove("open"); pendingSel = null; PR.openFind(); return; }  // 選取還在：搜尋列直接拿它來找
+    if (b) PR.selectionAction(b.dataset.s, b.dataset.color);
   });
 
   /* 点划线：写笔记 / 换颜色 / 删掉 */
