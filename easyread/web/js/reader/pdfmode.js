@@ -322,19 +322,27 @@
     else if (e.key === "-" || e.key === "_") { e.preventDefault(); PR.setPdfZoom(z - (z > 2 ? 0.5 : 0.25)); }
     else if (e.key === "0") { e.preventDefault(); PR.setPdfZoom(1); }
   }, true);
-  /* 捏合：一格畫面套一次（不是 40 毫秒一次），以手指中間那一點為中心 */
+  /* 捏合、按著 Ctrl 轉滾輪：一格畫面套一次（不是 40 毫秒一次），以游標那一點為中心。
+     觸控板捏合送來的是一連串很小的 deltaY（一幀幾個像素）；滑鼠滾輪按著 Ctrl 轉一格，Windows 上是一次 100——
+     以前兩種都照捏合的係數直接套（e^(100×0.012) ≈ 3.3 倍），轉一格、或舊式觸控板滑一下就跳到 400%。
+     現在每個事件最多變 10%：捏合幾乎碰不到這個上限，滾輪一格就是一階。行（deltaMode 1）、頁（2）換成像素再算。
+     四捨五入到 1% 吃掉的那一點留著下次加，慢慢捏也會動；碰到上下限就清掉，反方向一動就有反應。 */
+  const PINCH_STEP = Math.log(1.1);
+  const pinchLog = (deltaY, deltaMode, pageH) => Math.max(-PINCH_STEP, Math.min(PINCH_STEP, -deltaY * (deltaMode === 1 ? 33 : deltaMode === 2 ? Math.max(300, pageH || 0) : 1) * 0.012));
+  PR.pinchFactor = (deltaY, deltaMode, pageH) => Math.exp(pinchLog(deltaY, deltaMode, pageH));  // 一個事件縮放幾倍（測試看得到）
   let pinch = 0, pinchRaf = 0, pinchAt = null;
   PR.$(".pv-scroll").addEventListener("wheel", (e) => {
     if (!e.ctrlKey || !PR.pdfMain()) return;
     e.preventDefault();
-    pinch += e.deltaY;
+    pinch += pinchLog(e.deltaY, e.deltaMode, e.currentTarget.clientHeight);
     pinchAt = { x: e.clientX, y: e.clientY };
     if (pinchRaf) return;
     pinchRaf = requestAnimationFrame(() => {
       pinchRaf = 0;
-      const z = (PR.prefs || {}).pdfZoom || 1, d = pinch;
-      pinch = 0;
-      PR.setPdfZoom(z * Math.exp(-d * 0.012), pinchAt);
+      const z = (PR.prefs || {}).pdfZoom || 1;
+      PR.setPdfZoom(z * Math.exp(pinch), pinchAt);
+      const now = (PR.prefs || {}).pdfZoom || 1;
+      if (now !== z || now <= 0.5 || now >= 4) pinch = 0;
     });
   }, { passive: false });
 
