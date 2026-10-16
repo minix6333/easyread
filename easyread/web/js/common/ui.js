@@ -88,4 +88,32 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
+
+  /* ---------- 彈簧曲線、FLIP ----------
+     PR.spring()：CSS 的 --spring（臨界阻尼的彈簧，linear() 寫的）拿來給 element.animate 用；減少動態時是直線（等於直接跳過去）。
+     PR.flip(els, change)：版面要變之前記下每個元素的位置，change() 改完版面，再讓它們從舊位置滑到新位置——
+     只動 translate（不縮放，字和封面不會變形）；只處理看得到的（上下多算 200px）；連續觸發時從目前畫面上的位置接著滑（不會跳回去）。 */
+  PR.spring = function () {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--spring").trim();
+    return v || "cubic-bezier(.22, 1, .36, 1)";
+  };
+  PR.flip = function (els, change, opts) {
+    opts = opts || {};
+    if (still.matches || !document.body.animate) { change(); return; }
+    const vh = innerHeight, first = new Map();
+    for (const el of els) {
+      const b = el.getBoundingClientRect();
+      if (b.width && b.bottom > -200 && b.top < vh + 200) first.set(el, b);
+    }
+    first.forEach((b, el) => el.getAnimations().forEach((a) => { if (a.id === "flip") a.cancel(); }));
+    change();
+    const easing = PR.spring(), duration = opts.duration || 440;
+    first.forEach((b, el) => {
+      if (!el.isConnected) return;
+      const a = el.getBoundingClientRect(), dx = b.left - a.left, dy = b.top - a.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      const anim = el.animate([{ translate: dx + "px " + dy + "px" }, { translate: "0px 0px" }], { duration, easing });
+      anim.id = "flip";
+    });
+  };
 })(window.PR = window.PR || {});

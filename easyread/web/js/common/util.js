@@ -26,12 +26,13 @@ window.PR = window.PR || {};
   PR.KINDS = [["paper", PR.t("論文")], ["slides", PR.t("投影片")], ["notes", PR.t("講義")]];
   PR.kindName = (code) => (PR.KINDS.find(([k]) => k === code) || PR.KINDS[0])[1];
 
-  /* 论文标题哪个当主标题：译文语言和界面语言一样时用译文标题（中文界面看中文译文），
-     否则用英文原标题，译文标题放第二行。short 是侧栏用的短标题 */
+  /* 文件標題：翻譯過（有譯文標題）的一律用譯文標題——讀者說過：翻譯完的文章，主頁上顯示中文、不要顯示原文。
+     以前是「介面語言和譯文語言一樣」才用譯文：介面跟著系統、系統是英文或簡體的電腦（Windows 常這樣）就變成整排英文。
+     translated＝主標題是譯文；這時 sub（原文標題）只放在詳細資訊裡，清單、卡片、側欄都不放。short 是側欄用的短標題 */
   PR.titles = function (i) {
     const tr = i.title_zh || "", en = i.title_en || "", lang = i.target || "zh";
-    if (tr && (PR.lang === lang || !en)) return { main: tr, sub: en, subLang: "en", short: i.short_zh || tr.split(/[：:]/)[0] };
-    return { main: en || PR.t("（未命名）"), sub: tr, subLang: lang, short: en.split(/:\s/)[0] || PR.t("（未命名）") };
+    if (tr) return { main: tr, sub: en, subLang: "en", short: i.short_zh || tr.split(/[：:]/)[0], translated: true };
+    return { main: en || PR.t("（未命名）"), sub: "", subLang: lang, short: en.split(/:\s/)[0] || PR.t("（未命名）"), translated: false };
   };
 
   PR.esc = (s) => String(s == null ? "" : s)

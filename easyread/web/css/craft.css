@@ -309,7 +309,7 @@ body.sizing #dockGrip::after, body.sizing .gap::after { opacity: 1; height: 58px
 /* ============ 文獻庫：整頁都是材質，卡片浮在上面 ============ */
 .lib { padding-top: 0; }
 .lib > .topbar { left: 0; right: 0; padding: 0 16px 0 14px; }
-.lib.has-detail > .topbar { right: 380px; }
+/* 頂欄一直是整個寬度：右邊的欄開合時，搜尋框和最右邊那顆開關都留在原地（不會被推走、要重新找） */
 .lib > .topbar::before { --edge: var(--mat-bg); left: var(--side-w, 248px); border-radius: 0; }
 html.desktop .lib > .topbar::before { background: none; }
 .bar-side { display: flex; justify-content: flex-end; flex: none; width: calc(var(--side-w, 248px) - 20px); min-width: var(--ctl-w); transition: width var(--dur) var(--spring); }
@@ -382,17 +382,16 @@ body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.ico
 #syncBanner, .sync-banner, .cloud-notice { margin: 6px 22px 10px; border-radius: var(--r-sheet); background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
 @media (min-width: 1100px) {
   .lib { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 0; }
-  .lib.has-detail { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 380px; }
+  .lib.insp-on { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 380px; }
 }
 @media (max-width: 1099px) {
   .lib > .topbar::before { left: 0; }
-  .lib.has-detail > .topbar { right: 0; }
   .bar-side { width: auto; }
   .bar-side > .btn.icon { background: var(--ctl-bg); box-shadow: inset 0 0 0 .5px var(--ctl-line); color: var(--ink); }
   /* 側欄是從左邊滑出來的一塊厚玻璃 */
   .side { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); border-right: 0; box-shadow: none; }
   body.side-drawer .side { box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); }
-  .lib.has-detail .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
+  .lib.insp-on .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
 }
 @media (max-width: 760px) {
   .list-head .count { display: none; }
@@ -1014,3 +1013,31 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 .ql-note blockquote { margin: .6em 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--rule-2); color: var(--ink-2); }
 .ql-note pre { padding: 10px 12px; border-radius: 9px; background: var(--fill); overflow-x: auto; font: 12.5px/1.6 var(--mono); }
 .ql-empty { margin: 30px 0; text-align: center; color: var(--ink-3); font: 13px var(--ui); }
+
+/* 文獻庫詳細資訊：翻譯過的文件，原文標題縮成大標題下面一小行（「原文」＋原文標題，還是可以點進去改） */
+.detail .title-orig { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 14px; min-width: 0; }
+.detail .title-orig > span { flex: none; font: 500 11px/1.6 var(--ui); color: var(--ink-3); letter-spacing: .02em; }
+.detail .title-orig .title-sub { flex: 1; min-width: 0; margin: 0; font: 12.5px/1.5 var(--serif-en); font-style: normal; color: var(--ink-3); }
+
+/* ---------- 文獻庫右邊的詳細資訊欄（library/app.js 的 L.setInsp）----------
+   寬視窗：第三欄，頂欄蓋在它上面（欄的內容從頂欄底下開始，捲上去時從頂欄的模糊底下過）；自己的「收起」不要了，開關在頂欄最右邊、一直在同一個地方。
+   開：欄從右邊滑進來（卡片同時滑到新位置）；收：先滑出去，再收欄、卡片補位。窄視窗：蓋在內容上的一塊厚玻璃，滑進滑出。 */
+.lib .detail { padding-top: var(--bar-h); box-sizing: border-box; }
+.lib .detail .detail-head { display: none; }
+.lib .detail-inner { width: auto; max-width: 380px; padding-top: 6px; }
+.lib.insp-enter .detail { animation: insp-in .46s var(--spring) both; }
+.lib.insp-leaving .detail { opacity: 0; translate: 28px 0; transition: opacity .16s ease-out, translate .17s ease-in; }
+@keyframes insp-in { from { opacity: 0; translate: 36px 0; } }
+#inspBtn.on { background: var(--ctl-hover); color: var(--accent); }
+.detail-empty { height: calc(100% - 60px); min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--ink-3); text-align: center; }
+.detail-empty svg.i { width: 30px; height: 30px; stroke-width: 1.4; opacity: .55; }
+.detail-empty p { margin: 0; font: 13px/1.5 var(--ui); }
+@media (max-width: 1099px) {
+  .lib .detail { padding-top: 0; }
+  .lib .detail .detail-head { display: flex; }
+  .lib:not(.insp-on) .detail { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lib.insp-enter .detail { animation: none; }
+  .lib.insp-leaving .detail { translate: none; }
+}

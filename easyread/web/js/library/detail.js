@@ -9,11 +9,12 @@
   }
 
 
-  /* 标题可以直接改；哪个在上面看 PR.titles（英文界面看中文译文时英文原标题在上） */
+  /* 標題可以直接改。翻譯過的：大標題是譯文，原文標題縮成下面一小行「原文」（還是可以改，引用、查資料用得到） */
   function titleFields(i) {
     const tr = '<div class="%c" contenteditable="plaintext-only" data-meta="title_zh" lang="' + (i.target || "zh") + '" spellcheck="false">' + PR.esc(i.title_zh || "") + "</div>";
     const en = '<div class="%c" contenteditable="plaintext-only" data-meta="title_en" lang="en" spellcheck="false">' + PR.esc(i.title_en || "") + "</div>";
-    return PR.titles(i).main === i.title_zh && i.title_zh ? tr.replace("%c", "title-main") + en.replace("%c", "title-sub") : en.replace("%c", "title-main") + tr.replace("%c", "title-sub");
+    if (!PR.titles(i).translated) return en.replace("%c", "title-main");
+    return tr.replace("%c", "title-main") + '<div class="title-orig"><span>' + PR.t("原文") + "</span>" + en.replace("%c", "title-sub") + "</div>";
   }
 
   function jobHtml(i) {
@@ -57,7 +58,7 @@
   PR.renderDetail = function () {
     const box = PR.$("#detail");
     const i = L.byId(L.selected);
-    if (!i) { box.innerHTML = ""; return; }
+    if (!i) { box.innerHTML = '<div class="detail-empty">' + PR.icon("panelright") + "<p>" + PR.t("選一篇看詳細資訊") + "</p></div>"; return; }
     if (box.contains(document.activeElement) && document.activeElement.matches("[contenteditable], input")) return; // 正在编辑，不打断
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const readLabel = i.progress > 0.02 ? PR.t("继续阅读 · {pct}%", { pct: Math.round(i.progress * 100) }) : PR.t("开始阅读");
@@ -131,7 +132,7 @@
     if (!d) return;
     const act = d.dataset.d;
     if (act === "newcat") { d.hidden = true; const inp = PR.$("#catInput"); inp.hidden = false; inp.focus(); return; }
-    if (act === "close") L.select(null);
+    if (act === "close") L.setInsp ? L.setInsp(false) : L.select(null);
     else if (act === "star") L.patch(i.id, { starred: !i.starred });
     else if (act === "read") L.openReader(i.id);
     else if (act === "model-settings") PR.openSettings("chat");

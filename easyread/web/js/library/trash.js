@@ -14,7 +14,7 @@
   function render() {
     const rows = items.map((t) => '<div class="trash-row">' + (t.kind === "note" ? PR.tintIcon(t.icon, t.color, PR.hasIcon("notes") ? "notes" : "notebook", "trash-ic") : '<span class="ti trash-ic">' + PR.icon("pdf", "sm") + "</span>") +
       '<div class="trash-t"><b>' + PR.esc(t.kind === "note" ? t.title || PR.t("未命名筆記") : PR.titles(t).main) + "</b>" +
-      "<small>" + PR.esc([t.kind === "note" ? PR.t("筆記") : PR.titles(t).sub, PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
+      "<small>" + PR.esc([t.kind === "note" ? PR.t("筆記") : (PR.titles(t).translated ? "" : PR.titles(t).sub), PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
       '<button class="btn sm" data-tr="restore" data-name="' + PR.esc(t.name) + '">' + PR.t("恢复") + "</button>" +
       '<button class="btn sm danger" data-tr="purge" data-name="' + PR.esc(t.name) + '">' + PR.t("彻底删除") + "</button></div>").join("");
     dlg().querySelector(".dialog").innerHTML = "<h2>" + PR.t("回收站") + "</h2>" +

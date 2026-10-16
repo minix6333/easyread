@@ -9,7 +9,7 @@
 .topbar .search input::-webkit-search-cancel-button { display: none; }
 
 .lib { display: grid; grid-template-columns: 216px minmax(0, 1fr) 0; height: 100vh; padding-top: var(--bar-h); transition: grid-template-columns .25s ease; }
-.lib.has-detail { grid-template-columns: 216px minmax(0, 1fr) 400px; }
+.lib.insp-on { grid-template-columns: 216px minmax(0, 1fr) 400px; }
 
 /* 侧栏 */
 .side { border-right: 1px solid var(--rule); padding: 16px 10px 40px; overflow-y: auto; }
@@ -112,10 +112,10 @@
 .inline { display: flex; gap: 8px; }
 
 @media (max-width: 1100px) {
-  .lib, .lib.has-detail { grid-template-columns: 0 minmax(0, 1fr) 0; }
+  .lib, .lib.insp-on { grid-template-columns: 0 minmax(0, 1fr) 0; }
   .side { display: none; }
   .lib > .main { grid-column: 2; }  /* 侧栏 display:none 后不占格子，不钉住的话 main 会掉进 0 宽的第一列，整页空白 */
-  .lib.has-detail .detail { position: fixed; right: 0; top: var(--bar-h); bottom: 0; width: min(400px, 100vw); box-shadow: var(--shadow-lg); z-index: 20; }
+  .lib.insp-on .detail { position: fixed; right: 0; top: var(--bar-h); bottom: 0; width: min(400px, 100vw); box-shadow: var(--shadow-lg); z-index: 20; }
 }
 @media (max-width: 640px) {
   .topbar .search { margin-left: 8px; width: auto; flex: 1; }
@@ -193,7 +193,7 @@
 .side button.on svg.i { color: var(--accent); }
 @media (min-width: 1101px) {
   .lib { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 0; }
-  .lib.has-detail { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 400px; }
+  .lib.insp-on { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 400px; }
 }
 
 /* 列表行上的“+ 标签” */

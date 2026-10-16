@@ -159,7 +159,7 @@
 
   function rowHtml(i) {
     const tt = PR.titles(i), title = tt.main;
-    const sub = tt.sub ? '<div class="t2" lang="' + tt.subLang + '">' + PR.esc(tt.sub) + "</div>" : "";
+    const sub = tt.sub && !tt.translated ? '<div class="t2" lang="' + tt.subLang + '">' + PR.esc(tt.sub) + "</div>" : "";  // 翻譯過的不放原文標題
     const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
     const kind = i.kind && i.kind !== "paper" ? '<span class="chip kind">' + PR.esc(PR.kindName(i.kind)) + "</span>" : "";  // 投影片、講義標一下
     const tags = kind + (i.tags || []).map((t) => '<span class="chip cat">' + (L.catIcon ? L.catIcon(t) : PR.icon("folder", "sm")) + PR.esc(t) + "</span>").join("");
@@ -230,12 +230,60 @@
   }
   PR.$("#engineChip").onclick = () => PR.openSettings();
 
+  /* 選一篇：只標出來；右邊的詳細資訊欄開著的話換成這一篇。選了不會再把欄打開——
+     以前點一下卡片就多開一欄，整排卡片瞬間被擠到別的位置，要再點一次進去時滑鼠還得重新找（讀者回報過）。 */
   L.select = function (id) {
     L.selected = id;
     PR.$(".lib").classList.toggle("has-detail", !!id);
     PR.$$(".row").forEach((r) => r.classList.toggle("on", r.dataset.id === id));
     PR.renderDetail && PR.renderDetail();
   };
+
+  /* ---------- 右邊的詳細資訊欄：使用者自己開關（頂欄最右邊那顆、按 i） ----------
+     寬視窗是一欄（記住開著還是關著，預設開著）；窄視窗是從右邊滑出來蓋在內容上的一塊，點外面、按 Esc 收回。
+     開合時卡片從舊位置滑到新位置（PR.flip），欄自己從右邊滑進來、收的時候先滑出去再讓卡片補位。 */
+  const INSP_KEY = "easyread-lib-insp";
+  const wideLib = matchMedia("(min-width: 1100px)");
+  let inspSeq = 0;
+  L.inspOpen = () => PR.$(".lib").classList.contains("insp-on");
+  function syncInspBtn() {
+    const b = PR.$("#inspBtn");
+    if (b) { b.classList.toggle("on", L.inspOpen()); b.setAttribute("aria-pressed", String(L.inspOpen())); }
+  }
+  L.setInsp = function (open, opts) {
+    opts = opts || {};
+    const lib = PR.$(".lib"), seq = ++inspSeq;
+    open = !!open;
+    if (!opts.keep && wideLib.matches) PR.ls.set(INSP_KEY, open);
+    lib.classList.remove("insp-leaving");
+    if (L.inspOpen() === open) { syncInspBtn(); return; }
+    const cards = () => PR.$$("#list > *");
+    const still = opts.instant || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (open) {
+      PR.flip(still ? [] : cards(), () => { lib.classList.add("insp-on"); if (!still) lib.classList.add("insp-enter"); syncInspBtn(); PR.renderDetail && PR.renderDetail(); });
+      if (!still) setTimeout(() => { if (seq === inspSeq) lib.classList.remove("insp-enter"); }, 500);
+      return;
+    }
+    if (still) { lib.classList.remove("insp-on", "insp-enter"); syncInspBtn(); return; }
+    lib.classList.remove("insp-enter");
+    lib.classList.add("insp-leaving");  // 先滑出去（craft.css），再收欄、卡片補位
+    syncInspBtn();
+    const b = PR.$("#inspBtn");
+    if (b) b.classList.remove("on");
+    setTimeout(() => {
+      if (seq !== inspSeq) return;
+      PR.flip(wideLib.matches ? cards() : [], () => { lib.classList.remove("insp-on", "insp-leaving"); syncInspBtn(); });
+    }, 170);
+  };
+  L.toggleInsp = () => L.setInsp(!L.inspOpen());
+  (function initInsp() {
+    const b = PR.$("#inspBtn");
+    if (b) { b.innerHTML = PR.icon("panelright"); b.title = PR.t("詳細資訊（i）"); b.onclick = () => L.toggleInsp(); }
+    const want = wideLib.matches && PR.ls.get(INSP_KEY, true) !== false;
+    PR.$(".lib").classList.toggle("insp-on", want);
+    syncInspBtn();
+    wideLib.addEventListener("change", () => L.setInsp(wideLib.matches && PR.ls.get(INSP_KEY, true) !== false, { keep: true, instant: true }));
+  })();
 
   function restoreReturn() {
     const state = PR.libraryNav.restore();
@@ -247,7 +295,7 @@
     PR.$("#q").value = L.q;
     PR.$("#sort").value = L.sort;
     L.selected = filtered().some((i) => i.id === state.paper) ? state.paper : null;
-    PR.$(".lib").classList.toggle("has-detail", !!L.selected);
+    PR.$(".lib").classList.toggle("has-detail", !!L.selected);  // 只是「有選著一篇」；欄開不開是 insp-on（使用者自己開關）
     L.render();
     requestAnimationFrame(() => {
       const main = PR.$(".main"), row = PR.$$(".row").find((r) => r.dataset.id === state.paper);
@@ -261,12 +309,19 @@
   }
 
   /* ---------- 事件 ---------- */
+  /* 點一下選起來；已經選著的那篇再點一次就打開（雙擊也是——雙擊的第二下 detail 是 2，交給 dblclick，不會開兩次） */
   PR.$("#list").addEventListener("click", (e) => {
     const r = e.target.closest(".row");
-    if (r) L.select(r.dataset.id);
+    if (!r) return;
+    if (L.selected === r.dataset.id && e.detail === 1 && !L.picking && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.target.closest("[data-pick], .pick")) {
+      L.openReader(r.dataset.id);
+      return;
+    }
+    if (e.detail <= 1) L.select(r.dataset.id);
   });
-  /* 点列表空白处、侧栏、标题栏空白：收起右侧详情 */
+  /* 点列表空白处、侧栏、标题栏空白：取消選取（欄開著的話換成空的那一頁，版面不動）；窄視窗蓋在上面的那塊點外面就收 */
   document.addEventListener("click", (e) => {
+    if (!wideLib.matches && L.inspOpen() && !e.target.closest("#detail, #inspBtn, .row, .dialog-backdrop, .menu, #toast")) L.setInsp(false, { keep: true });
     if (!L.selected || e.target.closest(".row, #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
     if (e.target.closest(".main, .side, .topbar")) L.select(null);
   });
@@ -294,7 +349,8 @@
     else if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); const r = rows[Math.min(rows.length - 1, idx + 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }
     else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); const r = rows[Math.max(0, idx - 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }
     else if (e.key === "Enter" && L.selected) L.openReader(L.selected);
-    else if (e.key === "Escape") L.select(null);
+    else if (e.key === "Escape") { if (!wideLib.matches && L.inspOpen()) L.setInsp(false, { keep: true }); else L.select(null); }
+    else if (e.key === "i" && !e.metaKey && !e.ctrlKey && !e.altKey) L.toggleInsp();
     else if (e.key === "s" && L.selected) { const it = L.byId(L.selected); L.patch(it.id, { starred: !it.starred }); }
   });
 
