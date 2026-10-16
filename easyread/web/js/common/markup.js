@@ -141,8 +141,11 @@
       part.replace(/第\s?(\d{1,4})\s?[頁页]/g, link).replace(/\b[Pp]age\s(\d{1,4})\b/g, link).replace(/\b[Pp]\.\s?(\d{1,4})\b/g, link))).join("");
   }
 
+  // 跳脫的字（筆記編輯器存的 \*、\$、\~~、\#…）：排的時候就是那個字本身，不當成記號
+  const ESC = /\\([\\*\x60$~+=\[\]#>\-.!|_(){}])/g;  // i18n-ok regex
   function inline(text, opts) {
-    let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
+    const lit = [];
+    let s = blockLabel(PR.esc(text.replace(ESC, (m, c) => { lit.push(c); return "\uE004" + (lit.length - 1) + "\uE005"; })));  // 用 E004／E005：E002 是表格裡跳脫的 |
     // 貼進筆記的圖片：只認 clips/ 底下的檔名；方括號裡寫 50% 這種就是顯示寬度
     s = s.replace(/!\[([^\]\n]*)\]\((clips\/[\w.\-]+)\)/g, (m, alt, src) => {
       const url = PR.imageUrl ? PR.imageUrl(src) : src;
@@ -160,7 +163,7 @@
     s = s.replace(/==([^=\n]+)==/g, '<mark class="md-hl">$1</mark>');  // 螢光（Craft 的 ==…== ／ ⌘⇧B）
     if (opts.cite !== false) s = citeLinks(s);
     if (opts.xref !== false) s = xrefLinks(s);
-    return pageRefs(s).replace(/\n/g, "<br>");
+    return pageRefs(s).replace(/\n/g, "<br>").replace(/\uE004(\d+)\uE005/g, (m, i) => PR.esc(lit[+i]));
   }
 
   /* 一行/一段文字 -> HTML */

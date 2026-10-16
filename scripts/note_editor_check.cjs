@@ -81,9 +81,11 @@ app.whenReady().then(async () => {
       return null;
     };
     window.__st = () => {
-      const ta = document.activeElement, v = (ta && ta.value) || "", el = ta && ta.closest && ta.closest(".bk-b");
-      const at = ta && typeof ta.selectionStart === "number" ? ta.selectionStart : -1;
-      return { tag: ta && ta.tagName, cls: (el && el.className) || "", at, end: ta && ta.selectionEnd, caret: at < 0 ? "" : v.slice(Math.max(0, at - 6), at) + "|" + v.slice(at, at + 6), value: v,
+      const ta = document.activeElement, el = ta && ta.closest && ta.closest(".bk-b");
+      const rich = !!(ta && ta.classList && ta.classList.contains("bk-rich"));  // 排好的那一格（所見即所得）：位置是看得到的字
+      const c = rich ? PR.rich.caret(ta) : null, v = rich ? PR.rich.text(ta) : (ta && ta.value) || "";
+      const at = rich ? (c ? c.start : -1) : ta && typeof ta.selectionStart === "number" ? ta.selectionStart : -1;
+      return { tag: ta && ta.tagName, field: !!(ta && ta.classList && ta.classList.contains("bk-in")), marks: rich ? PR.rich.active(ta) : [], cls: (el && el.className) || "", at, end: rich ? (c ? c.end : -1) : ta && ta.selectionEnd, caret: at < 0 ? "" : v.slice(Math.max(0, at - 6), at) + "|" + v.slice(at, at + 6), value: v,
         editing: document.querySelectorAll(".bk-b.editing").length, sel: document.querySelectorAll(".bk-b.sel").length, blocks: document.querySelectorAll(".bk-b").length,
         md: PR.noteEd ? PR.noteEd.getValue() : "", menu: !!(document.querySelector("#ctxmenu.open")), slash: !!(document.querySelector(".bk-menu.open")) };
     };
@@ -93,7 +95,7 @@ app.whenReady().then(async () => {
       const lines = (el.querySelector(".bk-cb") || el.querySelector(".bk-t, .bk-in, .bk-ct") || el).getBoundingClientRect();
       return { x: Math.round(r.right - 12), y: Math.round(lines.bottom - 8) };
     };
-    window.__block = (text) => Array.from(document.querySelectorAll(".bk-b")).find((b) => b.textContent.includes(text) || ((b.querySelector(".bk-in") || {}).value || "").includes(text));
+    window.__block = (text) => Array.from(document.querySelectorAll(".bk-b")).find((b) => b.textContent.includes(text) || ((b.querySelector("textarea.bk-in") || {}).value || "").includes(text));
     window.__rect = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
   } + ")()";
   const st = () => js("__st()");
@@ -119,12 +121,12 @@ app.whenReady().then(async () => {
   await run("點連結後面的字：游標落在那個字前面", async (name) => {
     await click(await pt("在中間"));
     const s = await st();
-    check(name, s.tag === "TEXTAREA" && s.caret === "e.com)|在中間，後面", s.caret);
+    check(name, s.field && s.caret === "還有一個連結|在中間，後面", s.caret);
   });
   await run("點粗體中間：游標在粗體裡面", async (name) => {
     await click(await pt("體**".slice(0, 1)));
     const s = await st();
-    check(name, /\*\*粗\|體\*\*/.test(s.caret), s.caret);
+    check(name, s.marks.includes("b") && s.caret.includes("粗|體"), { caret: s.caret, marks: s.marks });
   });
   await run("點段落最後面的空白：游標在最後", async (name) => {
     const p = await pt("換行。", 46);
@@ -163,7 +165,7 @@ app.whenReady().then(async () => {
     const s3 = await st();
     await key("z", [CMD]);
     const s4 = await st();
-    check(name, s1.blocks === n0 + 1 && s1.caret.startsWith("|在中間") && s2.blocks === n0 && /\.com\)\|在中間/.test(s2.caret) && s3.value.includes("甲乙丙在中間") && s4.value.includes("甲乙在中間") && !s4.value.includes("丙"),
+    check(name, s1.blocks === n0 + 1 && s1.caret.startsWith("|在中間") && s2.blocks === n0 && /連結\|在中間/.test(s2.caret) && s3.value.includes("甲乙丙在中間") && s4.value.includes("甲乙在中間") && !s4.value.includes("丙"),
       { n0, s1: [s1.blocks, s1.caret], s2: [s2.blocks, s2.caret], s3: s3.caret, s4: s4.caret });
   });
   await run("只重畫有變的那一塊：別的區塊元素沒被換掉", async (name) => {
@@ -199,7 +201,7 @@ app.whenReady().then(async () => {
     const s1 = await st();
     await key("a", [CMD]);
     const s2 = await st();
-    check(name, s1.tag === "TEXTAREA" && s1.at === 0 && s1.end === s1.value.length && s2.sel === s2.blocks && s2.editing === 0, { s1: [s1.at, s1.end], s2: [s2.sel, s2.blocks] });
+    check(name, s1.field && s1.at === 0 && s1.end === s1.value.length && s2.sel === s2.blocks && s2.editing === 0, { s1: [s1.at, s1.end], s2: [s2.sel, s2.blocks] });
   });
   await run("把手：點一下選起來並開選單；「複製一份」多一塊", async (name) => {
     const el = await js("(() => { const el = __block('最後一段'); el.scrollIntoView({ block: 'center' }); const h = el.querySelector('.bk-handle').getBoundingClientRect(); const r = el.getBoundingClientRect(); return { hx: Math.round(h.left + h.width / 2), hy: Math.round(h.top + h.height / 2), bx: Math.round(r.left + 120), by: Math.round(r.top + r.height / 2) }; })()");
@@ -235,7 +237,7 @@ app.whenReady().then(async () => {
     mouse("mouseUp", z.x, z.y);
     await sleep(150);
     const s = await st();
-    check(name, s.tag === "TEXTAREA" && s.value.slice(s.at, s.end) === "後面再接一些字", { got: s.value.slice(s.at, s.end), at: s.at, end: s.end });
+    check(name, s.field && s.value.slice(s.at, s.end) === "後面再接一些字", { got: s.value.slice(s.at, s.end), at: s.at, end: s.end });
   });
   await run("貼上好幾行的清單：拆成一塊一塊", async (name) => {
     await click(await end("最後一段"));
@@ -271,7 +273,7 @@ app.whenReady().then(async () => {
     mouse("mouseMove", el.bx, el.by); await sleep(100);
     await click({ x: el.ax, y: el.ay });
     const s = await st();
-    check(name, s.blocks === n0 + 1 && s.slash && s.tag === "TEXTAREA", { n0, blocks: s.blocks, slash: s.slash, tag: s.tag });
+    check(name, s.blocks === n0 + 1 && s.slash && s.field, { n0, blocks: s.blocks, slash: s.slash, tag: s.tag });
   });
   await run("點圖／公式是選起來，不是進編輯；再按 ⌫ 刪掉", async (name) => {
     const p = await js("(() => { const el = document.querySelector('.bk-b.t-math .katex-display'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
@@ -287,7 +289,7 @@ app.whenReady().then(async () => {
     await click(box);
     await type("！");
     const s = await st();
-    check(name, s.tag === "TEXTAREA" && /- \[x\] 待辦事項！|- \[x\] 待辦！事項|- \[x\] 待！辦事項/.test(s.md), { tag: s.tag, md: (s.md.match(/- \[.\] 待[^\n]*/) || [])[0] });
+    check(name, s.field && /- \[x\] 待辦事項！|- \[x\] 待辦！事項|- \[x\] 待！辦事項/.test(s.md), { tag: s.tag, md: (s.md.match(/- \[.\] 待[^\n]*/) || [])[0] });
   });
   await run("說明框裡 Enter 是換行；最後空一行再按 Enter 跳出去", async (name) => {
     await click(await end("學習率"));
@@ -326,7 +328,7 @@ app.whenReady().then(async () => {
     await key("Down", ["alt", CMD]);
     const s1 = await st();
     const order = s1.md.indexOf("> [!note] 重點") < s1.md.indexOf("> 引用的一句話");
-    check(name, order && s1.tag === "TEXTAREA" && s1.value === "引用的一句話" && s1.at === s0.at, { order, tag: s1.tag, at: [s0.at, s1.at] });
+    check(name, order && s1.field && s1.value === "引用的一句話" && s1.at === s0.at, { order, tag: s1.tag, at: [s0.at, s1.at] });
   });
   await run("⌘F 在這份筆記裡找：標出每一處、Enter 往下一處、Esc 關掉", async (name) => {
     await click(await pt("最後一段", 10));
@@ -370,7 +372,7 @@ app.whenReady().then(async () => {
     await open(big);
     const p = await js("(() => { const el = document.querySelectorAll('.bk-b')[200]; el.scrollIntoView({ block: 'center' }); const r = el.querySelector('.bk-t').getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) }; })()");
     await click(p);
-    const t = await js("(async () => { const ta = document.activeElement; if (!ta || ta.tagName !== 'TEXTAREA') return null; const frame = () => new Promise((r) => requestAnimationFrame(() => r())); let typing = 0; for (let i = 0; i < 40; i++) { const t0 = performance.now(); document.execCommand('insertText', false, 'a'); document.body.offsetHeight; typing += performance.now() - t0; await frame(); } typing /= 40; let enter = 0; for (let i = 0; i < 10; i++) { const t1 = performance.now(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); document.execCommand('insertText', false, 'b'); document.body.offsetHeight; enter += performance.now() - t1; await frame(); } enter /= 10; return { typing: Math.round(typing * 10) / 10, enter: Math.round(enter * 10) / 10, blocks: document.querySelectorAll('.bk-b').length }; })()");
+    const t = await js("(async () => { const ta = document.activeElement; if (!ta || !ta.classList.contains('bk-in')) return null; const frame = () => new Promise((r) => requestAnimationFrame(() => r())); let typing = 0; for (let i = 0; i < 40; i++) { const t0 = performance.now(); document.execCommand('insertText', false, 'a'); document.body.offsetHeight; typing += performance.now() - t0; await frame(); } typing /= 40; let enter = 0; for (let i = 0; i < 10; i++) { const t1 = performance.now(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); document.execCommand('insertText', false, 'b'); document.body.offsetHeight; enter += performance.now() - t1; await frame(); } enter /= 10; return { typing: Math.round(typing * 10) / 10, enter: Math.round(enter * 10) / 10, blocks: document.querySelectorAll('.bk-b').length }; })()");
     check("長文件（400 塊、一堆公式）：打一個字（連排版）不到 4 毫秒、按一次 Enter 不到 12 毫秒", !!t && t.typing < 4 && t.enter < 12 && t.blocks === 410, t);
   }
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));

@@ -3,7 +3,12 @@
    Tab 縮排清單；⌘B／⌘I／⌘E／⌘K 加標記。選區塊：Esc、點把手、⇧ 點、按著滑鼠拖過好幾塊、⇧↑↓；選著時 ⌘C／⌘X／⌘V／⌘D／⌫、⌥↑↓ 搬。
    畫的時候只動有變的那幾塊（render 是對著 id 補差的），點排好的字游標就落在那個字上（srcOffset 把看得到的字對回原文）。
    儲存的還是 Markdown（和以前的筆記、雲端同步、AI 的提示詞都相容）：每個區塊就是 Markdown 的一段，
-   平常顯示排好的樣子（PR.md／PR.mdBlocks），點進去那一塊才變成輸入框、寫的是這一塊的 Markdown。
+   平常顯示排好的樣子（PR.md／PR.mdBlocks）。點進去那一塊：文字類的（內文、標題、清單、引用、說明框）還是排好的樣子，
+   直接在上面改（所見即所得，common/richtext.js；存回去的還是同一套 Markdown）——不用打 ** $ 這些記號；
+   程式碼、公式、表格是輸入框（寫原始碼，公式下面即時排出來）。
+   不用打語法也能排版：⌘B／⌘I…、⌘⌥1–3 標題、⌘⇧7／⌘⇧8／⌘⇧9 編號／項目／待辦、⌘/ 轉成別種；
+   開頭打「# 」「- 」「1. 」「> 」「[] 」，或全形的「＃ 」「－ 」「1、」「①」「》」「【】 」都會變成對應的區塊（注音輸入法打得出來）；
+   「/」「／」或空的一塊打「、」叫出插入選單。
    區塊種類：內文、標題（三級）、清單（圓點／編號／待辦）、引用、說明框（> [!note|tip|warn|toggle] 標題）、
    出處卡（> [!ref 筆記id] 原話——指回文件裡某一條筆記，見 host.refs）、程式碼、公式、分隔線、圖片、表格、流程圖和示意圖（當程式碼編）。
    用法：const ed = PR.blockEditor(容器, { value, onChange(md), placeholder, compact, upload(file)→src, refs:{get(id), go(id)}, ai(sel) })
@@ -187,6 +192,7 @@
   PR.blockKinds = MENU;
   PR.blockGroups = GROUPS;
   const INLINE = (b) => b && (b.type === "p" || b.type === "heading" || b.type === "list");  // 一塊就是一行字的那幾種
+  const RICH = (b) => b && (b.type === "p" || b.type === "heading" || b.type === "list" || b.type === "quote" || b.type === "callout");  // 直接在排好的樣子上改的那幾種
   const kindOf = (b) => (!b ? "" : b.type === "heading" ? "h" + b.level : b.type === "list" ? b.kind : b.type === "callout" ? b.kind : b.type === "code" && /^(flow|flowchart|mermaid|graph)$/.test(b.lang || "") ? "flow" : b.type);
   const FIELD_SIZING = typeof CSS !== "undefined" && CSS.supports && CSS.supports("field-sizing", "content");  // 輸入框自己長高，不用每打一個字量一次
 
@@ -194,6 +200,7 @@
   PR.blockEditor = function (host, opts) {
     opts = opts || {};
     const root = typeof host === "string" ? document.querySelector(host) : host;
+    const useRich = !!(PR.rich && document.execCommand) && opts.rich !== false;  // 沒載 richtext.js（或明說不要）：退回輸入框
     const state = { blocks: parse(opts.value || ""), editing: null, selected: new Set(), anchor: null, head: null, preview: null, menu: null, drag: null, history: [], future: [], compact: !!opts.compact };
     const listeners = {};
     if (!state.blocks.length) state.blocks = [{ id: bid(), type: "p", text: "" }];  // 空的也要有一塊可以點進去
@@ -208,6 +215,25 @@
     const idx = (id) => state.blocks.findIndex((b) => b.id === id);
     const blockEl = (id) => list.querySelector('.bk-b[data-id="' + id + '"]');
     const taOf = (id) => { const el = blockEl(id); return el ? el.querySelector(".bk-in") : null; };
+    /* 正在編的那一格：輸入框（程式碼、公式、表格）或排好的樣子（其餘）。位置：輸入框是 Markdown 的字數，排好的是看得到的格數 */
+    function fieldOf(id) {
+      const el = taOf(id);
+      if (!el) return null;
+      if (el.tagName === "TEXTAREA") {
+        return { el, rich: false, value: () => el.value, text: () => el.value, len: () => el.value.length,
+          caret: () => ({ start: el.selectionStart, end: el.selectionEnd }), setCaret: (a, z) => el.setSelectionRange(a, z == null ? a : z),
+          before: () => el.value.slice(0, el.selectionStart), after: () => el.value.slice(el.selectionEnd),
+          firstLine: () => caretLine(el) === 0, lastLine: () => caretLine(el) === lineCount(el) - 1 };
+      }
+      const R = PR.rich;
+      const f = { el, rich: true, value: () => R.md(el), text: () => R.text(el), len: () => R.length(el),
+        caret: () => R.caret(el) || { start: R.length(el), end: R.length(el) }, setCaret: (a, z) => R.setCaret(el, a, z),
+        before: () => R.slice(el, 0, f.caret().start), after: () => R.slice(el, f.caret().end),
+        firstLine: () => R.onFirstLine(el), lastLine: () => R.onLastLine(el) };
+      return f;
+    }
+    const lenOf = (b, md) => (useRich && RICH(b) ? PR.rich.lenOf(md || "") : (md || "").length);  // 一段 Markdown 在這一種區塊裡有幾格
+    const joinMd = (b, a, z) => (useRich && RICH(b) ? PR.rich.join(a || "", z || "") : (a || "") + (z || ""));
     let stateQueued = false;
     function stateSoon() {  // 選了哪幾塊、正在編哪一塊變了：告訴外面（格式面板、目錄要跟著亮）
       if (stateQueued) return;
@@ -247,6 +273,17 @@
     }
     function placeTools() {
       const ta = document.activeElement;
+      if (ta && ta.classList && ta.classList.contains("bk-rich") && root.contains(ta)) {  // 排好的那一格：照選取的範圍放；亮起游標所在的樣式
+        const sel = getSelection(), on = sel.rangeCount && !sel.isCollapsed && ta.contains(sel.anchorNode) && ta.contains(sel.focusNode);
+        tools.classList.toggle("open", !!on);
+        if (!on) return;
+        const act = PR.rich.active(ta), K = { "**": "b", "*": "i", "++": "u", "~~": "s", "\x60": "code", "==": "hl", link: "link" };
+        tools.querySelectorAll("[data-t]").forEach((x) => x.classList.toggle("on", act.includes(K[x.dataset.t])));
+        const rr = root.getBoundingClientRect(), sr = sel.getRangeAt(0).getBoundingClientRect();
+        tools.style.top = Math.max(-44, sr.top - rr.top - 42) + "px";
+        tools.style.left = Math.max(0, Math.min(sr.left - rr.left + sr.width / 2 - tools.offsetWidth / 2, root.clientWidth - tools.offsetWidth - 4)) + "px";
+        return;
+      }
       const on = ta && ta.classList && ta.classList.contains("bk-in") && root.contains(ta) && ta.selectionStart !== ta.selectionEnd;
       tools.classList.toggle("open", !!on);
       if (!on) return;
@@ -317,8 +354,19 @@
         (b.open ? '<div class="bk-cb">' + (ref ? (live.trim() ? blocksHtml(live) : '<p class="bk-lost">' + t("（這條只有畫線，沒有寫字）") + "</p>") : '<p class="bk-lost">' + t("（這條筆記已經不在了）") + "</p>") + "</div>" : "") + "</div>";
     }
     /* 正在編的那一塊：外框和排好時一樣（清單的記號、說明框的底還在），只有字換成輸入框——點進去版面才不會跳 */
+    function phOf(b, i) {
+      if (b.type === "p") return i === 0 && state.blocks.length === 1 ? (opts.placeholder || t("寫點什麼，或按「/」選區塊…")) : t("按「/」選區塊");
+      if (b.type === "heading") return HEAD_PH()[b.level];
+      if (b.type === "list") return b.kind === "todo" ? t("待辦") : t("清單項目");
+      if (b.type === "quote") return t("引用");
+      if (b.type === "callout") return t("標題");
+      return "";
+    }
     function editHtml(b, i) {
-      const ta = '<textarea class="bk-in" rows="1" spellcheck="false"' + (b.type === "p" ? ' placeholder="' + esc(i === 0 && state.blocks.length === 1 ? (opts.placeholder || t("寫點什麼，或按「/」選區塊…")) : t("按「/」選區塊")) + '"' : "") + ">" + esc(b.text || "") + "</textarea>";
+      const ph = phOf(b, i);
+      const ta = useRich && RICH(b)
+        ? '<div class="bk-in bk-rich' + (b.type === "list" && b.checked ? " done" : "") + '" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true"' + (ph ? ' data-ph="' + esc(ph) + '"' : "") + ">" + PR.rich.html(b.text || "") + "</div>"
+        : '<textarea class="bk-in" rows="1" spellcheck="false"' + (b.type === "p" && ph ? ' placeholder="' + esc(ph) + '"' : "") + ">" + esc(b.text || "") + "</textarea>";
       if (b.type === "list") return markHtml(b, i) + ta;
       if (b.type === "code") return '<div class="bk-code ed"><input class="bk-lang-in" value="' + esc(b.lang || "") + '" placeholder="' + t("語言") + '" spellcheck="false">' + ta + "</div>";
       if (b.type === "callout" && b.kind !== "ref") return '<div class="bk-callout ed k-' + b.kind + ' open"><div class="bk-ch">' + calloutIcon(b).replace(' data-bk="toggle-open"', "") + ta + "</div></div>";
@@ -350,7 +398,7 @@
       el.dataset.id = b.id;
       el.innerHTML = GUT + (ed ? editHtml(b, i) : viewHtml(b, i));
       el._sig = sigOf(b, i);
-      if (ed) { const ta = el.querySelector(".bk-in"); if (ta) autosize(ta); }
+      if (ed) { const ta = el.querySelector("textarea.bk-in"); if (ta) autosize(ta); }
     }
     function render() {
       const want = new Set(state.blocks.map((b) => b.id));
@@ -457,18 +505,29 @@
       focusEdit(id, where);
     }
     function focusEdit(id, where) {
-      const ta = taOf(id);
-      if (!ta) return;
-      ta.focus({ preventScroll: false });
-      const n = ta.value.length;
-      if (where === "start") ta.setSelectionRange(0, 0);
-      else if (where === "end" || where == null) ta.setSelectionRange(n, n);
-      else if (typeof where === "number") { const k = Math.max(0, Math.min(n, where)); ta.setSelectionRange(k, k); }
-      else if (where && where.line === "last") { const k = Math.min(n, ta.value.lastIndexOf("\n") + 1 + (where.col || 0)); ta.setSelectionRange(k, k); }
-      else if (where && where.from != null) ta.setSelectionRange(Math.max(0, Math.min(n, where.from)), Math.max(0, Math.min(n, where.to)));
+      const f = fieldOf(id);
+      if (!f) return;
+      f.el.focus({ preventScroll: false });
+      const n = f.len();
+      if (where === "start") f.setCaret(0, 0);
+      else if (where === "end" || where == null) f.setCaret(n, n);
+      else if (typeof where === "number") { const k = Math.max(0, Math.min(n, where)); f.setCaret(k, k); }
+      else if (where && where.x != null && f.rich) placeAtX(f, where.x, where.line === "last" ? "last" : "first");  // ↑↓ 走過來：落在差不多的水平位置
+      else if (where && where.line === "last") { const k = f.rich ? n : Math.min(n, f.el.value.lastIndexOf("\n") + 1 + (where.col || 0)); f.setCaret(k, k); }
+      else if (where && where.col != null) { const k = Math.max(0, Math.min(n, where.col)); f.setCaret(k, k); }
+      else if (where && where.from != null) f.setCaret(Math.max(0, Math.min(n, where.from)), Math.max(0, Math.min(n, where.to)));
+    }
+    /* 排好的那一格：游標放在第一行（或最後一行）裡、水平位置最接近 x 的地方 */
+    function placeAtX(f, x, edge) {
+      const r = f.el.getBoundingClientRect(), lh = parseFloat(getComputedStyle(f.el).lineHeight) || 24;
+      const y = edge === "last" ? r.bottom - Math.min(lh / 2, r.height / 2) : r.top + Math.min(lh / 2, r.height / 2);
+      const range = document.caretRangeFromPoint ? document.caretRangeFromPoint(Math.max(r.left + 1, Math.min(r.right - 1, x)), y) : null;
+      if (range && f.el.contains(range.startContainer)) { const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+      else { const n = f.len(); f.setCaret(edge === "last" ? n : 0); }
     }
     function stopEdit() {
       if (!state.editing) return;
+      if (pop) closePop(true);
       const id = state.editing;
       pullText(id);
       state.editing = null;
@@ -481,20 +540,53 @@
     }
     /* 把輸入框裡的字收回區塊 */
     function pullText(id) {
-      const el = blockEl(id), ta = el && el.querySelector(".bk-in");
+      const el = blockEl(id), f = fieldOf(id);
       const i = idx(id);
-      if (!ta || i < 0) return;
+      if (!f || i < 0) return;
       const b = state.blocks[i];
-      b.text = ta.value;
+      b.text = f.rich ? f.value().replace(/\n+$/, "") : f.value();  // 排好的那一格：最後多按的換行不存
       const langIn = el.querySelector(".bk-lang-in");
       if (langIn) b.lang = langIn.value.trim().toLowerCase();
     }
     /* 認 Markdown 的開頭記號：- 、1. 、# 、> 、[] 、--- 、\x60\x60\x60 、$$ */
+    /* 開頭打了記號字：換成那一種區塊。全形的也認（注音輸入法打不出 # - 1. 這些）：
+       ＃ 標題、－ ＊ • ・ 項目、1、 ① １． 編號、[] 【】「」＋空白 待辦、》＞ 引用、——— 分隔線、｀｀｀ 程式碼、＄＄ ￥￥ 公式 */
+    const PREFIX = [
+      [/^(#{1,3}|＃{1,3})[ \u3000]/, (m, b) => (b.type === "list" ? null : { type: "heading", level: m[1].length })],
+      [/^(?:[-*]|[－＊•・])[ \u3000]\[([ xX])\][ \u3000]/, (m, b) => (b.type === "p" ? { type: "list", kind: "todo", checked: /x/i.test(m[1]), indent: 0 } : null)],
+      [/^(?:\[ ?\]|【\s?】|「\s?」)[ \u3000]/, (m, b) => (b.type === "p" ? { type: "list", kind: "todo", checked: false, indent: 0 } : null)],
+      [/^(?:[-*+]|[－＊•・])[ \u3000]/, (m, b) => (b.type === "p" ? { type: "list", kind: "bullet", indent: 0 } : null)],
+      [/^(?:1[.)]|１[．.)）])[ \u3000]|^(?:1、|１、|①)/, (m, b) => (b.type === "p" ? { type: "list", kind: "number", indent: 0 } : null)],
+      [/^(?:>|＞|》)[ \u3000]/, (m, b) => (b.type === "p" ? { type: "quote" } : null)],
+    ];
     function convertByPrefix(id) {
       const i = idx(id); if (i < 0) return false;
-      const b = state.blocks[i], ta = taOf(id);
-      if (!ta || b.type !== "p" && b.type !== "heading" && b.type !== "list") return false;
-      const v = ta.value;
+      const b = state.blocks[i], f = fieldOf(id);
+      if (!f || b.type !== "p" && b.type !== "heading" && b.type !== "list") return false;
+      if (f.rich) {
+        const txt = f.text();
+        let nb = null;
+        if (b.type === "p" && /^(---|\*\*\*|———|－－－|＿＿＿)$/.test(txt)) nb = { type: "divider", text: "" };
+        else if (b.type === "p" && /^(\x60\x60\x60|｀｀｀)([\w+-]*)$/.test(txt)) nb = { type: "code", lang: (/^(?:\x60\x60\x60|｀｀｀)([\w+-]*)$/.exec(txt) || [])[1] || "", text: "" };
+        else if (b.type === "p" && /^(\$\$|＄＄|￥￥)$/.test(txt)) nb = { type: "math", text: "" };
+        else {
+          for (const [re, mk] of PREFIX) {
+            const m = re.exec(txt);
+            if (!m) continue;
+            const spec = mk(m, b);
+            if (!spec) continue;
+            nb = Object.assign(spec, { text: PR.rich.dropMd(f.value(), m[0].length) });
+            break;
+          }
+        }
+        if (!nb) return false;
+        snapshot();
+        state.blocks[i] = Object.assign({ id }, nb);
+        if (nb.type === "divider") { state.editing = null; insertAfter(i, { type: "p", text: "" }, true); return true; }
+        repaint(id); focusEdit(id, nb.type === "code" || nb.type === "math" ? "end" : "start"); changeSoon();
+        return true;
+      }
+      const v = f.el.value;
       let m, nb = null;
       if ((m = /^(#{1,3})\s$/.exec(v) || /^(#{1,3})\s(.*)$/.exec(v)) && b.type !== "list") nb = { type: "heading", level: m[1].length, text: m[2] || "" };
       else if ((m = /^(?:-|\*)\s\[([ x])\]\s(.*)$/.exec(v)) && b.type === "p") nb = { type: "list", kind: "todo", checked: m[1] === "x", indent: 0, text: m[2] };
@@ -562,55 +654,67 @@
     }
 
     /* ---------- 鍵盤 ---------- */
+    const MARK_OF = { "**": "b", "*": "i", "++": "u", "~~": "s", "\x60": "code", "==": "hl" };
     function onKey(e) {
       const ta = e.target.closest(".bk-in");
-      if (!ta || e.isComposing) return;
-      const el = ta.closest(".bk-b"), id = el.dataset.id, i = idx(id), b = state.blocks[i];
-      if (!b) return;
-      const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
+      if (!ta || e.isComposing || e.keyCode === 229) return;  // 注音、拼音選字中：鍵盤是輸入法的
+      const el = ta.closest(".bk-b"), id = el.dataset.id, i = idx(id), b = state.blocks[i], f = fieldOf(id);
+      if (!b || !f) return;
+      const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase(), code = e.code || "";
       if (state.menu) { if (menuKey(e)) return; }
       if (e.key === "Escape") { e.preventDefault(); stopEdit(); select(id); return; }
-      if (mod && !e.shiftKey && !e.altKey && key === "z") { if (state.history.length) { e.preventDefault(); undo(); } return; }
-      if (mod && !e.altKey && (key === "y" || (e.shiftKey && key === "z"))) { if (state.future.length) { e.preventDefault(); redo(); } return; }
+      if (mod && !e.shiftKey && !e.altKey && key === "z") { if (state.history.length) { e.preventDefault(); undo(); } else if (f.rich) e.preventDefault(); return; }
+      if (mod && !e.altKey && (key === "y" || (e.shiftKey && key === "z"))) { if (state.future.length) { e.preventDefault(); redo(); } else if (f.rich) e.preventDefault(); return; }
+      const c = f.caret(), n = f.len();
       // ⌘A：先選這一塊的字；已經全選了（或是空的）再按一次，選全部的區塊（Craft 也是這樣）
-      if (mod && !e.shiftKey && !e.altKey && key === "a" && ta.selectionStart === 0 && ta.selectionEnd === ta.value.length) { e.preventDefault(); stopEdit(); selectRange(0, state.blocks.length - 1); return; }
+      if (mod && !e.shiftKey && !e.altKey && key === "a" && c.start === 0 && c.end === n) { e.preventDefault(); stopEdit(); selectRange(0, state.blocks.length - 1); return; }
       // ⌘D：這一塊複製一份在下面
       if (mod && !e.shiftKey && !e.altKey && key === "d") { e.preventDefault(); pullText(id); snapshot(); const copy = Object.assign({}, b, { id: bid() }); state.blocks.splice(i + 1, 0, copy); render(); changeSoon(); return; }
       // Craft 的快捷鍵：⌘B 粗、⌘I 斜、⌘U 底線、⌘⇧C 程式碼、⌘⇧- 刪除線、⌘⇧B 螢光、⌘⇧E 公式、⌘K 連結、⌘↩ 問 AI、⌘⇧↩ 插入選單
       if (mod && !e.altKey) {
         const inl = !e.shiftKey ? { b: "**", i: "*", u: "++" }[key] : { c: "\x60", "-": "~~", _: "~~", b: "==", e: "$" }[key];
-        if (inl) { e.preventDefault(); wrap(ta, inl); return; }
-        if (!e.shiftKey && key === "k") { e.preventDefault(); wrap(ta, "[", "](url)"); return; }
+        if (inl) { e.preventDefault(); api.inline(inl); return; }
+        if (!e.shiftKey && key === "k") { e.preventDefault(); api.inline("link"); return; }
         if (e.shiftKey && e.key === "Enter") { e.preventDefault(); openMenu(id, ""); return; }
         if (!e.shiftKey && e.key === "Enter") { e.preventDefault(); pullText(id); stopEdit(); api.askAi(i); return; }
+        if (!e.shiftKey && (key === "/" || code === "Slash")) { e.preventDefault(); openMenu(id, "", true); return; }  // ⌘/：轉成別種（Notion）
+        // ⌘⇧7 編號、⌘⇧8 項目、⌘⇧9 待辦（Google 文件、Apple 備忘錄那一套）
+        const shiftList = e.shiftKey && { Digit7: "number", Digit8: "bullet", Digit9: "todo" }[code];
+        if (shiftList) { e.preventDefault(); pullText(id); setType(id, kindOf(b) === shiftList ? "p" : shiftList); return; }
       }
-      // Ctrl+1–6 文字樣式（大標題、副標題、標題、強調、內文、說明）；⌘⌥6–0 清單（待辦、收合、項目、編號、取消）；⌘⌥T 開關收合
+      // Ctrl+1–6 文字樣式（大標題、副標題、標題、強調、內文、說明）；⌘⌥1–3 標題（Notion）；⌘⌥6–0 清單（待辦、收合、項目、編號、取消）；⌘⌥T 開關收合
       if (e.ctrlKey && !e.metaKey && !e.altKey && /^[1-6]$/.test(e.key)) {
         e.preventDefault(); pullText(id);
         const k = { 1: "h1", 2: "h2", 3: "h3", 4: "strong", 5: "p", 6: "p" }[e.key];
         setType(id, k === "strong" ? "p" : k);
-        if (k === "strong") { const t2 = taOf(id); if (t2 && t2.value && !/^\*\*.*\*\*$/.test(t2.value)) { t2.select(); wrap(t2, "**"); } }
+        if (k === "strong") { const f2 = fieldOf(id); if (f2 && f2.len()) { f2.setCaret(0, f2.len()); if (f2.rich) { if (!PR.rich.active(f2.el).includes("b")) markRich(f2, "b"); } else if (!/^\*\*.*\*\*$/.test(f2.el.value)) wrap(f2.el, "**"); } }
         return;
       }
-      if (mod && e.altKey && /^[06789]$/.test(e.key)) { e.preventDefault(); pullText(id); setType(id, { 6: "todo", 7: "toggle", 8: "bullet", 9: "number", 0: "p" }[e.key]); return; }
+      if (mod && e.altKey && /^Digit[123]$/.test(code)) { e.preventDefault(); pullText(id); const k = "h" + code.slice(-1); setType(id, kindOf(b) === k ? "p" : k); return; }
+      if (mod && e.altKey && /^Digit[06789]$/.test(code)) { e.preventDefault(); pullText(id); setType(id, { 6: "todo", 7: "toggle", 8: "bullet", 9: "number", 0: "p" }[code.slice(-1)]); return; }
       if (mod && e.altKey && key === "t" && b.type === "callout" && b.kind === "toggle") { e.preventDefault(); pullText(id); b.open = !b.open; changeSoon(); return; }
       // ⌘⌥↑↓ 搬這一塊；加 ⇧ 搬到最上面／最下面
       if (mod && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         const up = e.key === "ArrowUp";
         const j = e.shiftKey ? (up ? 0 : state.blocks.length) : (up ? i - 1 : i + 2);
         if (j < 0 || j > state.blocks.length || j === i || j === i + 1) { e.preventDefault(); return; }
-        e.preventDefault(); const at = ta.selectionStart; pullText(id);
+        e.preventDefault(); const at = c.start; pullText(id);
         moveBlocks(i, i, j); state.selected.clear(); state.anchor = state.head = null; state.editing = id; render(); focusEdit(id, at);
         const moved = blockEl(id); if (moved && moved.scrollIntoView) moved.scrollIntoView({ block: "nearest" });
         return;
       }
+      // 排好的樣子裡 ⇧Enter：同一塊裡換行（引用、說明框裡的 Enter 也是），不讓瀏覽器自己插 <div>
+      const emptyEnd = c.start === n && (f.rich ? PR.rich.endsWithEmptyLine(f.el) : /\n$/.test(f.text())) && !!f.text().trim();  // 游標在最後、最後一行是空的
+      const softBreak = f.rich && e.key === "Enter" && !mod && (e.shiftKey || ((b.type === "quote" || b.type === "callout") && !emptyEnd));
+      if (softBreak) { e.preventDefault(); typingSnapshot(id); document.execCommand("insertLineBreak"); onInput({ target: f.el }); return; }
       if (e.key === "Enter" && !e.shiftKey && !mod && b.type !== "code" && b.type !== "math" && b.type !== "table" && !(b.type === "callout" && b.kind !== "ref") && b.type !== "quote") {
         e.preventDefault();
         pullText(id);
-        const at = ta.selectionStart, before = ta.value.slice(0, at), after = ta.value.slice(ta.selectionEnd);
-        if (b.type === "list" && !ta.value.trim()) { snapshot(); if (b.indent) b.indent--; else state.blocks[i] = { id, type: "p", text: "" }; repaint(id); focusEdit(id); changeSoon(); return; }
+        const before = f.before(), after = f.after();
+        const plainB = f.rich ? PR.rich.plainOf(before) : before, plainA = f.rich ? PR.rich.plainOf(after) : after;
+        if (b.type === "list" && !f.text().trim()) { snapshot(); if (b.indent) b.indent--; else state.blocks[i] = { id, type: "p", text: "" }; repaint(id); focusEdit(id); changeSoon(); return; }
         snapshot();
-        if (!before.trim() && after.trim() && b.type !== "list") {  // 游標在最前面：上面多一塊空的，這一塊（連它的種類）往下移
+        if (!plainB.trim() && plainA.trim() && b.type !== "list") {  // 游標在最前面：上面多一塊空的，這一塊（連它的種類）往下移
           const nb = { id: bid(), type: "p", text: "" };
           state.blocks.splice(i, 0, nb);
           render(); focusEdit(id, "start"); changeSoon();
@@ -624,14 +728,15 @@
         return;
       }
       // 引用、說明框、程式碼裡：最後是空行時再按 Enter，跳出去到下面新的一塊（不然出不來）
-      if (e.key === "Enter" && !e.shiftKey && !mod && (b.type === "quote" || b.type === "callout" || b.type === "code") && ta.selectionStart === ta.value.length && /\n$/.test(ta.value) && ta.value.trim()) {
+      if (e.key === "Enter" && !e.shiftKey && !mod && (b.type === "quote" || b.type === "callout" || b.type === "code") && emptyEnd) {
         e.preventDefault(); snapshot();
-        ta.value = ta.value.replace(/\n+$/, ""); pullText(id);
+        if (f.rich) { pullText(id); b.text = b.text.replace(/\n+$/, ""); }
+        else { f.el.value = f.el.value.replace(/\n+$/, ""); pullText(id); }
         state.editing = null;
         insertAfter(i, { type: "p", text: "" }, true);
         return;
       }
-      if (e.key === "Backspace" && ta.selectionStart === 0 && ta.selectionEnd === 0) {
+      if (e.key === "Backspace" && c.start === 0 && c.end === 0) {
         if (b.type === "list" && b.indent) { e.preventDefault(); snapshot(); pullText(id); b.indent--; repaint(id); focusEdit(id, "start"); changeSoon(); return; }  // 縮排的清單項：先退一層
         if (b.type === "list" || b.type === "heading" || b.type === "quote" || (b.type === "callout" && b.kind !== "ref")) {  // 先變回內文
           e.preventDefault(); snapshot(); pullText(id);
@@ -639,7 +744,7 @@
           repaint(id); focusEdit(id, "start"); changeSoon();
           return;
         }
-        if (i > 0 && (b.type === "p" || b.type === "image" || b.type === "table" || ((b.type === "code" || b.type === "math") && !ta.value))) {  // 併到上一塊
+        if (i > 0 && (b.type === "p" || b.type === "image" || b.type === "table" || ((b.type === "code" || b.type === "math") && !f.text()))) {  // 併到上一塊
           const prev = state.blocks[i - 1];
           e.preventDefault(); snapshot(); pullText(id);
           if (!INLINE(prev) || b.type !== "p") {
@@ -647,39 +752,49 @@
             else { stopEdit(); select(prev.id); }
             changeSoon(); return;
           }
-          const col = (prev.text || "").length;
-          prev.text = (prev.text || "") + (b.text || "");
+          const col = lenOf(prev, prev.text);
+          prev.text = joinMd(prev, prev.text, b.text);
           state.blocks.splice(i, 1);
           state.editing = prev.id;
           render(); focusEdit(prev.id, col); changeSoon();
           return;
         }
-        if (i === 0 && b.type !== "p" && !ta.value) { e.preventDefault(); snapshot(); state.blocks[i] = { id, type: "p", text: "" }; repaint(id); focusEdit(id, "start"); changeSoon(); return; }
+        if (i === 0 && b.type !== "p" && !f.text()) { e.preventDefault(); snapshot(); state.blocks[i] = { id, type: "p", text: "" }; repaint(id); focusEdit(id, "start"); changeSoon(); return; }
       }
       // Delete 在最後面：把下一塊併上來
-      if (e.key === "Delete" && ta.selectionStart === ta.value.length && ta.selectionEnd === ta.value.length && INLINE(b) && i < state.blocks.length - 1) {
+      if (e.key === "Delete" && c.start === n && c.end === n && INLINE(b) && i < state.blocks.length - 1) {
         const next = state.blocks[i + 1];
-        if (INLINE(next)) { e.preventDefault(); snapshot(); pullText(id); const col = b.text.length; b.text += next.text || ""; state.blocks.splice(i + 1, 1); ta.value = b.text; autosize(ta); render(); focusEdit(id, col); changeSoon(); return; }
+        if (INLINE(next)) { e.preventDefault(); snapshot(); pullText(id); const col = lenOf(b, b.text); b.text = joinMd(b, b.text, next.text); state.blocks.splice(i + 1, 1); render(); focusEdit(id, col); changeSoon(); return; }
         if (next.type === "divider") { e.preventDefault(); snapshot(); state.blocks.splice(i + 1, 1); render(); changeSoon(); return; }
       }
-      if (e.key === "Tab" && !mod && b.type === "list") { e.preventDefault(); snapshot(); const at = ta.selectionStart; b.indent = Math.max(0, Math.min(4, (b.indent || 0) + (e.shiftKey ? -1 : 1))); pullText(id); repaint(id); focusEdit(id, at); changeSoon(); return; }
+      if (e.key === "Tab" && !mod && b.type === "list") { e.preventDefault(); snapshot(); const at = c.start; b.indent = Math.max(0, Math.min(4, (b.indent || 0) + (e.shiftKey ? -1 : 1))); pullText(id); repaint(id); focusEdit(id, at); changeSoon(); return; }
       if (e.key === "Tab" && !mod && (b.type === "code" || b.type === "math")) { e.preventDefault(); document.execCommand("insertText", false, "  "); return; }
+      if (e.key === "Tab" && !mod && f.rich) { e.preventDefault(); return; }  // 別讓焦點跑到別的地方去
       // ⇧↑／⇧↓ 走到這一塊的頭尾還繼續按：變成選區塊，往上／下多選一塊
       if (e.shiftKey && !mod && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         const up = e.key === "ArrowUp";
-        if ((up && caretLine(ta) === 0 && ta.selectionStart === 0) || (!up && ta.selectionEnd === ta.value.length)) {
+        if ((up && c.start === 0 && c.end <= n && f.firstLine()) || (!up && c.end === n)) {
           const j = up ? i - 1 : i + 1;
           if (j >= 0 && j < state.blocks.length) { e.preventDefault(); stopEdit(); selectRange(i, j); }
         }
         return;
       }
-      if (e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === 0 && i > 0) { e.preventDefault(); const col = ta.selectionStart; stopEdit(); moveTo(i - 1, { line: "last", col }, -1); return; }
+      const caretX = () => { const sel = getSelection(); if (!sel.rangeCount) return null; const r = sel.getRangeAt(0).getClientRects(); return r.length ? r[0].left : null; };
+      if (e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && f.firstLine() && i > 0) {
+        e.preventDefault();
+        const x = f.rich ? caretX() : null, col = f.rich ? null : c.start;
+        stopEdit(); moveTo(i - 1, { line: "last", col, x }, -1); return;
+      }
       // 第一塊的第一行再往上、或在最前面按 Backspace：告訴外面（筆記頁會把游標送回標題）
-      if (i === 0 && listeners.edge && ((e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === 0) || (e.key === "Backspace" && ta.selectionStart === 0 && ta.selectionEnd === 0 && b.type === "p"))) { e.preventDefault(); emit("edge", "top"); return; }
-      if (e.key === "ArrowDown" && !e.shiftKey && !mod && !e.altKey && caretLine(ta) === lineCount(ta) - 1 && i < state.blocks.length - 1) { e.preventDefault(); const col = ta.selectionStart - (ta.value.lastIndexOf("\n") + 1); stopEdit(); moveTo(i + 1, col, 1); return; }
+      if (i === 0 && listeners.edge && ((e.key === "ArrowUp" && !e.shiftKey && !mod && !e.altKey && f.firstLine()) || (e.key === "Backspace" && c.start === 0 && c.end === 0 && b.type === "p"))) { e.preventDefault(); emit("edge", "top"); return; }
+      if (e.key === "ArrowDown" && !e.shiftKey && !mod && !e.altKey && f.lastLine() && i < state.blocks.length - 1) {
+        e.preventDefault();
+        const x = f.rich ? caretX() : null, col = f.rich ? null : c.start - (f.el.value.lastIndexOf("\n") + 1);
+        stopEdit(); moveTo(i + 1, f.rich ? { x } : col, 1); return;
+      }
       // ← 在最前面、→ 在最後面：走到上一塊／下一塊
-      if (e.key === "ArrowLeft" && !e.shiftKey && !mod && !e.altKey && ta.selectionStart === 0 && ta.selectionEnd === 0 && i > 0) { e.preventDefault(); stopEdit(); moveTo(i - 1, "end", -1); return; }
-      if (e.key === "ArrowRight" && !e.shiftKey && !mod && !e.altKey && ta.selectionStart === ta.value.length && ta.selectionEnd === ta.value.length && i < state.blocks.length - 1) { e.preventDefault(); stopEdit(); moveTo(i + 1, "start", 1); return; }
+      if (e.key === "ArrowLeft" && !e.shiftKey && !mod && !e.altKey && c.start === 0 && c.end === 0 && i > 0) { e.preventDefault(); stopEdit(); moveTo(i - 1, "end", -1); return; }
+      if (e.key === "ArrowRight" && !e.shiftKey && !mod && !e.altKey && c.start === n && c.end === n && i < state.blocks.length - 1) { e.preventDefault(); stopEdit(); moveTo(i + 1, "start", 1); return; }
     }
     function moveTo(i, where, dir) {
       const b = state.blocks[i];
@@ -707,16 +822,38 @@
     function onInput(e) {
       const ta = e.target.closest && e.target.closest(".bk-in");
       if (!ta) { const li = e.target.closest && e.target.closest(".bk-lang-in"); if (li) { pullText(li.closest(".bk-b").dataset.id); changeSoon(); } return; }
-      autosize(ta);
       const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i];
       if (!b) return;
-      // 「/」在區塊開頭（或整塊是空的）：叫出區塊選單
-      if (/^\/[^\s/]*$/.test(ta.value) && INLINE(b)) { openMenu(id, ta.value.slice(1)); }
+      if (ta.tagName === "TEXTAREA") {
+        autosize(ta);
+        // 「/」在區塊開頭（或整塊是空的）：叫出區塊選單
+        if (/^\/[^\s/]*$/.test(ta.value) && INLINE(b)) { openMenu(id, ta.value.slice(1)); }
+        else if (state.menu) closeMenu();
+        if (convertByPrefix(id)) return;
+        b.text = ta.value;
+        if (b.type === "math") liveMath(ta);
+        changeSoon();
+        return;
+      }
+      if (e.isComposing) return;  // 注音、拼音還在選字：選好（compositionend）再收
+      if (ta.innerHTML === "<br>") ta.innerHTML = "";  // 刪光了：瀏覽器留一個 <br>，佔位的灰字才出得來
+      // 打完一對記號（**字**、\x60字\x60、$式$…）：變成那個樣子
+      if ((e.inputType === "insertText" || e.type === "compositionend") && /[*~+=\x60$]$/.test(e.data || "")) PR.rich.autoformat(ta);
+      // 「/」「／」在開頭、或空的一塊打「、」：叫出區塊選單（後面打的字拿來篩）
+      const txt = PR.rich.text(ta);
+      if (INLINE(b) && (/^[\/／][^\s/／]*$/.test(txt) || /^、[^\s、]*$/.test(txt))) openMenu(id, txt.slice(1));
       else if (state.menu) closeMenu();
       if (convertByPrefix(id)) return;
-      b.text = ta.value;
-      if (b.type === "math") liveMath(ta);
+      b.text = PR.rich.md(ta);
       changeSoon();
+      placeTools();
+    }
+    /* 排好的那一格加／拿掉一種樣式，再把字收回區塊 */
+    function markRich(f, k) {
+      typingSnapshot(f.el.closest(".bk-b").dataset.id);
+      if (!PR.rich.toggle(f.el, k)) return false;
+      onInput({ target: f.el });
+      return true;
     }
     let liveQueued = false;
     function liveMath(ta) {  // 公式的即時預覽：一格畫面最多重排一次
@@ -730,14 +867,14 @@
     }
 
     /* ---------- 「/」的區塊選單 ---------- */
-    function openMenu(id, q) {
+    function openMenu(id, q, turn) {
       const el = blockEl(id);
       if (!el) return;
       let m = root.querySelector(".bk-menu");
       if (!m) { m = document.createElement("div"); m.className = "bk-menu"; root.append(m); }
       const items = MENU().filter((it) => (!q || (it.label + " " + it.kw).toLowerCase().includes(q.toLowerCase())) && (it.k !== "image" || opts.upload) && (it.k !== "ai" || !opts.noAi));
       if (!items.length) { closeMenu(); return; }
-      state.menu = { id, items, at: 0 };
+      state.menu = { id, items, at: 0, turn: !!turn };
       const groups = GROUPS();
       let last = "";
       m.innerHTML = items.map((it, k) => {
@@ -770,8 +907,8 @@
       const mn = state.menu; if (!mn) return;
       const id = mn.id, i = idx(id);
       closeMenu();
-      const ta = taOf(id);
-      if (ta && /^\/[^\s/]*$/.test(ta.value)) { ta.value = ""; state.blocks[i].text = ""; }  // 把打的「/xx」清掉
+      const f = fieldOf(id);
+      if (f && !mn.turn && (f.rich ? /^[\/／、][^\s/／、]*$/.test(f.text()) : /^\/[^\s/]*$/.test(f.el.value))) { if (f.rich) f.el.innerHTML = ""; else f.el.value = ""; state.blocks[i].text = ""; }  // 把打的「/xx」清掉
       if (k === "image") { pickImage(id); return; }
       if (k === "ai") { pullText(id); state.blocks[i].text = ""; stopEdit(); api.askAi(i); return; }
       setType(id, k);
@@ -901,6 +1038,7 @@
     }
 
     /* ---------- 點哪裡游標就到哪裡 ---------- */
+    const BLOCKY = /^(P|DIV|LI|H[1-6]|BLOCKQUOTE|UL|OL|PRE|TABLE|TR)$/;
     /* 排好的樣子裡，某個位置之前看得到的字（公式、圖片當成一個佔位字元；把手、清單記號、佔位的灰字不算） */
     function visibleBefore(scope, node, offset) {
       let out = "", done = false;
@@ -910,6 +1048,8 @@
         if (n.nodeType !== 1) return;
         if (n.matches(".bk-gut, .bk-mark, .bk-ph, .bk-lang, .bk-page, .bk-ci, button, svg")) { if (n.contains(node)) done = true; return; }
         if (n.matches(".katex-display, .katex, img")) { if (n.contains(node) || n === node) done = true; else out += OBJ; return; }
+        if (n.tagName === "BR") { out += "\n"; return; }
+        if (BLOCKY.test(n.tagName) && n !== scope && out && !out.endsWith("\n") && n.closest(".bk-cb, .bk-quote, .bk-t") !== n.closest(".bk-b")) out += "\n";  // 說明框的標題和內文、引用的幾段：中間是一個換行
         const kids = n.childNodes;
         for (let k = 0; k < kids.length; k++) {
           if (n === node && k === offset) { done = true; return; }
@@ -947,7 +1087,10 @@
       const b = state.blocks[idx(el.dataset.id)];
       if (!b || b.type === "math" || b.type === "divider" || b.type === "image") return null;
       if (!el.contains(node)) return null;
-      try { return srcOffset(b.text || "", visibleBefore(el, node, offset), visibleNext(el, node, offset)); } catch (e) { return null; }
+      try {
+        if (useRich && RICH(b)) return Math.min(visibleBefore(el, node, offset).length, lenOf(b, b.text));  // 排好的那一格：看得到的第幾格就是第幾格
+        return srcOffset(b.text || "", visibleBefore(el, node, offset), visibleNext(el, node, offset));
+      } catch (e) { return null; }
     }
     function pointOffset(el, x, y) {
       const range = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
@@ -960,11 +1103,12 @@
     root.addEventListener("beforeinput", onBeforeInput);
     root.addEventListener("compositionstart", onBeforeInput);
     root.addEventListener("input", onInput);
+    root.addEventListener("compositionend", (e) => { if (e.target.closest && e.target.closest(".bk-rich")) setTimeout(() => onInput({ target: e.target, type: "compositionend", data: e.data, isComposing: false }), 0); });
     root.addEventListener("focusout", (e) => {
       if (!e.target.closest || !e.target.closest(".bk-in, .bk-lang-in")) return;
       setTimeout(() => {
         const a = document.activeElement;
-        if (a && root.contains(a) && a.closest(".bk-b.editing, .bk-menu")) return;
+        if (a && root.contains(a) && a.closest(".bk-b.editing, .bk-menu, .bk-pop")) return;  // 公式、連結的小編輯框也算在這一塊裡
         if (state.menu && a && a.closest && a.closest(".bk-menu")) return;
         if (PR.menuOpen && PR.menuOpen()) return;  // 開著選單（按了右鍵）：先別收
         stopEdit();
@@ -1041,7 +1185,7 @@
       const el = e.target.closest(".bk-b");
       if (!el || !PR.menu || e.target.closest(".bk-preview, a")) return;
       const ta = e.target.closest(".bk-in");
-      if (ta && ta.selectionStart !== ta.selectionEnd) return;  // 選著字按右鍵：留給系統（複製、查詢）
+      if (ta && (ta.tagName === "TEXTAREA" ? ta.selectionStart !== ta.selectionEnd : !getSelection().isCollapsed)) return;  // 選著字按右鍵：留給系統（複製、查詢）
       e.preventDefault();
       const id = el.dataset.id;
       if (!state.selected.has(id) || state.editing) select(id);
@@ -1054,7 +1198,7 @@
         const k = act.dataset.bk, el = act.closest(".bk-b"), id = el && el.dataset.id, i = id ? idx(id) : -1, b = i >= 0 ? state.blocks[i] : null;
         if (k === "toggle-todo" && b) {
           e.preventDefault(); snapshot(); b.checked = !b.checked; changeSoon();
-          if (state.editing === id) { act.classList.toggle("on", b.checked); el._sig = sigOf(b, i); } else repaint(id);  // 正在編：只換那顆勾，輸入框不動
+          if (state.editing === id) { act.classList.toggle("on", b.checked); const rich = el.querySelector(".bk-rich"); if (rich) rich.classList.toggle("done", !!b.checked); el._sig = sigOf(b, i); } else repaint(id);  // 正在編：只換那顆勾，輸入框不動
           return;
         }
         if (k === "toggle-open" && b) { e.preventDefault(); b.open = !b.open; repaint(id); return; }
@@ -1210,35 +1354,150 @@
       render();
     });
     list.addEventListener("dragend", () => { state.drag = null; list.querySelectorAll(".dragging, .drop-before, .drop-after").forEach((x) => x.classList.remove("dragging", "drop-before", "drop-after")); });
-    // 貼上：圖片 → 上傳成一塊；網址貼在選起來的字上 → 變連結；一次貼好幾段 → 拆成區塊
+    // 貼上：圖片 → 上傳成一塊；網址貼在選起來的字上 → 變連結；一次貼好幾段 → 拆成區塊。
+    // 排好的那一格：別處複製來的格式（網頁、Word、Google 文件的粗體、標題、清單、表格）照樣留下來（richtext.js 的 fromHtml）；
+    // 純文字先整理（PDF 的斷行、斷字、中文字之間的空白，• 開頭的變清單，Tab 分開的變表格）；從這個編輯器自己複製的直接用它的 Markdown
+    const MD_TYPE = "application/x-foli-md";
+    root.addEventListener("copy", (e) => onRichCopy(e, false));
+    root.addEventListener("cut", (e) => onRichCopy(e, true));
+    function onRichCopy(e, cut) {
+      const el = e.target.closest && e.target.closest(".bk-rich");
+      if (!el || !e.clipboardData) return;
+      const c = PR.rich.caret(el);
+      if (!c || c.start === c.end) return;
+      const md = PR.rich.slice(el, c.start, c.end);
+      e.clipboardData.setData("text/plain", md.replace(/\\([*\x60$~+=\[\]#>\-])/g, "$1"));
+      e.clipboardData.setData(MD_TYPE, md);
+      const box = document.createElement("div"); box.innerHTML = PR.rich.html(md); e.clipboardData.setData("text/html", box.innerHTML);
+      e.preventDefault();
+      if (cut) { typingSnapshot(el.closest(".bk-b").dataset.id); document.execCommand("delete"); onInput({ target: el }); }
+    }
     root.addEventListener("paste", (e) => {
       const ta = e.target.closest && e.target.closest(".bk-in");
       if (!ta || !e.clipboardData) return;
-      const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i];
+      const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i], f = fieldOf(id);
       const files = Array.from(e.clipboardData.items || []).filter((it) => it.kind === "file" && /^image\//.test(it.type)).map((it) => it.getAsFile()).filter(Boolean);
       if (files.length && opts.upload) { e.preventDefault(); pullText(id); putImage(id, files[0]); return; }
       const text = (e.clipboardData.getData("text/plain") || "").replace(/\r\n?/g, "\n");
-      if (!text || !b) return;
-      if (INLINE(b) && ta.selectionStart !== ta.selectionEnd && /^https?:\/\/\S+$/.test(text.trim())) { e.preventDefault(); wrap(ta, "[", "](" + text.trim() + ")"); return; }
-      if (!INLINE(b) || !/\n/.test(text.trim())) return;
-      const nb = parse(text);
-      if (nb.length < 2) return;
+      if (!b || !f) return;
+      if (!f.rich) {
+        if (!text) return;
+        if (INLINE(b) && ta.selectionStart !== ta.selectionEnd && /^https?:\/\/\S+$/.test(text.trim())) { e.preventDefault(); wrap(ta, "[", "](" + text.trim() + ")"); return; }
+        if (!INLINE(b) || !/\n/.test(text.trim())) return;
+        const nb = parse(text);
+        if (nb.length < 2) return;
+        e.preventDefault();
+        splitPaste(id, i, b, f, nb);
+        return;
+      }
       e.preventDefault();
+      typingSnapshot(id);
+      const c = f.caret();
+      if (c.start !== c.end && /^https?:\/\/\S+$/.test(text.trim())) { if (PR.rich.link(ta, text.trim())) onInput({ target: ta }); return; }  // 網址貼在選起來的字上：變連結
+      const own = e.clipboardData.getData(MD_TYPE), html = e.clipboardData.getData("text/html");
+      const md = own || (html && !/^\s*$/.test(html) ? PR.rich.fromHtml(html) : "") || PR.rich.cleanPaste(text);
+      if (!md.trim()) return;
+      const nb = parse(md);
+      if (nb.length === 1 && nb[0].type === "p" || !INLINE(b) && b.type !== "quote" && b.type !== "callout") {  // 一段字：就地放進去（保留樣式）
+        const one = nb.length === 1 && nb[0].type === "p" ? nb[0].text : md.replace(/\n{2,}/g, "\n");
+        document.execCommand("insertHTML", false, PR.rich.html(one));
+        PR.rich.tidy(ta);
+        onInput({ target: ta });
+        return;
+      }
+      if (!INLINE(b)) { document.execCommand("insertHTML", false, PR.rich.html(md.replace(/\n{2,}/g, "\n"))); onInput({ target: ta }); return; }
+      splitPaste(id, i, b, f, nb);
+    });
+    /* 好幾段貼進一塊的中間：游標前面的字接第一段、後面的字接最後一段 */
+    function splitPaste(id, i, b, f, nb) {
       snapshot();
-      const before = ta.value.slice(0, ta.selectionStart), after = ta.value.slice(ta.selectionEnd);
-      let first = 0, at = i;
-      if (before.trim()) { b.text = before + (nb[0].type === "p" ? nb[0].text : ""); if (nb[0].type === "p") first = 1; }
+      const before = f.before(), after = f.after();
+      const plainBefore = f.rich ? PR.rich.plainOf(before) : before;
+      let first = 0;
+      if (plainBefore.trim()) { b.text = nb[0].type === "p" ? joinMd(b, before, nb[0].text) : before; if (nb[0].type === "p") first = 1; }
       else { state.blocks[i] = Object.assign({}, nb[0], { id }); first = 1; }
       const rest = nb.slice(first);
       state.blocks.splice(i + 1, 0, ...rest);
-      at = i + rest.length;
+      const at = i + rest.length;
       let last = state.blocks[at], col = 0;
-      if (INLINE(last)) { col = (last.text || "").length; last.text = (last.text || "") + after; }
-      else if (after.trim()) { last = { id: bid(), type: "p", text: after }; state.blocks.splice(at + 1, 0, last); }
+      if (INLINE(last)) { col = lenOf(last, last.text); last.text = joinMd(last, last.text, after); }
+      else if ((f.rich ? PR.rich.plainOf(after) : after).trim()) { last = { id: bid(), type: "p", text: after }; state.blocks.splice(at + 1, 0, last); }
       else { last = { id: bid(), type: "p", text: "" }; state.blocks.splice(at + 1, 0, last); }
       state.editing = last.id;
       render(); focusEdit(last.id, col); changeSoon();
-    });
+    }
+
+    /* ---------- 公式、連結的小編輯框（排好的那一格裡） ---------- */
+    let pop = null;
+    function closePop(commit) { if (pop) { const p = pop; pop = null; p.done(commit); p.el.remove(); } }
+    function popAt(anchorRect, html) {
+      const el = document.createElement("div");
+      el.className = "bk-pop";
+      el.innerHTML = html;
+      root.append(el);
+      const rr = root.getBoundingClientRect();
+      el.style.top = (anchorRect.bottom - rr.top + 6) + "px";
+      el.style.left = Math.max(0, Math.min(anchorRect.left - rr.left, root.clientWidth - el.offsetWidth - 4)) + "px";
+      return el;
+    }
+    /* 公式：上面打 TeX、下面即時排；Enter 收、Esc 不改；清空就是拿掉 */
+    function texPop(f, atom) {
+      closePop(false);
+      const id = f.el.closest(".bk-b").dataset.id;
+      const el = popAt(atom.getBoundingClientRect(), '<input class="bk-pop-in" spellcheck="false" placeholder="' + esc(t("TeX，例如 \\frac{a}{b}")) + '" value="' + esc(atom.dataset.tex || "") + '"><div class="bk-pop-live"></div>');
+      const input = el.querySelector("input"), live = el.querySelector(".bk-pop-live");
+      const draw = () => { live.innerHTML = input.value.trim() ? PR.rich.texHtml(input.value) : ""; };
+      draw();
+      input.addEventListener("input", draw);
+      input.addEventListener("keydown", (e) => {
+        if (e.isComposing) return;
+        if (e.key === "Enter") { e.preventDefault(); closePop(true); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePop(false); }
+      });
+      input.addEventListener("blur", () => setTimeout(() => { if (pop && pop.el === el) closePop(true); }, 0));
+      pop = { el, done(commit) {
+        const blk = blockEl(id);
+        if (!blk || !blk.contains(atom)) return;
+        typingSnapshot(id);
+        let next = atom;
+        if (commit) {
+          const v = input.value.trim();
+          if (v) next = PR.rich.setTex(atom, v); else { next = null; atom.remove(); }
+        } else if (!atom.dataset.tex) { next = null; atom.remove(); }  // 新放的、還沒寫：拿掉
+        onInput({ target: f.el });
+        f.el.focus();
+        const r = document.createRange();
+        if (next && next.parentNode) { r.setStartAfter(next); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      } };
+      setTimeout(() => { input.focus(); input.select(); }, 0);
+    }
+    /* 連結：選的字變成連結；游標在連結裡就是改網址、或拿掉 */
+    function linkPop(f) {
+      closePop(false);
+      const id = f.el.closest(".bk-b").dataset.id, saved = f.caret(), a = PR.rich.linkAt(f.el);
+      if (!a && saved.start === saved.end) { if (PR.toast) PR.toast(t("先選起要變成連結的字")); return; }
+      const sel = getSelection(), rect = sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : f.el.getBoundingClientRect();
+      const el = popAt(rect, '<input class="bk-pop-in" spellcheck="false" placeholder="' + esc(t("貼上網址（https://…）")) + '" value="' + esc(a ? a.dataset.href || "" : "") + '">' +
+        (a ? '<button type="button" class="bk-pop-x" data-unlink>' + esc(t("拿掉連結")) + "</button>" : ""));
+      const input = el.querySelector("input");
+      const apply = (url) => { f.el.focus(); f.setCaret(saved.start, saved.end); typingSnapshot(id); if (PR.rich.link(f.el, url)) onInput({ target: f.el }); };
+      input.addEventListener("keydown", (e) => {
+        if (e.isComposing) return;
+        if (e.key === "Enter") { e.preventDefault(); const url = input.value.trim(); closePop(false); if (url) apply(/^(https?:\/\/|\/(read|note)\/)/.test(url) ? url : "https://" + url); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePop(false); f.el.focus(); f.setCaret(saved.start, saved.end); }
+      });
+      el.addEventListener("mousedown", (e) => { if (e.target.closest("[data-unlink]")) { e.preventDefault(); closePop(false); apply(""); } });
+      input.addEventListener("blur", () => setTimeout(() => { if (pop && pop.el === el) closePop(false); }, 0));
+      pop = { el, done() {} };
+      setTimeout(() => input.focus(), 0);
+    }
+    /* 排好的那一格裡點公式：開小編輯框 */
+    root.addEventListener("click", (e) => {
+      const atom = e.target.closest && e.target.closest(".bk-rich .rt-tex");
+      if (!atom) return;
+      const f = fieldOf(atom.closest(".bk-b").dataset.id);
+      if (f) { e.preventDefault(); e.stopPropagation(); texPop(f, atom); }
+    }, true);
 
     /* ---------- 對外 ---------- */
     const plain = (s) => (PR.plain ? PR.plain(s) : String(s || "").replace(/[*_\x60~=$#>\[\]]/g, ""));
@@ -1289,7 +1548,7 @@
       select(i) { const b = state.blocks[i]; if (b) select(b.id); },
       count: () => state.blocks.length,
       /* ---- 給外面的面板用（目錄、格式、插入、資訊） ---- */
-      outline() { return state.blocks.map((b, i) => (b.type === "heading" ? { id: b.id, i, level: b.level, text: plain(state.editing === b.id && taOf(b.id) ? taOf(b.id).value : b.text) } : null)).filter(Boolean); },
+      outline() { return state.blocks.map((b, i) => (b.type === "heading" ? { id: b.id, i, level: b.level, text: plain(state.editing === b.id && fieldOf(b.id) ? fieldOf(b.id).value() : b.text) } : null)).filter(Boolean); },
       reveal(id) {
         const el = blockEl(id); if (!el) return;
         el.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -1314,19 +1573,22 @@
         return { editing: state.editing, ids, kind: kinds.length === 1 ? kinds[0] : "", indent: bs.length ? Math.min(...bs.map((b) => b.indent || 0)) : 0, list: bs.length > 0 && bs.every((b) => b.type === "list"), count: bs.length };
       },
       convert(k) { convert(k); },
-      inline(mark) {  // 粗體、斜體…：包住正在編的那一塊裡選起來的字
-        const ta = state.editing && taOf(state.editing);
-        if (!ta) return false;
-        if (mark === "link") wrap(ta, "[", "](url)"); else wrap(ta, mark);
-        return true;
+      inline(mark) {  // 粗體、斜體…：正在編的那一塊裡選起來的字（排好的那一格直接改樣子；輸入框包上記號）
+        const f = state.editing && fieldOf(state.editing);
+        if (!f) return false;
+        if (!f.rich) { if (mark === "link") wrap(f.el, "[", "](url)"); else wrap(f.el, mark); return true; }
+        if (mark === "link") { linkPop(f); return true; }
+        if (mark === "$") { const sel = getSelection(); const empty = !sel.rangeCount || sel.isCollapsed; typingSnapshot(state.editing); const atom = PR.rich.insertTex(f.el); onInput({ target: f.el }); if (atom && empty) texPop(f, atom); return true; }
+        return markRich(f, MARK_OF[mark] || mark);
       },
+      activeMarks() { const f = state.editing && fieldOf(state.editing); return f && f.rich ? PR.rich.active(f.el) : []; },
       indent(d) {
         const bs = state.editing ? [state.blocks[idx(state.editing)]] : selectedBlocks();
         if (!bs.some((b) => b && b.type === "list")) return;
         if (state.editing) pullText(state.editing);
         snapshot();
         bs.forEach((b) => { if (b && b.type === "list") b.indent = Math.max(0, Math.min(4, (b.indent || 0) + d)); });
-        const at = state.editing && taOf(state.editing) ? taOf(state.editing).selectionStart : null;
+        const at = state.editing && fieldOf(state.editing) ? fieldOf(state.editing).caret().start : null;
         if (state.editing) { repaint(state.editing); focusEdit(state.editing, at); } else render();
         changeSoon();
       },

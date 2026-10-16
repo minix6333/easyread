@@ -1983,5 +1983,9 @@
  "術語：在這份文件裡是什麼意思": "Term: what it means in this document",
  "請 AI 整理": "Ask AI to list them",
  "請 AI 重新整理一次": "Ask AI to list them again",
- "讀一次整份，大約半分鐘到一分鐘": "Reads the whole document once, about half a minute to a minute"
+ "讀一次整份，大約半分鐘到一分鐘": "Reads the whole document once, about half a minute to a minute",
+ "TeX，例如 \\frac{a}{b}": "TeX, e.g. \\frac{a}{b}",
+ "先選起要變成連結的字": "Select the text to turn into a link first",
+ "拿掉連結": "Remove link",
+ "貼上網址（https://…）": "Paste a URL (https://…)"
 }
