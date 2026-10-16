@@ -913,6 +913,8 @@
         insertAfter(i, { type: "p", text: "" }, true);
         return;
       }
+      // 剛把 -> 換成 →：緊接著按 Backspace 變回 ->
+      if (e.key === "Backspace" && !mod && !e.altKey && f.rich && PR.rich.unsmart(f.el)) { e.preventDefault(); typingSnapshot(id); onInput({ target: f.el }); return; }
       if (e.key === "Backspace" && c.start === 0 && c.end === 0) {
         if (b.type === "list" && b.indent) { e.preventDefault(); snapshot(); pullText(id); b.indent--; repaint(id); focusEdit(id, "start"); changeSoon(); return; }  // 縮排的清單項：先退一層
         if (b.type === "list" || b.type === "heading" || b.type === "quote" || (b.type === "callout" && b.kind !== "ref")) {  // 先變回內文
@@ -1024,6 +1026,8 @@
       if (ta.innerHTML === "<br>") ta.innerHTML = "";  // 刪光了：瀏覽器留一個 <br>，佔位的灰字才出得來
       // 打完一對記號（**字**、\x60字\x60、$式$…）：變成那個樣子
       if ((e.inputType === "insertText" || e.type === "compositionend") && /[*~+=\x60$]$/.test(e.data || "")) PR.rich.autoformat(ta);
+      if (e.inputType === "insertText" && /[=>\-]$/.test(e.data || "")) PR.rich.smart(ta);  // -> 變 →、<= 變 ≤…
+      else if (e.inputType || e.type === "compositionend") PR.rich.smart.forget();  // 換了之後又打了別的：Backspace 就是一般的刪字
       // 「/」「／」在開頭、或空的一塊打「、」：叫出區塊選單（後面打的字拿來篩）
       const txt = PR.rich.text(ta);
       if (INLINE(b) && (/^[\/／][^\s/／]*$/.test(txt) || /^、[^\s、]*$/.test(txt))) openMenu(id, txt.slice(1));

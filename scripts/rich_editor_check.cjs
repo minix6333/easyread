@@ -293,6 +293,16 @@ app.whenReady().then(async () => {
     const s = await st();
     check(name, !mail && shown && /Finetuning|取樣/.test(first) && /見 \[Karan 2026\]\(\/read\/4cf6b1e1a402\)提出$/.test(s.md), { mail, shown, first, md: s.md.slice(-80) });
   });
+  await run("打 -> 變 →、<= 變 ≤、<-> 變 ↔；緊接著按 Backspace 變回 ->；`程式碼` 裡不換", async (name) => {
+    await click(await pt("最後一段"));
+    await key("End");
+    await type(" A->B, x<=y, a<->b, c->");
+    await key("Backspace");  // 剛換成 → 的那個：變回 ->
+    await type("d `p->q`");
+    await key("Escape"); await sleep(500);
+    const s = await st();
+    check(name, / A→B, x≤y, a↔b, c->d `p->q`$/.test(s.md), { md: s.md.slice(-60) });
+  });
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
   step = "cleanup";
   if (!keep) await cleanup();

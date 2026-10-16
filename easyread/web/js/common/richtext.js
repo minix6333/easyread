@@ -459,6 +459,42 @@
     return false;
   }
 
+  /* ---------- 打 -> 變 →（Craft、Bear 也這樣） ----------
+     => ⇒、<= ≤、>= ≥、!= ≠、~= ≈、+- ±、<- ←、<-> ↔、<=> ⇔。程式碼、公式裡不換。換了之後緊接著按 Backspace：變回原本打的那幾個字 */
+  const SMART = [["←>", "↔", "<->"], ["≤>", "⇔", "<=>"], ["->", "→", "->"], ["<-", "←", "<-"], ["=>", "⇒", "=>"], ["<=", "≤", "<="], [">=", "≥", ">="], ["!=", "≠", "!="], ["~=", "≈", "~="], ["+-", "±", "+-"]];
+  let lastSmart = null;
+  function smart(el) {
+    lastSmart = null;
+    const sel = getSelection();
+    if (!sel.rangeCount || !sel.isCollapsed) return false;
+    const node = sel.anchorNode, off = sel.anchorOffset;
+    if (!node || node.nodeType !== 3 || !el.contains(node) || closestIn(el, node, (n) => n.tagName === "CODE" || !!(n.classList && (n.classList.contains("rt-tex") || n.classList.contains("rt-raw"))))) return false;
+    const before = node.nodeValue.slice(0, off);
+    if ((before.match(/\x60/g) || []).length % 2 || (before.replace(/\\\$/g, "").match(/\$/g) || []).length % 2) return false;  // 還在打 `程式碼` 或 $公式$（右邊那個記號還沒打）
+    const hit = SMART.find(([from]) => before.endsWith(from));
+    if (!hit) return false;
+    const [from, to, typed] = hit, at = off - from.length;
+    node.nodeValue = before.slice(0, at) + to + node.nodeValue.slice(off);
+    const r = document.createRange();
+    r.setStart(node, at + to.length); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+    lastSmart = { node, at: at + to.length, to, typed };
+    return true;
+  }
+  smart.forget = () => { lastSmart = null; };
+  function unsmart(el) {
+    const s = lastSmart; lastSmart = null;
+    const sel = getSelection();
+    if (!s || !sel.rangeCount || !sel.isCollapsed || sel.anchorNode !== s.node || sel.anchorOffset !== s.at || !el.contains(s.node)) return false;
+    const v = s.node.nodeValue, a = s.at - s.to.length;
+    if (v.slice(a, s.at) !== s.to) return false;
+    s.node.nodeValue = v.slice(0, a) + s.typed + v.slice(s.at);
+    const r = document.createRange();
+    r.setStart(s.node, a + s.typed.length); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+    return true;
+  }
+
   /* ---------- 貼上 ---------- */
   /* 別的地方複製來的 HTML（網頁、Word、Google 文件）→ Markdown：標題、清單、粗斜體、連結、表格、程式碼都留著 */
   function fromHtml(htmlText) {
@@ -588,5 +624,5 @@
   }
   const plainOf = (md) => runsOfTree(parse(md)).map((r) => (r.t != null ? r.t : r.br ? "\n" : "\uFFFC")).join("");
 
-  PR.rich = { parse, runsOfTree, emit, lenOf, join, dropMd, plainOf, html, texHtml, runs, md, length, caret, setCaret, slice, text, onFirstLine, onLastLine, endsWithEmptyLine, toggle, active, insertTex, setTex, link, linkAt, insertLink, autoformat, tidy, fromHtml, cleanPaste, isAtom, ZW };
+  PR.rich = { parse, runsOfTree, emit, lenOf, join, dropMd, plainOf, html, texHtml, runs, md, length, caret, setCaret, slice, text, onFirstLine, onLastLine, endsWithEmptyLine, toggle, active, insertTex, setTex, link, linkAt, insertLink, autoformat, smart, unsmart, tidy, fromHtml, cleanPaste, isAtom, ZW };
 })(window.PR);
