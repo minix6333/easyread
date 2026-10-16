@@ -14,12 +14,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cards, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, matrix, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cards, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, lexicon, matrix, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
 from .i18n import tr
-from .store import now_iso
+from .store import now_iso, write_json_atomic
 from .reader_files import refresh_layout as _refresh_layout, warm as _warm, reveal as _reveal, _warming
 
 WEB = config.WEB
@@ -505,6 +505,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, preread.status(ws))
             if action == "cards":  # 複習卡（cards.py）
                 return self._json(200, {"cards": cards.items(ws)})
+            if action == "lexicon":  # 術語與符號表（lexicon.py）
+                return self._json(200, lexicon.load(ws))
             if action == "links":  # PDF 自己帶的連結：引用、圖表、公式的跳轉和外部網址（peek.py），閱讀頁的預覽用
                 if app.location.status == "idle":
                     derive.extract(ws.root)
@@ -713,6 +715,15 @@ class Handler(BaseHTTPRequestHandler):
                 elif sub == "delete":
                     chat_store.delete(ws, tid)
                 return self._json(200, {"threads": chat_store.threads(ws)})
+            if action == "lexicon":  # 請 AI 整理術語與符號（build），或拿掉一條（delete, t）
+                if body.get("action") == "delete":
+                    def drop(data, t=str(body.get("t") or "")):
+                        data["items"] = [x for x in data.get("items") or [] if isinstance(x, dict) and x.get("t") != t]
+                    data = lexicon.load(ws)
+                    drop(data)
+                    write_json_atomic(ws.root / "lexicon.json", data)
+                    return self._json(200, data)
+                return self._json(200, lexicon.build(self, ws, body))
             if action == "cards" and len(parts) > 5 and parts[5] == "draft":  # 請 AI 出卡（回給讀者挑，不存）
                 return self._json(200, {"cards": cards.draft(self, ws, body)})
             if action == "cards":  # 加卡、改卡、刪卡、記下這次複習（排程在前端算）

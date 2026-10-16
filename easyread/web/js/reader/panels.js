@@ -361,7 +361,11 @@
     if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? PR.t("还没整理的页") : PR.t("未译的页")) + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span><span class="t">' + PR.t("原文第 {n} 页", { n: p.n }) + "</span></a>").join("");
     return html + "</nav>";
   }
-  function termsHtml() {
+  /* 「術語」分頁：AI 整理的術語與符號表（lexicon.js）；翻譯過的文件，改譯法的那張表在它的「譯名」那一格 */
+  function termsHtml() { return PR.lexiconHtml ? PR.lexiconHtml(glossaryHtml) : glossaryHtml(); }
+  PR.navTab = () => tab;
+  PR.renderNav = () => PR.renderDrawer();
+  function glossaryHtml() {
     const g = S.paper.glossary || [];
     return '<p class="hint" style="margin:0 0 10px">' + PR.t("译法不合心意？改右边的译法，再点“替换”，会把正文里的旧译法换成新的（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。") + "</p>" +
       (g.length ? '<table class="terms-t">' + g.map((t, i) => "<tr><td>" + PR.esc(t.en) + '</td><td><input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '"></td><td><button class="btn sm line" data-term="' + i + '">' + PR.t("替换") + "</button></td></tr>").join("") + "</table>" : '<p class="hint">' + PR.t("这篇论文还没有术语表。") + "</p>") +

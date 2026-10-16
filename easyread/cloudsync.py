@@ -376,6 +376,8 @@ def merge_paper(src: Path, dst: Path) -> None:
     _merge_list(src / "chat.json", dst / "chat.json", "threads")
     _merge_list(src / "discussion.json", dst / "discussion.json", "entries")
     _merge_list(src / "cards.json", dst / "cards.json", "cards")  # 複習卡（cards.py）
+    if (src / "lexicon.json").is_file() and not (dst / "lexicon.json").exists():  # 術語與符號表（lexicon.py）：整份，沒有才補
+        shutil.copy2(src / "lexicon.json", dst / "lexicon.json")
 
 
 def absorb(current: Path, stray: Path) -> dict:

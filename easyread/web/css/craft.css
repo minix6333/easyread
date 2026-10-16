@@ -1520,3 +1520,36 @@ table.mx td.none .mx-t { color: var(--ink-3); }
 .rv-end b { font: 600 17px var(--ui); color: var(--ink); }
 .rv-end p { margin: 0 0 10px; }
 .rv-end .rv-ic { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- 術語與符號（reader/lexicon.js）：左邊欄「術語」分頁、選字工具列的解釋卡 ---------- */
+.lx { display: flex; flex-direction: column; gap: 8px; }
+.lx .lx-seg { align-self: flex-start; }
+.lx .lx-seg button { display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; font: 12.5px var(--ui); }
+.lx .lx-seg i.n { font-style: normal; font-size: 11px; color: var(--ink-3); }
+.lx-head { display: flex; align-items: center; gap: 6px; }
+.lx-find { flex: 1; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: 9px; background: var(--fill); color: var(--ink-3); }
+.lx-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 12.5px var(--ui); color: var(--ink); }
+.lx-list { display: flex; flex-direction: column; }
+.lx-it { position: relative; padding: 9px 4px 9px 2px; border-bottom: .5px solid var(--line); }
+.lx-t { display: flex; align-items: baseline; gap: 6px; font: 600 13px/1.4 var(--ui); color: var(--ink); }
+.lx-t > b { font-weight: 600; flex: 1; min-width: 0; }
+.lx-sym .katex { font-size: 1.08em; }
+.lx-pg { margin-left: auto; padding: 0 6px; border-radius: 6px; font: 500 11px/1.7 var(--ui); color: var(--accent); background: var(--accent-soft); flex: none; }
+.lx-d { margin-top: 3px; font: 12.5px/1.55 var(--ui); color: var(--ink-2); }
+.lx-q { margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--line); font: italic 12px/1.5 var(--serif-en); color: var(--ink-3); }
+.lx-acts { display: flex; gap: 2px; margin-top: 4px; }
+.lx-it .lx-acts { position: absolute; right: 0; bottom: 6px; opacity: 0; transition: opacity var(--dur-fast); }
+.lx-it:hover .lx-acts, .lx-it:focus-within .lx-acts { opacity: 1; }
+@media (hover: none) { .lx-it .lx-acts { position: static; opacity: 1; } }
+.lx-acts button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--ink-3); background: var(--surface); }
+.lx-acts button:hover { background: var(--fill); color: var(--ink); }
+.lx-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 12px; text-align: center; font: 12.5px/1.6 var(--ui); color: var(--ink-3); }
+.lx-empty > svg.i { width: 22px; height: 22px; }
+.lx-empty p { margin: 0; }
+.lx-empty .btn svg.i { width: 14px; height: 14px; margin-right: 5px; }
+.lx-empty small { font-size: 11.5px; }
+.lx-busy { display: flex; align-items: center; gap: 8px; padding: 18px 4px; font: 12.5px var(--ui); color: var(--ink-2); }
+.lx-busy .btn { margin-left: auto; }
+#popover.lexpop .lx-pop .lx-t { align-items: center; }
+#popover.lexpop .lx-pop .lx-t > svg.i { color: var(--accent); flex: none; }
+#popover.lexpop .lx-acts { margin-top: 8px; }

@@ -147,6 +147,7 @@
       (pendingSel.side ? "" : btn("en", "en", PR.t("看这段英文"))) +
       btn("copy", "copy", PR.t("复制")) +
       (pdf && PR.openFind && pendingSel.quote.length < 80 && !/\n/.test(pendingSel.quote) ? btn("find", "search", PR.t("在這份文件裡找這個詞") + key("⌘F")) : "") +
+      (PR.lexMatch && PR.lexMatch(pendingSel.quote) ? btn("term", "type", PR.t("術語：在這份文件裡是什麼意思")) : "") +
       (PR.store.mode === "server" && PR.excerptMenu ? btn("excerpt", "notebook", PR.t("加到筆記（可以直接拖進旁邊開著的筆記）") + key("E")) : "") +
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
@@ -176,6 +177,7 @@
       return;
     }
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"), null, 1200)); return; }
+    if (kind === "term") { const x = PR.lexMatch && PR.lexMatch(quote); if (x && PR.showLexCard) PR.showLexCard(x, rect); return; }  // 術語表裡有的詞（lexicon.js）
     if (kind === "chat") { PR.chatAsk({ anchor, quote, page }); return; }
     if (kind === "translate") { if (side === "pdf" && PR.translateSelection) PR.translateSelection({ anchor, page, range, rects, quote }); return; }
     // PDF 上選的：記頁碼、字元範圍和框，錨到落在的那一段（可能沒有）；譯文上選的：原話＋前後文

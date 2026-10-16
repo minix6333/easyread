@@ -81,6 +81,10 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     gl = paper.get("glossary", [])
     if gl:
         lines.append("术语表：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl[:80]))  # i18n-ok
+    from . import lexicon  # 術語與符號表（AI 整理的，lexicon.py）：回答照這份文件的記號講。lexicon 也 import chat，所以在這裡才載
+    lex = lexicon.prompt_block(ws)
+    if lex:
+        lines.append(lex)
     return "\n\n".join(lines)
 
 

@@ -16,6 +16,7 @@
 
   PR.cardsPanel = {
     count: () => (st.cards ? due().length : 0),
+    reload() { st.cards = null; repaint(); },  // 別處加了卡（術語表的「做成複習卡」）：下次畫的時候重新取
     html() {
       if (!st.cards) { load().then(repaint); return '<p class="hint" style="padding:16px">' + PR.t("加载中…") + "</p>"; }
       const d = due().length, can = PR.canChat && PR.canChat();
