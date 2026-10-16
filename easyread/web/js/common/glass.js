@@ -35,23 +35,37 @@
   const waiting = new Map();  // 元素 → [kind, opts]
   let waitT = 0;
   const busy = () => !!document.documentElement.dataset.vt;
+  const idle = window.requestIdleCallback ? (fn) => requestIdleCallback(fn, { timeout: 400 }) : (fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 40);
+  /* 等著補折射的：閒下來時一塊一塊做，每次最多佔 8 毫秒（一次全做完，開一篇文件的那一格會多卡五六十毫秒） */
   function later() {
     if (waitT) return;
-    waitT = setTimeout(() => {
-      waitT = 0;
-      if (busy()) { later(); return; }
-      const list = Array.from(waiting);
-      waiting.clear();
-      for (const [el, [kind, opts]] of list) if (el.isConnected && !live.has(el)) optics(el, kind, opts);
-    }, 160);
+    waitT = setTimeout(() => idle(function work(dl) {
+      if (busy()) { waitT = 0; later(); return; }
+      const t0 = performance.now();
+      for (const [el, [kind, opts]] of waiting) {
+        waiting.delete(el);
+        if (el.isConnected && !live.has(el)) { unfrost(el); optics(el, kind, opts); }
+        // 閒的時間用完就停；等太久才排到（didTimeout，頁面一直很忙）時剩餘時間是 0——那就照 8 毫秒做一批，不要一次只做一塊
+        if (performance.now() - t0 > 8 || (dl && !dl.didTimeout && dl.timeRemaining && dl.timeRemaining() < 2)) break;
+      }
+      if (waiting.size) idle(work); else waitT = 0;
+    }), 160);
   }
-  function apply(el, kind, opts) {
+  /* 還在等的這段時間先上一層普通的毛玻璃（很便宜），看起來就差不多了；補上折射時換掉 */
+  function frost(el, kind) {
+    const p = PRESET[kind || ""] || PRESET[""];
+    const f = "blur(" + (p.blur + 8) + "px) saturate(1.5)";
+    el.style.backdropFilter = f; el.style.webkitBackdropFilter = f;
+    el.classList.add("lg-wait");
+  }
+  function unfrost(el) { if (el.classList.contains("lg-wait")) { el.classList.remove("lg-wait"); el.style.backdropFilter = ""; el.style.webkitBackdropFilter = ""; } }
+  function apply(el, kind, opts, defer) {
     if (!el || live.has(el)) return live.get(el);
     el.classList.add("lg");
     if (kind) el.dataset.glass = kind;
     all.add(el);
     if (reduceT.matches || typeof liquidGlass !== "function") { el.classList.add("lg-flat"); return null; }
-    if (busy()) { waiting.set(el, [kind, opts]); later(); return null; }
+    if (busy() || defer) { if (defer && level() > 0) frost(el, kind); waiting.set(el, [kind, opts]); later(); return null; }
     return optics(el, kind, opts);
   }
   function optics(el, kind, opts) {
@@ -65,22 +79,21 @@
       live.set(el, h);
       return h;
     }
-    const o = Object.assign({ saturate: 1.5, fallbackBlur: 24 }, p, { scale: Math.round(p.scale * k), chroma: +(p.chroma * k).toFixed(1) }, opts || {});
+    const o = Object.assign({ saturate: 1.5, fallbackBlur: 24 }, p, { scale: Math.round(p.scale * k), chroma: +(p.chroma * k).toFixed(1) }, opts || {}, { filterOnly: true });
     try {
       const g = liquidGlass(el, o);
       live.set(el, g);
       if (!g.supported) el.classList.add("lg-frost");
-      else bake(el, o);
+      else bake(g.id, o);
       return g;
     } catch (e) { el.classList.add("lg-flat"); return null; }
   }
-  /* 模組把 backdrop-filter 設成 url(#濾鏡) blur() saturate()，但 Chromium 不會把 url() 後面那兩個套上去（實測：底下的字透上來還是清清楚楚的，
-     蓋在文字上的工具列、膠囊看起來很花）。所以把模糊和飽和做進模組建的那個 SVG 濾鏡裡——先模糊、再折射、最後加飽和——backdrop-filter 只留 url()。
+  /* 模組原本把 backdrop-filter 設成 url(#濾鏡) blur() saturate()，但 Chromium 不會把 url() 後面那兩個套上去（實測：底下的字透上來還是清清楚楚的，
+     蓋在文字上的工具列、膠囊看起來很花）。所以把模糊和飽和做進模組建的那個 SVG 濾鏡裡——先模糊、再折射、最後加飽和——backdrop-filter 只留 url()（filterOnly）。
      模組之後只會改 feImage（折射的 map），加進去的這兩個節點不受影響；destroy() 是整個濾鏡一起拿掉。 */
   const SVG_NS = "http://www.w3.org/2000/svg";
-  function bake(el, o) {
-    const m = /url\(["']?#([\w-]+)["']?\)/.exec(el.style.backdropFilter || "");
-    const f = m && document.getElementById(m[1]);
+  function bake(id, o) {
+    const f = id && document.getElementById(id);
     if (!f || f.querySelector("feGaussianBlur")) return;
     if (o.blur > 0) {
       const b = document.createElementNS(SVG_NS, "feGaussianBlur");
@@ -97,7 +110,7 @@
       c.setAttribute("values", String(o.saturate));
       f.appendChild(c);  // 接在最後一個節點（三個色版疊回來的結果）後面
     }
-    el.style.backdropFilter = "url(#" + m[1] + ")";
+    // backdrop-filter 由模組在 map 做好時換成 url(#濾鏡)（filterOnly）：之前那一兩格是普通的毛玻璃
   }
   PR.glass = (el, opts) => apply(el, (el && el.dataset.glass) || (opts && opts.kind) || "", opts);
   PR.glassRefresh = (el) => { const g = live.get(el); if (g) g.refresh(); };
@@ -111,6 +124,7 @@
       const g = live.get(el);
       if (g) g.destroy();
       live.delete(el);
+      waiting.delete(el); unfrost(el);
       el.classList.remove("lg-frost", "lg-flat");
       all.delete(el);
       apply(el, el.dataset.glass || "");
@@ -142,18 +156,18 @@
   PR.glassSync = () => { applyClear(); if (level() !== cur) reapply(); };  // 偏好從別處換了（別的分頁、伺服器存的）：跟上
   addEventListener("storage", (e) => { if (e.key === "easyread-prefs") PR.glassSync(); });
 
-  function scan(root) {
+  function scan(root, defer) {
     if (!root || root.nodeType !== 1) return;
     for (const [sel, kind] of AUTO) {
-      if (root.matches(sel)) apply(root, root.dataset.glass || kind);
-      root.querySelectorAll(sel).forEach((el) => apply(el, el.dataset.glass || kind));
+      if (root.matches(sel)) apply(root, root.dataset.glass || kind, null, defer);
+      root.querySelectorAll(sel).forEach((el) => apply(el, el.dataset.glass || kind, null, defer));
     }
-    if (root.matches("[data-glass]")) apply(root, root.dataset.glass);
-    root.querySelectorAll("[data-glass]").forEach((el) => apply(el, el.dataset.glass));
+    if (root.matches("[data-glass]")) apply(root, root.dataset.glass, null, defer);
+    root.querySelectorAll("[data-glass]").forEach((el) => apply(el, el.dataset.glass, null, defer));
   }
 
   function boot() {
-    scan(document.body);
+    scan(document.body, true);  // 頁面一開就在的那些（頂欄、工具列）：先上毛玻璃，折射閒下來再補，不擋第一個畫面
     // 後來畫出來的：整批看一次就好（innerHTML 一次會進來很多節點）
     let queue = [], timer = 0;
     const flush = () => { timer = 0; const q = queue; queue = []; q.forEach(scan); };

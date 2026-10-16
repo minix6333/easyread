@@ -106,8 +106,10 @@ def card(ws: Workspace) -> dict:
     return out
 
 
-def members(lib, scope: dict, here: Workspace) -> list[Workspace]:
-    """範圍裡的文件：目前這份排第一（D1），其餘照最近打開的排。"""
+def members(lib, scope: dict, here: Workspace, order: list | None = None) -> list[Workspace]:
+    """範圍裡的文件：目前這份排第一（D1），其餘照最近打開的排。
+    order：這個對話之前用過的代號順序（文件 id，D1 起）。照舊排——讀者點開回答裡的某一份，「最近打開」的順序就變了，
+    代號要是跟著換，模型說的 D3 會被連到另一份去。之後才加進來的（新匯入的）排在後面。"""
     others = [ws for ws in lib.all() if ws.id != here.id]
     if scope["kind"] == "tag":
         others = [ws for ws in others if scope["tag"] in card(ws)["tags"]]
@@ -115,6 +117,9 @@ def members(lib, scope: dict, here: Workspace) -> list[Workspace]:
         want = set(scope["ids"])
         others = [ws for ws in others if ws.id in want]
     others.sort(key=lambda ws: card(ws)["opened"], reverse=True)
+    if order:
+        pos = {pid: i for i, pid in enumerate(order)}
+        others.sort(key=lambda ws: pos.get(ws.id, len(pos)))  # 排序是穩定的：沒用過代號的照最近打開排在後面
     return [here] + others[:MAX_DOCS - 1]
 
 
@@ -133,10 +138,11 @@ def _tokens(question: str, cards: list[dict]) -> tuple[list[str], list[str]]:
     return sorted(en), sorted(zh)
 
 
-def context(lib, here: Workspace, scope: dict, question: str, engine: str, pages_only: bool = False) -> tuple[str, dict]:
+def context(lib, here: Workspace, scope: dict, question: str, engine: str, pages_only: bool = False,
+            order: list | None = None) -> tuple[str, dict]:
     """提示詞裡「範圍裡的文件」那一大段，和代號對照表 {"D3": {"id", "who", "title"}}。
-    pages_only：追問（模型行程記得前面給過的總覽和筆記）只給這一問相關的幾頁原文。"""
-    docs = members(lib, scope, here)
+    pages_only：追問（模型行程記得前面給過的總覽和筆記）只給這一問相關的幾頁原文。order：見 members。"""
+    docs = members(lib, scope, here, order)
     cards = [card(ws) for ws in docs]
     codes = {f"D{i}": {"id": c["id"], "who": c["who"], "title": c["title"][:120]} for i, c in enumerate(cards, 1)}
     en, zh = _tokens(question, cards)
@@ -184,6 +190,14 @@ def context(lib, here: Workspace, scope: dict, question: str, engine: str, pages
     if pages:
         parts.append(pages)
     return "\n\n".join(parts), codes
+
+
+def followup(pages: str) -> str:
+    """追問時給模型的那一段：範圍和代號照舊（模型那邊記得總覽和全文筆記），只補這一問相關的幾頁原文。
+    沒找到相關的頁也要說——不然追問的提示詞會變成單一文件的寫法，說「整份文字在上面」，但其實從來沒給過。"""
+    if pages:
+        return "这一问的范围还是那几份文件（代号同前），和这一问相关的：\n" + pages  # i18n-ok 提示詞
+    return "这一问的范围还是那几份文件（代号同前）。这次没找到特别相关的原文页，就照之前给你的总览和全文笔记回答，没有根据的就直说没找到。"  # i18n-ok
 
 
 RULES = ("这一问的范围是好几份文件（代号 D1、D2…）。回答时：每个来自文件的说法后面都标出处，写成〔D3 p.5〕（代号加页码；"  # i18n-ok

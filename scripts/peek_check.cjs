@@ -20,7 +20,8 @@ app.whenReady().then(async () => {
   step = "load";
   await win.loadURL(base + "/read/" + id).catch(() => {});
   for (let i = 0; i < 80 && !(await js("!!(window.PR && PR.pageNodes && PR.pageNodes().length && PR.pdfLinks)").catch(() => false)); i++) await sleep(200);
-  await js("PR.sideMotion = false; PR.toggleInspector && PR.toggleInspector(false); PR.openPage(1, null, { instant: true }); 1");
+  // 點一下頁面：閱讀頁打開後幾秒內會把 PDF 拉回「上次讀到的那一頁」（讀者自己動過就停）——不先動一下，等一下捲去指連結時會被拉走
+  await js("document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); PR.sideMotion = false; PR.toggleInspector && PR.toggleInspector(false); PR.openPage(1, null, { instant: true }); 1");
   await sleep(1200);
   // 把某個連結捲到畫面中間，回傳它在畫面上的中心點；mouse(x, y, type) 在那一點發滑鼠事件（落在文字層的字上，和真的一樣）
   await js(`window.__pk = {

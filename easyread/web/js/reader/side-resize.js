@@ -16,6 +16,7 @@
 
   /* 宽度变了：正文重排并停在刚才读的段，原页按新宽度换合适清晰度的图；PDF 優先時整個版面重算、停在原來看的那一頁 */
   function relayout() {
+    if (PR.forgetSideWidth) PR.forgetSideWidth();  // 寬度剛改：pdfmode 記著的那個是舊的
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;

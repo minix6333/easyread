@@ -78,10 +78,11 @@ def main():
                     with urllib.request.urlopen(f"{url}/p/{ws.name}/{rel}?w={width}", timeout=15) as response:
                         assert response.status == 200
                         data = response.read()
-                        assert data[:4] == b"RIFF" and data[8:12] == b"WEBP", data[:80]
+                        # 縮放的那幾張存成 JPEG（2.1.0-tw.13 起）；和原圖差不到 5% 的直接給原圖（WebP）
+                        assert data[:3] == b"\xff\xd8\xff" or (data[:4] == b"RIFF" and data[8:12] == b"WEBP"), data[:80]
                     # 612 pt 的頁照 2.4 倍畫出來是 1469 像素寬。小的另外縮一張（Pillow）、大的從 PDF 重新畫一張（pdfium），
                     # 都存在 pages/w<寬>/；和原圖差不到 5% 的（1400）直接給原圖，不另外做一張幾乎一樣的（2.1.0-tw.9 起）
-                    made = (ws / "pages" / f"w{width}" / "page-001.webp").is_file()
+                    made = any((ws / "pages" / f"w{width}" / f"page-001.{ext}").is_file() for ext in ("jpg", "webp"))
                     if width == 1400:
                         assert not made, "a near-identical copy of the page image was made"
                     else:

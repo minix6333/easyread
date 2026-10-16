@@ -138,12 +138,10 @@
     col.dataset.sig = sig;
     col.innerHTML = list.map((n) => PR.cardHtml({ src: "mine", data: n, anchor: PR.blockById[n.anchor] ? n.anchor : "page:" + page }, editingId === undefined ? PR.editingNote : editingId)).join("") +
       '<svg class="pv-wire" aria-hidden="true"></svg><div class="pv-margin-grip" title="' + PR.t("拖動調整筆記欄寬度（雙擊回預設）") + '"></div>';
-    PR.$$(":scope > .card", col).forEach((c) => {
-      c.classList.add("pv-mcard");
-      if (shown(c.dataset.note)) c.classList.add("on");
-      PR.prepCard && PR.prepCard(c);
-      PR.applyCardUi && PR.applyCardUi(c);
-    });
+    const cs = PR.$$(":scope > .card", col);
+    cs.forEach((c) => { c.classList.add("pv-mcard"); if (shown(c.dataset.note)) c.classList.add("on"); });
+    if (PR.prepCards) PR.prepCards(cs);
+    cs.forEach((c) => PR.applyCardUi && PR.applyCardUi(c));
     layoutPage(entry);
   }
   function layoutPage(entry) {

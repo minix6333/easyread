@@ -70,7 +70,7 @@ function startBackend() {
   const launch = backendCommand();
   const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 後端按它決定介面語言
   startup.mark(app, "shell-path-start");
-  const shellPath = await startup.loginShellPath(process.platform);
+  const shellPath = await startup.fastShellPath(path.join(app.getPath("userData"), "shell-path.json"), () => startup.loginShellPath(process.platform), fs);
   startup.mark(app, "shell-path-ready");
   if (quitting) throw new Error(isZh() ? "啟動已取消" : "Startup cancelled");
   if (shellPath) {

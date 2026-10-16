@@ -69,7 +69,7 @@ def _prefetch_pages(root, rel: str, w: int) -> None:
         for k in range(n + 1, n + 1 + _PREFETCH_AHEAD):
             key = (str(root), k, w)
             nxt = f"pages/page-{k:03d}{ext}"
-            if key in _prefetching or k > total or (pages_dir / f"w{max(400, min(4000, w // 100 * 100))}" / f"page-{k:03d}{ext}").exists():
+            if key in _prefetching or k > total or pdfwork.variant_file(root, f"page-{k:03d}{ext}", pdfwork.variant_width(w)):
                 continue
             _prefetching.add(key)
             todo.append((key, nxt))
@@ -148,7 +148,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                self._client_gone = True  # 頁面不要這個回應了（捲走、換清晰度、關掉）：do_GET／do_POST 不當成錯誤
+                raise
 
     def _json(self, code: int, obj):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
@@ -243,22 +247,28 @@ class Handler(BaseHTTPRequestHandler):
         if web:
             user["web"] = True
         # 問的範圍（libask.py）：整個文獻庫、一個分類、挑的幾篇；沒送就照這個對話上次的（舊對話、追問）
-        scope = libask.parse(body["scope"]) if "scope" in body else libask.parse((thread or {}).get("scope"))
+        prev_scope = libask.parse((thread or {}).get("scope"))
+        scope = libask.parse(body["scope"]) if "scope" in body else prev_scope
         lib_ctx, codes = ("", {})
+        order = (thread or {}).get("docs") if scope and scope == prev_scope and isinstance((thread or {}).get("docs"), list) else None
         if scope and mode != "overview":
             user["scope"] = scope
-            lib_ctx, codes = libask.context(self.app.lib, ws, scope, text, ecfg["engine"])
+            lib_ctx, codes = libask.context(self.app.lib, ws, scope, text, ecfg["engine"], order=order)
+            user["docs"] = [codes[f"D{i}"]["id"] for i in range(1, len(codes) + 1)]  # 代號的順序記在對話上：追問時照舊（見 libask.members）
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
                                   images=user.get("images"), mode=mode, aside=aside, web=web, library_ctx=lib_ctx)
         # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
         prev_turns = sum(1 for x in past if x.get("role") == "assistant")
         live = {"thread": tid, "turns": prev_turns}
-        if prev_turns and chat.bound_turns(ecfg, ws, tid, web) == prev_turns:
+        # 範圍換了（這份⇄整個文獻庫、換了分類）：模型那邊記得的是另一組文件和另一種寫法——這一輪送完整的提示詞，不走追問
+        if prev_turns and chat.bound_turns(ecfg, ws, tid, web) == prev_turns and scope == prev_scope:
             prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
             same = chat.same_spot(prev_user, user, refs, page) and not images
+            pages_ctx = libask.followup(libask.context(self.app.lib, ws, scope, text, ecfg["engine"], pages_only=True, order=user.get("docs"))[0]) \
+                if scope and mode != "overview" else ""
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
                                                 images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside, web=web,
-                                                library_ctx=libask.context(self.app.lib, ws, scope, text, ecfg["engine"], pages_only=True)[0] if scope and mode != "overview" else "")
+                                                library_ctx=pages_ctx)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -384,7 +394,11 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as e:
             self._json(409, {"error": str(e), "library_status": self.app.location.status})
         except Exception as e:  # noqa: BLE001
-            log.exception("请求出错 %s", self.path)
+            if getattr(self, "_client_gone", False):  # 寫給頁面時斷了：頁面不要這個回應了，不是錯誤，不用一整段 traceback
+                log.debug("連線斷了（捲走、換清晰度、關掉）%s", self.path)
+                self.close_connection = True
+                return
+            log.exception("请求出错 %s", self.path)  # 別的（連 AI 服務那端斷線也是 ConnectionResetError）：照常回 500，頁面才知道
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
     def _get(self):
@@ -557,6 +571,10 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, KeyError) as e:
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
+            if getattr(self, "_client_gone", False):
+                log.debug("連線斷了 %s", self.path)
+                self.close_connection = True
+                return
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
@@ -717,12 +735,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"threads": chat_store.threads(ws)})
             if action == "lexicon":  # 請 AI 整理術語與符號（build），或拿掉一條（delete, t）
                 if body.get("action") == "delete":
-                    def drop(data, t=str(body.get("t") or "")):
-                        data["items"] = [x for x in data.get("items") or [] if isinstance(x, dict) and x.get("t") != t]
-                    data = lexicon.load(ws)
-                    drop(data)
-                    write_json_atomic(ws.root / "lexicon.json", data)
-                    return self._json(200, data)
+                    return self._json(200, lexicon.delete(ws, str(body.get("t") or "")))
                 return self._json(200, lexicon.build(self, ws, body))
             if action == "cards" and len(parts) > 5 and parts[5] == "draft":  # 請 AI 出卡（回給讀者挑，不存）
                 return self._json(200, {"cards": cards.draft(self, ws, body)})

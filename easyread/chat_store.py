@@ -72,12 +72,15 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
                 t["aside"] = dict(user["aside"])
                 t["title"] = "↳ " + _title(user["aside"].get("quote") or user["content"])
             chat["threads"].append(t)
-        t["messages"] += [{**user, "role": "user", "at": stamp, "answer_style": style}, msg]
+        t["messages"] += [{**{k: v for k, v in user.items() if k != "docs"}, "role": "user", "at": stamp, "answer_style": style}, msg]
         t.update(updated=stamp, model=model_id, answer_style=style, chat_options=user.get("chat_options", {}))
         if user.get("scope"):  # 問的範圍（整個文獻庫、一個分類、挑的幾篇；libask.py）：記在對話上，下次打開這串還是這個範圍
             t["scope"] = user["scope"]
+            if user.get("docs"):  # 出處代號 D1、D2… 對到哪幾份：追問時照這個順序，代號才不會換（libask.members）
+                t["docs"] = list(user["docs"])
         else:
             t.pop("scope", None)
+            t.pop("docs", None)
     ws.update("chat", apply)
     note_id = user.get("note")
     if note_id and answer.strip():

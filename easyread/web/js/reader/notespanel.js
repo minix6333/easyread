@@ -205,9 +205,9 @@
       (tab === "paper" ? paperHtml() : tab === "notes" ? notesHtml() : tab === "cards" && PR.cardsPanel ? PR.cardsPanel.html() : pageHtml());
     mountEditors();
     if (tab === "cards" && PR.cardsPanel) PR.cardsPanel.mounted(el);
-    PR.$$(".card", el).forEach((c) => PR.prepCard && PR.prepCard(c));
+    if (PR.prepCards) PR.prepCards(PR.$$(".card", el));
     PR.$$(".np-list .card.mine[data-note]:not(.editing)", el).forEach((c) => { c.draggable = true; });  // 拖排順序、拖到另一張上建立關聯
-    PR.$$("textarea", el).forEach(PR.autosize);
+    PR.$$("textarea:not([data-rich]):not(.md-src)", el).forEach(PR.autosize);
     const list = el.querySelector(".np-list");
     if (list) list.scrollTop = keep;
     const ta = editing && el.querySelector('.card[data-note="' + editing + '"] textarea');
@@ -411,7 +411,7 @@
   panel().addEventListener("dragend", () => { PR.$$(".np-list .card.dragging", panel()).forEach((c) => c.classList.remove("dragging")); clearDrop(); dragId = null; });
   panel().addEventListener("input", (e) => {
     const t = e.target;
-    if (t.id === "npSearch") { query = t.value.trim().toLowerCase(); const l = panel().querySelector(".np-list"); if (l) { l.innerHTML = listHtml(); PR.$$(".card", l).forEach((c) => PR.prepCard(c)); } return; }
+    if (t.id === "npSearch") { query = t.value.trim().toLowerCase(); const l = panel().querySelector(".np-list"); if (l) { l.innerHTML = listHtml(); PR.prepCards(PR.$$(".card", l)); } return; }
     if (t.matches("textarea")) PR.autosize(t);
     if (t.matches(".np-pnote")) { pendingPn = { page: +t.dataset.page, body: t.value }; clearTimeout(pnT); pnT = setTimeout(flushPageNote, 500); return; }
     if (t.id === "paperNote") {

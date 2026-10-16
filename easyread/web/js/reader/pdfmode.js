@@ -20,7 +20,21 @@
   PR.pdfFocus = false;
   document.addEventListener("pointerdown", (e) => { PR.pdfFocus = !!(e.target.closest && e.target.closest("#pageview, .pv-head")); }, true);
 
-  const sideW = () => { const p = PR.$("#notespanel"); return body.classList.contains("side-open") && p ? p.offsetWidth : 0; };
+  /* 右側面板多寬：ResizeObserver 記著（排版完才回報，不會逼瀏覽器馬上排版）。以前每次開關面板在這裡讀 offsetWidth，
+     剛換了 class 的版面被逼著先排一次，等一下捲回原位又排一次 */
+  let sideWidth = 0;
+  const sidePanel = PR.$("#notespanel");
+  // 版面重算（視窗大小、面板自己的寬度變了）：防抖，拖著視窗邊緣的時候不會每一格都重排整份（面板寬是 min(44vw, 720px)，跟著視窗一直變）
+  const relayoutSoon = PR.debounce(() => PR.applyLayout && PR.applyLayout(), 100);
+  if (sidePanel && window.ResizeObserver) new ResizeObserver((es) => {
+    const was = sideWidth;
+    for (const e of es) sideWidth = e.borderBoxSize && e.borderBoxSize[0] ? e.borderBoxSize[0].inlineSize : e.target.offsetWidth;
+    // 開著的時候面板自己變寬變窄（檢閱器那一欄、視窗大小）：PDF 那一格跟著重算。拖面板邊緣的途中不算（放開時 side-resize.js 會重排）
+    if (was && Math.abs(sideWidth - was) > 2 && body.classList.contains("side-open") && !body.classList.contains("resizing")) relayoutSoon();
+  }).observe(sidePanel);
+  const sideW = () => (body.classList.contains("side-open") && sidePanel ? sideWidth || sidePanel.offsetWidth : 0);
+  // 面板的寬度剛被程式改掉（拖完放開、雙擊回預設、換成一整欄）、馬上就要重排：記著的寬度作廢，這一次直接量
+  PR.forgetSideWidth = () => { sideWidth = 0; };
   /* PDF 的寬度：使用者拖的那個值，但譯文至少要留 MIN_ART；右邊還開著筆記／問 AI 時再讓一點。
      三欄怎麼都擠不下（視窗太窄）就先把譯文收起來，側面板關了再回來。回傳 [寬度, 譯文擠不擠得下] */
   function clampW() {
@@ -257,7 +271,7 @@
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   });
   grip.addEventListener("dblclick", () => { keepPlace(() => { w = 0; PR.ls.set(KEY_W, 0); clampW(); }); relayout(); });
-  window.addEventListener("resize", PR.debounce(() => PR.applyLayout(), 100));
+  window.addEventListener("resize", relayoutSoon);
   PR.on("ui-changed", () => PR.applyLayout());
 
   /* ---------- 縮放 ---------- */

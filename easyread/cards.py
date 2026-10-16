@@ -9,13 +9,12 @@ AI 出卡（draft）：從一則劃線／筆記（那段原話、自己寫的、
 """
 from __future__ import annotations
 
-import json
 import re
 import threading
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from . import chat, chat_models, chat_options, config, docmap, kinds, langs, preread, tw
+from . import aijson, chat, chat_models, chat_options, config, docmap, kinds, langs, preread, tw
 from .i18n import tr
 from .prompts import localize
 from .store import Workspace, now_iso
@@ -68,7 +67,7 @@ def _srs(s) -> dict | None:
 
 def items(ws: Workspace) -> list[dict]:
     data = ws.load("cards") or {}
-    return [c for c in data.get("cards") or [] if isinstance(c, dict) and c.get("id")]
+    return [c for c in data.get("cards") or [] if isinstance(c, dict) and c.get("id") and not c.get("deleted")]
 
 
 def change(ws: Workspace, body: dict) -> list[dict]:
@@ -85,11 +84,11 @@ def change(ws: Workspace, body: dict) -> list[dict]:
                     cards.append({"id": "c" + uuid4().hex[:12], **c, "created": stamp, "updated": stamp})
         elif op in ("update", "review", "delete"):
             cid = str(body.get("id") or "")
-            card = next((c for c in cards if c.get("id") == cid), None)
+            card = next((c for c in cards if c.get("id") == cid and not c.get("deleted")), None)
             if card is None:
                 raise ValueError(tr("沒有這張卡"))
-            if op == "delete":
-                cards.remove(card)
+            if op == "delete":  # 留一筆「刪掉了」（時間比較新）：兩台的資料合併時，另一邊那張舊的才不會又長回來
+                cards[cards.index(card)] = {"id": cid, "deleted": True, "updated": stamp}
             elif op == "update":
                 fields = _clean({**card, **{k: v for k, v in (body.get("fields") or {}).items() if k in ("q", "a", "page")}})
                 if not fields:
@@ -205,11 +204,7 @@ def prompt(ws: Workspace, body: dict) -> str:
 
 
 def parse(text: str, pages: int, to_tw: bool) -> list[dict]:
-    m = re.search(r"\[.*\]", text or "", re.S)
-    try:
-        data = json.loads(m.group(0)) if m else []
-    except ValueError:
-        data = []
+    data = aijson.first(text, "[") or []  # 前後多的話、TeX 的單條反斜線都收（aijson.py）
     out = []
     for raw in data if isinstance(data, list) else []:
         c = _clean(raw if isinstance(raw, dict) else {})

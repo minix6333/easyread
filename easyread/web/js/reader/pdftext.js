@@ -97,10 +97,16 @@
     if (!segs.lines) segs.lines = segs.map((s) => ({ t: textOf(s, chars), x0: s.x0, y0: s.y0, x1: s.x1, y1: s.y1, h: s.h, items: s.items }));
     return { chars, lines: segs.lines };
   };
+  /* 一格只鋪一頁：剛打開、捲得快的時候好幾頁的字元同時到，一起鋪會在同一格裡把版面排好幾次（量頁寬→插字→下一頁再量），
+     那一格就卡五十毫秒。排隊，一格做一頁 */
+  let turn = Promise.resolve();
+  const nextFrame = () => new Promise((r) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => r()) : r()));
+  const inTurn = () => (turn = turn.then(nextFrame));
   PR.buildTextLayer = async function (entry, n) {
     if (built[n] || entry.textPending) return;
     entry.textPending = true;
     const chars = await PR.charsFor(n);
+    await inTurn();
     entry.textPending = false;
     if (!entry.node.isConnected || built[n]) return;  // 面板重建過了
     const layer = document.createElement("div");

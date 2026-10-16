@@ -10,13 +10,12 @@
 from __future__ import annotations
 
 import json
-import re
 import threading
 
-from . import chat, chat_models, chat_options, config, docmap, kinds, langs, preread, tw
+from . import aijson, chat, chat_models, chat_options, config, docmap, kinds, langs, paths, preread, tw
 from .i18n import tr
 from .prompts import localize
-from .store import Workspace, now_iso, write_json_atomic
+from .store import Workspace, dir_lock, now_iso, write_json_atomic
 
 MAX_ITEMS = 60
 WHOLE = 60000
@@ -55,11 +54,7 @@ def prompt(ws: Workspace) -> str:
 
 
 def parse(text: str, pages: int, to_tw: bool) -> list[dict]:
-    m = re.search(r"\[.*\]", text or "", re.S)
-    try:
-        data = json.loads(m.group(0)) if m else []
-    except ValueError:
-        data = []
+    data = aijson.first(text, "[") or []  # 前後多的話、TeX 的單條反斜線（\kappa、\theta）都收（aijson.py）
     out, seen = [], set()
     for raw in data if isinstance(data, list) else []:
         if not isinstance(raw, dict):
@@ -104,7 +99,17 @@ def build(handler, ws: Workspace, body: dict) -> dict:
     if not got:
         raise ValueError(tr("AI 沒整理出術語（可能是文字太少，或模型沒照格式回答）"))
     data = {"v": 1, "at": now_iso(), "model": chat_models.label(m), "items": got}
-    write_json_atomic(ws.root / "lexicon.json", data)
+    with dir_lock(paths.lock_dir(ws.root)):  # 和 delete 排隊：不會一邊整理好、一邊被拿掉一條時用舊的那份蓋回去
+        write_json_atomic(ws.root / "lexicon.json", data)
+    return data
+
+
+def delete(ws: Workspace, t: str) -> dict:
+    """拿掉一條（讀、改、寫中間上鎖：伺服器同時處理好幾個請求，連按兩條不會少刪一條）。"""
+    with dir_lock(paths.lock_dir(ws.root)):
+        data = load(ws)
+        data["items"] = [x for x in data.get("items") or [] if isinstance(x, dict) and x.get("t") != t]
+        write_json_atomic(ws.root / "lexicon.json", data)
     return data
 
 

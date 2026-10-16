@@ -57,11 +57,29 @@
   // keeps both since the channels are disjoint). A blurred, inset 50%-gray
   // rounded rect neutralizes the interior, confining the refraction bulge to
   // an edge band whose curvature is set by the blur radius.
+  // FOLI: the map only depends on the size and shape, and toDataURL() is the slow part (5–20 ms each). A row of
+  // same-size toolbar buttons, or a menu opened again, reuses the one already made.
+  const mapCache = new Map();
   function makeMap(w, h, radius, border, mapBlur) {
+    const key = w + "x" + h + "/" + radius + "/" + border + "/" + mapBlur;
+    const hit = mapCache.get(key);
+    if (hit) { mapCache.delete(key); mapCache.set(key, hit); return hit; }
+    const url = drawMap(w, h, radius, border, mapBlur);
+    mapCache.set(key, url);
+    if (mapCache.size > 64) mapCache.delete(mapCache.keys().next().value);
+    return url;
+  }
+  function drawMap(w, h, radius, border, mapBlur) {
+    // FOLI: the map is a smooth ramp plus a blurred rounded rect, so it is drawn small (longest side 192 px) and the
+    // feImage stretches it back (preserveAspectRatio="none") — it looks the same, and toDataURL() costs a fraction.
+    // A CPU-backed canvas (willReadFrequently) also skips the GPU readback that stalled for 20+ ms on big panels.
+    const k = Math.min(1, 192 / Math.max(w, h));
+    const cw = Math.max(2, Math.round(w * k)), ch = Math.max(2, Math.round(h * k));
     const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.scale(cw / w, ch / h);
 
     const gx = ctx.createLinearGradient(0, 0, w, 0);
     gx.addColorStop(0, "rgb(0,0,0)");
@@ -78,7 +96,7 @@
 
     ctx.globalCompositeOperation = "source-over";
     const inset = border * Math.min(w, h);
-    ctx.filter = "blur(" + mapBlur + "px)";
+    ctx.filter = "blur(" + Math.max(0.5, mapBlur * k) + "px)";  // the filter works in canvas pixels, not the scaled space
     ctx.fillStyle = "rgba(128,128,128,0.93)";
     ctx.beginPath();
     ctx.roundRect(inset, inset, w - inset * 2, h - inset * 2,
@@ -151,11 +169,9 @@
     return { filter, feImage };
   }
 
-  function resolveRadius(el, w, h, override) {
-    if (override != null) return override;
-    const raw = getComputedStyle(el).borderTopLeftRadius || "0px";
+  function radiusOf(raw, w, h) {
     const v = parseFloat(raw) || 0;
-    return raw.trim().endsWith("%") ? (v / 100) * Math.min(w, h) : v;
+    return String(raw).trim().endsWith("%") ? (v / 100) * Math.min(w, h) : v;
   }
 
   /**
@@ -196,35 +212,44 @@
     const scales = [o.scale, o.scale + o.chroma, o.scale + 2 * o.chroma];
     const parts = buildFilter(id, scales);
 
-    function refresh() {
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
-      if (!w || !h) return;
-      const radius = resolveRadius(el, w, h, o.radius);
+    // FOLI: never force a layout. Until the map exists the element gets a plain frosted backdrop; the size comes from
+    // the ResizeObserver (measured during the browser's own layout), and the refraction switches on in that same frame.
+    // Before, every glass element read offsetWidth and getComputedStyle when it was created and again 120 ms later —
+    // on a page that was still loading, each read was a full layout (17–47 ms apiece).
+    // opts.filterOnly: the caller bakes blur/saturate into the filter, so backdrop-filter is just url(#id).
+    const final = o.filterOnly ? "url(#" + id + ")" : "url(#" + id + ") blur(" + o.blur + "px) saturate(" + o.saturate + ")";
+    el.style.backdropFilter = "blur(" + o.blur + "px) saturate(" + o.saturate + ")";
+    let w0 = 0, h0 = 0, raw = null, ready = false, timer = null;
+    function setMap(w, h) {
+      w = Math.round(w); h = Math.round(h);
+      if (!w || !h || (w === w0 && h === h0)) return;
+      w0 = w; h0 = h;
+      if (o.radius == null && raw == null) raw = getComputedStyle(el).borderTopLeftRadius || "0px";
+      const radius = o.radius != null ? o.radius : radiusOf(raw, w, h);
       parts.feImage.setAttribute("href", makeMap(w, h, radius, o.border, o.mapBlur));
       parts.feImage.setAttribute("width", w);
       parts.feImage.setAttribute("height", h);
+      if (!ready) { ready = true; el.style.backdropFilter = final; }
     }
+    function refresh() { raw = null; w0 = h0 = 0; setMap(el.offsetWidth, el.offsetHeight); }  // asked for explicitly: measure now
 
-    refresh();
-    el.style.backdropFilter =
-      "url(#" + id + ") blur(" + o.blur + "px) saturate(" + o.saturate + ")";
-
-    let timer = null;
-    // FOLI: while the page is swapping layouts in a View Transition (<html data-vt>), toDataURL() stalls on the
-    // GPU for 100+ ms; redraw the map once the transition is over.
-    function later() {
-      if (document.documentElement.dataset.vt) { timer = setTimeout(later, 160); return; }
-      refresh();
+    // While the page is swapping layouts in a View Transition (<html data-vt>), drawing the map stalls; wait it out.
+    function later(w, h) {
+      if (document.documentElement.dataset.vt) { timer = setTimeout(() => later(w, h), 160); return; }
+      setMap(w, h);
     }
-    const ro = new ResizeObserver(function () {
+    const ro = new ResizeObserver(function (entries) {
+      const e = entries[entries.length - 1], b = e.borderBoxSize && e.borderBoxSize[0];
+      const w = b ? b.inlineSize : e.target.offsetWidth, h = b ? b.blockSize : e.target.offsetHeight;
+      if (!ready && !document.documentElement.dataset.vt) { setMap(w, h); return; }  // first size: right away
       clearTimeout(timer);
-      timer = setTimeout(later, 120);
+      timer = setTimeout(() => later(w, h), 120);  // resizing: once it settles
     });
     ro.observe(el);
 
     return {
       supported: true,
+      id: id,
       refresh: refresh,
       destroy: function () {
         ro.disconnect();

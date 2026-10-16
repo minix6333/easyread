@@ -34,10 +34,10 @@ class PdfworkTest(unittest.TestCase):
         self.assertEqual(res, self.img_small.resolve())
 
     def test_page_variant_large_image_resizes(self):
-        # Large image (width 1800) requested with width 1000 is resized and saved to w1000/
+        # Large image (width 1800) requested with width 1000 is resized and saved to w1000/（存成 JPEG：做得快、解碼快）
         res = pdfwork.page_variant(self.tmp, "pages/page-002.webp", 1000)
         self.assertIsNotNone(res)
-        self.assertEqual(res, self.pages / "w1000" / "page-002.webp")
+        self.assertEqual(res, self.pages / "w1000" / "page-002.jpg")
         self.assertTrue(res.exists())
         with Image.open(res) as im:
             self.assertEqual(im.width, 1000)
@@ -48,10 +48,10 @@ class PdfworkTest(unittest.TestCase):
         Image.new("RGB", (2304, 1296), color="white").save(deck, "WEBP")
         for want in (2400, 2300, 2200):
             self.assertEqual(pdfwork.page_variant(self.tmp, "pages/page-003.webp", want), deck.resolve(), want)
-            self.assertFalse((self.pages / f"w{want}" / "page-003.webp").exists(), want)
+            self.assertFalse((self.pages / f"w{want}" / "page-003.webp").exists() or (self.pages / f"w{want}" / "page-003.jpg").exists(), want)
         # 差得多的照舊：小的另外縮一張
         res = pdfwork.page_variant(self.tmp, "pages/page-003.webp", 1600)
-        self.assertEqual(res, self.pages / "w1600" / "page-003.webp")
+        self.assertEqual(res, self.pages / "w1600" / "page-003.jpg")
         with Image.open(res) as im:
             self.assertEqual(im.size, (1600, 900))
 
@@ -106,11 +106,21 @@ class PdfworkTest(unittest.TestCase):
             t.join()
         self.assertEqual(errors, [])
         self.assertEqual(set(sizes), {(1000, 667)})
-        self.assertEqual([f.name for f in (self.pages / "w1000").iterdir()], ["page-002.webp"])
+        self.assertEqual([f.name for f in (self.pages / "w1000").iterdir()], ["page-002.jpg"])
+
+    def test_page_variant_reuses_old_webp(self):
+        # 舊版做好的 .webp 還在：照樣用，不重做一張 .jpg
+        old = self.pages / "w1000" / "page-002.webp"
+        old.parent.mkdir()
+        Image.new("RGB", (1000, 667), color="white").save(old, "WEBP")
+        self.assertEqual(pdfwork.page_variant(self.tmp, "pages/page-002.webp", 1000), old)
+        self.assertEqual([f.name for f in old.parent.iterdir()], ["page-002.webp"])
+        self.assertEqual(pdfwork.variant_file(self.tmp, "page-002.webp", 1000), old)
+        self.assertIsNone(pdfwork.variant_file(self.tmp, "page-001.webp", 1000))
 
     def test_warm_variants(self):
         pdfwork.warm_variants(self.tmp, width=1000)
-        self.assertTrue((self.pages / "w1000" / "page-002.webp").exists())
+        self.assertTrue((self.pages / "w1000" / "page-002.jpg").exists())
 
 
 

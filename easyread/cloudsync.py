@@ -328,7 +328,14 @@ def _merge_list(src: Path, dst: Path, key: str) -> int:
     a, b = _read(src), _read(dst)
     if not a.get(key):
         return 0
-    stamp = lambda x: str(x.get("updated") or x.get("at") or "")  # noqa: E731
+
+    def stamp(x):  # 時間照真正的時刻比（兩台電腦的時區不一樣時，字串比會錯）；讀不出來的當最舊
+        s = str(x.get("updated") or x.get("at") or "")
+        try:
+            t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return (t if t.tzinfo else t.astimezone()).timestamp()
+        except ValueError:
+            return float("-inf")
     by_id = {str(x.get("id")): x for x in b.get(key) or [] if isinstance(x, dict)}
     changed = 0
     for x in a.get(key) or []:

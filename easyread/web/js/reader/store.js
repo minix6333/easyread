@@ -154,8 +154,10 @@
 
   /* ---------- 轮询：翻译方追加讨论/译文、后台翻译进度、另一个标签页改了笔记 ---------- */
   let missing = 0;
+  /* 外殼裡沒在看的分頁（iframe 是 visibility:hidden，document.hidden 還是 false）：不用每 2.5 秒問一次；切回來時 focus 會馬上問 */
+  const tabHidden = () => { try { const f = window.frameElement; return !!(f && f.classList.contains("hidden")); } catch (e) { return false; } };
   async function poll() {
-    if (mode !== "server" || document.hidden) return;
+    if (mode !== "server" || document.hidden || tabHidden()) return;
     let v;
     try {
       const r = await fetch(base() + "/versions", { cache: "no-store" });

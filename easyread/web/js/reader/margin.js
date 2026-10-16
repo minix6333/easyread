@@ -200,7 +200,7 @@
         host.appendChild(PR.el("div", { class: "inline-notes" }, html));
       }
     }
-    PR.$$("#margin .card, .inline-notes .card").forEach(prepCard);
+    prepCards(PR.$$("#margin .card, .inline-notes .card"));
     if (wide && PR.applyCardUi) PR.$$("#margin .card").forEach((c) => PR.applyCardUi(c));  // 收起、拉過的大小（cardsize.js）
     if (wide) PR.layoutMargin();
     PR.renderPvMargin && PR.renderPvMargin();  // PDF 頁旁邊的邊註欄（pvmargin.js）跟著重畫
@@ -208,30 +208,35 @@
   };
 
   PR.prepCard = prepCard;
+  PR.prepCards = prepCards;
   /* 卡片裡的圖是插進頁面之後才畫的（flow.js）：畫好高度才定下來，這時再判斷要不要收起、重新疊放 */
   PR.on("flow-drawn", (els) => {
     const cards = new Set(els.map((el) => el.closest && el.closest(".card")).filter(Boolean));
     if (!cards.size) return;
-    cards.forEach(prepCard);
+    prepCards(cards);
     PR.layoutMargin();
     PR.layoutPvMargin && PR.layoutPvMargin();
   });
-  function prepCard(card) {
-    if (PR.mountCardEditor) card.querySelectorAll("textarea[data-rich]").forEach((ta) => PR.mountCardEditor(ta));  // 筆記用所見即所得的編輯器（mded.js）
+  /* 一批卡片一起準備：先全部量完（只排版一次）再一起改。以前一張一張「量高度→加按鈕」交替，
+     筆記面板一打開十幾張卡就排版十幾次（每次幾毫秒，面板開的那一下卡住） */
+  function prepCards(cards) {
+    cards = Array.from(cards || []);
+    if (PR.mountCardEditor) for (const card of cards) card.querySelectorAll("textarea[data-rich]").forEach((ta) => PR.mountCardEditor(ta));  // 筆記用所見即所得的編輯器（mded.js）
     // 长的先收起；展开过的也留一个“收起全文”（#31）。筆記本身和每一則回答各自收
-    PR.$$(".body", card).forEach((body) => {
+    const long = [];
+    for (const card of cards) for (const body of card.querySelectorAll(".body")) {
       const host = body.closest(".reply") || card;
-      const id = host.dataset.card || host.dataset.note;
-      if (host.classList.contains("live") || body.nextElementSibling && body.nextElementSibling.matches(".more")) return;
-      if (body.scrollHeight > 220) {
-        const open = expanded.has(id);
-        body.classList.toggle("clamp", !open);
-        body.insertAdjacentHTML("afterend", '<button class="more" data-a="more">' + (open ? PR.t("收起全文") : PR.t("展开全文")) + "</button>");
-      }
-    });
-    const ta = card.querySelector("textarea");
-    if (ta) PR.autosize(ta);
+      if (host.classList.contains("live") || (body.nextElementSibling && body.nextElementSibling.matches(".more"))) continue;
+      if (body.scrollHeight > 220) long.push([body, host]);
+    }
+    for (const [body, host] of long) {
+      const open = expanded.has(host.dataset.card || host.dataset.note);
+      body.classList.toggle("clamp", !open);
+      body.insertAdjacentHTML("afterend", '<button class="more" data-a="more">' + (open ? PR.t("收起全文") : PR.t("展开全文")) + "</button>");
+    }
+    for (const card of cards) { const ta = card.querySelector("textarea:not([data-rich])"); if (ta) PR.autosize(ta); }
   }
+  function prepCard(card) { prepCards([card]); }
 
   /* 宽屏：卡片贴着锚点，放不下就往下顺延 */
   PR.layoutMargin = function () {

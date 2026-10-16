@@ -211,6 +211,25 @@ test("login shell discovery yields without blocking and tolerates shell errors",
 });
 
 
+test("the login shell PATH from last time is used right away and refreshed in the background", async () => {
+  const { fastShellPath } = require("../electron/startup-feedback.cjs");
+  const files = {};
+  const fsx = { readFileSync: (f) => { if (!(f in files)) throw new Error("ENOENT"); return files[f]; }, writeFileSync: (f, d) => { files[f] = d; } };
+  // 第一次：沒存過，只能等問完；問到的存起來
+  assert.equal(await fastShellPath("/u/shell-path.json", async () => "/opt/homebrew/bin:/usr/bin", fsx), "/opt/homebrew/bin:/usr/bin");
+  assert.equal(JSON.parse(files["/u/shell-path.json"]).path, "/opt/homebrew/bin:/usr/bin");
+  // 之後：不等（問的那個還沒回來就先用存著的），背景問到新的就換掉存的那份
+  let answer;
+  const asked = new Promise((r) => { answer = r; });
+  assert.equal(await fastShellPath("/u/shell-path.json", () => asked, fsx), "/opt/homebrew/bin:/usr/bin");
+  answer("/new/bin:/usr/bin"); await asked; await new Promise((r) => setImmediate(r));
+  assert.equal(JSON.parse(files["/u/shell-path.json"]).path, "/new/bin:/usr/bin");
+  // 檔案壞了、讀不到、問失敗：都不會出錯
+  files["/u/bad.json"] = "{";
+  assert.equal(await fastShellPath("/u/bad.json", async () => { throw new Error("timeout"); }, fsx), "");
+  assert.equal(await fastShellPath("/u/x.json", async () => "/a", { existsSync: () => true }), "/a");
+});
+
 test("cloud library IPC restricts folder picking and relaunch to the local main frame", async () => {
   const d = await desktop();
   const sender = d.windows[0].webContents;

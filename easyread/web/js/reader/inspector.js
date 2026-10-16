@@ -50,7 +50,7 @@
      其他情況面板是蓋在內容上的（craft.css 的 body:not(.insp-col)）。 */
   function colMode() {
     const col = innerWidth >= 1180 || (pdf() && innerWidth > 760);
-    if (body.classList.contains("insp-col") !== col) body.classList.toggle("insp-col", col);
+    if (body.classList.contains("insp-col") !== col) { body.classList.toggle("insp-col", col); if (PR.forgetSideWidth) PR.forgetSideWidth(); }  // 一整欄⇄蓋在上面：面板寬度跟著變
   }
   new MutationObserver(() => {
     if (PR.side && PR.side !== PR.lastSide) { PR.lastSide = PR.side; PR.ls.set("easyread-insp-last", PR.side); }

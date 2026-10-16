@@ -15,8 +15,8 @@ from . import i18n
 from .config import WEB
 from .store import Workspace
 
-_LINK = re.compile(r'<link rel="stylesheet" href="/web/([^"]+)"\s*/?>')
-_SCRIPT = re.compile(r'<script src="/web/([^"]+)"></script>')
+_LINK = re.compile(r'<link rel="stylesheet" href="/web/([^"?]+)(?:\?[^"]*)?"\s*/?>')
+_SCRIPT = re.compile(r'<script src="/web/([^"?]+)(?:\?[^"]*)?"></script>')  # ?v=3：換版本時讓瀏覽器重新拿的記號，不是檔名的一部分
 
 
 def _data_uri(path: Path, mime: str) -> str:

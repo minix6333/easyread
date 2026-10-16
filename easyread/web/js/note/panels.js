@@ -212,7 +212,9 @@
     $("#noteMeta").innerHTML = (n.folder ? '<button type="button" class="note-chip" data-act="folder">' + PR.tintIcon(cs.icon, cs.color, "folder") + "<span>" + PR.esc(n.folder) + "</span></button>" : "") +
       (n.papers || []).map((pid) => '<a class="note-chip" href="/read/' + PR.esc(pid) + '">' + PR.icon("pdf", "sm") + "<span>" + PR.esc((others.papers || {})[pid] || PR.t("關聯的文件")) + "</span></a>").join("");
   }
-  $("#noteMeta").addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b) act(b.dataset.act, b); });
+  // 筆記已經不在（開的是刪掉的那一份）：app.js 會把整塊換成一句說明——伺服器回得比這支腳本載入還快時，這一格已經不在了
+  const metaEl = $("#noteMeta");
+  if (metaEl) metaEl.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b) act(b.dataset.act, b); });
 
   /* ---------- 文件操作（面板的「操作」和右上角「⋯」共用） ---------- */
   const markdown = () => "# " + (note().title || PR.t("未命名筆記")) + "\n\n" + N.ed.getValue() + "\n";

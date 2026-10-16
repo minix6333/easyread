@@ -21,6 +21,19 @@ function loginShellPath(platform = process.platform, shell = process.env.SHELL |
   });
 }
 
+/* 上次問到的 PATH 先拿來用（存在 userData/shell-path.json），同時在背景再問一次、存起來給下次。
+   問登入 shell 要半秒多（.zshrc 載入 nvm、conda 那些），以前每次開 App 都要等它問完才開始啟動後端。
+   第一次（還沒存過）只能等。fsx 由呼叫的人給（測試裡是假的，讀寫都會失敗＝當作沒存過、存不進去）。 */
+async function fastShellPath(file, ask, fsx) {
+  let cached = "";
+  try { const d = JSON.parse(fsx.readFileSync(file, "utf8")); if (d && typeof d.path === "string") cached = d.path; } catch (_) { cached = ""; }
+  const fresh = Promise.resolve().then(ask).then((p) => {
+    if (p && p !== cached) { try { fsx.writeFileSync(file, JSON.stringify({ path: p, at: new Date().toISOString() })); } catch (_) { /* 存不進去：下次再問 */ } }
+    return p || "";
+  }, () => "");
+  return cached || await fresh;
+}
+
 function loadingUrl(zh) {
   const title = zh ? "正在開啟 FOLI" : "Opening FOLI";
   const hint = zh ? "正在準備文獻庫，請稍候…" : "Preparing your library. Please wait…";
@@ -36,4 +49,4 @@ h1{font-size:22px;font-weight:600;margin:12px 0 6px;letter-spacing:-.02em}p{marg
   return "data:text/html;charset=utf-8," + encodeURIComponent(html);
 }
 
-module.exports = { mark, loginShellPath, loadingUrl };
+module.exports = { mark, loginShellPath, fastShellPath, loadingUrl };

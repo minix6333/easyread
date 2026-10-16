@@ -87,6 +87,30 @@ class LibAsk(unittest.TestCase):
         self.assertNotIn("整份文件的文字", text)
         self.assertIn("誰提到遺忘？", text)
 
+    def test_codes_stay_the_same_within_a_conversation(self):
+        # 讀者點開了回答裡的 D3（最近打開的順序變了）：同一個對話的代號照第一次的，D3 還是同一份
+        first = [ws.id for ws in libask.members(self.lib, {"kind": "all"}, self.here)]
+        item = self.tmp / "cccc3333" / "item.json"
+        item.write_text(json.dumps({"tags": ["Course"], "last_opened": "2026-10-20"}), encoding="utf-8")
+        libask._cards.clear()
+        self.assertEqual([ws.id for ws in libask.members(self.lib, {"kind": "all"}, self.here)][1], "cccc3333")  # 沒有記著的順序：照最近打開
+        _, codes = libask.context(self.lib, self.here, {"kind": "all"}, "遺忘", "codex", order=first)
+        self.assertEqual([codes[f"D{i}"]["id"] for i in (1, 2, 3)], first)
+        # 之後才加進文獻庫的排在最後面，原來的代號不動
+        _paper(self.tmp, "dddd4444", {"title_en": "New One"}, ["text"], opened="2026-10-21")
+        _, codes = libask.context(self.lib, self.here, {"kind": "all"}, "遺忘", "codex", order=first)
+        self.assertEqual([codes[f"D{i}"]["id"] for i in (1, 2, 3, 4)], first + ["dddd4444"])
+
+    def test_followup_says_so_when_no_page_matches(self):
+        # 追問沒找到相關頁：還是問整個文獻庫的寫法，不會說「整份文字在上面」
+        msgs = [{"role": "user", "content": "第一問"}, {"role": "assistant", "content": "答"}, {"role": "user", "content": "那後來呢"}]
+        text = chat.prompt(self.here, msgs, None, "", "codex", [], page=2, followup=True, library_ctx=libask.followup(""))
+        self.assertRegex(text, "代号同前|代號同前")
+        self.assertRegex(text, "没找到特别相关的原文页|沒找到特別相關的原文頁")
+        self.assertNotRegex(text, "在上面的全文|全文里|全文裡")
+        with_pages = libask.followup("〔D2 p.2〕\nForgetting")
+        self.assertIn("〔D2 p.2〕", with_pages)
+
 
 if __name__ == "__main__":
     unittest.main()

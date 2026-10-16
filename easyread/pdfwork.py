@@ -397,17 +397,35 @@ def engine_image(root: Path, n: int) -> Path:
     return out
 
 
+def variant_file(root: Path, name: str, width: int) -> Path | None:
+    """這一頁這個寬度已經做好的圖：新的是 .jpg，舊版做的 .webp 也照樣用（不用重做）。"""
+    d = paths.derived(root, "pages") / f"w{width}"
+    stem = Path(name).stem
+    for ext in (".jpg", ".webp"):
+        p = d / (stem + ext)
+        if p.exists():
+            return p
+    return None
+
+
+def variant_width(width: int) -> int:
+    return max(400, min(4000, width // 100 * 100))
+
+
 def page_variant(root: Path, rel: str, width: int) -> Path | None:
     """原页图按宽度给：比原图（2.4 倍渲染、约 1500 像素宽）小的缩小，比原图大的（PDF 优先模式放大看）从 PDF 重新渲染。
-    生成一次缓存在 pages/w{宽}/。"""
-    width = max(400, min(4000, width // 100 * 100))
+    生成一次缓存在 pages/w{宽}/。
+    存成 JPEG（品質 90、不降色度取樣）：放大看字和 WebP 看不出差別，但做一張快二十倍（3200 寬：18 毫秒對 390 毫秒）、
+    瀏覽器解碼快三倍——捲到還沒做過的頁不用等，大圖解碼也不卡捲動。檔案大一倍，但只放在這台電腦的快取裡、走本機連線。"""
+    width = variant_width(width)
     pages = paths.derived(root, "pages")  # 同步模式下在本機快取
     src = (pages / rel.split("/", 1)[1]).resolve() if rel.startswith("pages/") else (root / rel).resolve()
     if not src.is_relative_to(pages.resolve()) or not src.is_file():
         return None
-    out = pages / f"w{width}" / src.name
-    if out.exists():
-        return out
+    have = variant_file(root, src.name, width)
+    if have:
+        return have
+    out = pages / f"w{width}" / (src.stem + ".jpg")
     from PIL import Image
     with Image.open(src) as im:
         src_w, src_h = im.size
@@ -420,8 +438,8 @@ def page_variant(root: Path, rel: str, width: int) -> Path | None:
         if out.exists():
             return out
         if src_w > width:
-            with Image.open(src) as im, im.resize((width, round(src_h * width / src_w)), Image.LANCZOS) as small:
-                save_image(small, out, "WEBP", quality=80, method=4)
+            with Image.open(src) as im, im.resize((width, round(src_h * width / src_w)), Image.LANCZOS) as small, small.convert("RGB") as rgb:
+                save_image(rgb, out, "JPEG", quality=90, subsampling=0)
             return out
         m = re.search(r"page-(\d+)\.webp$", src.name)
         pdf = root / "source.pdf"
@@ -431,7 +449,7 @@ def page_variant(root: Path, rel: str, width: int) -> Path | None:
             with closing(doc[int(m.group(1)) - 1]) as page:
                 w, _ = page.get_size()
                 with closing(page.render(scale=min(8.0, width / max(w, 1)))) as bitmap, bitmap.to_pil() as raw, raw.convert("RGB") as img:
-                    save_image(img, out, "WEBP", quality=84, method=4)
+                    save_image(img, out, "JPEG", quality=90, subsampling=0)
     return out
 
 
@@ -444,7 +462,7 @@ def warm_variants(root: Path, width: int = PANEL_WIDTH) -> None:
     if not pages_dir.exists():
         return
     for src in sorted(pages_dir.glob("page-*.webp")):
-        if not (paths.derived(root, "pages") / f"w{width}" / src.name).exists():
+        if not variant_file(root, src.name, variant_width(width)):
             page_variant(root, f"pages/{src.name}", width)
 
 

@@ -22,8 +22,9 @@ def refresh_layout(ws) -> None:
 
 
 def warm(root: Path, gate=None) -> None:
-    if str(root) in _warming or (paths.derived(root, "pages") / f"w{pdfwork.PANEL_WIDTH}").exists() and \
-            len(list((paths.derived(root, "pages") / f"w{pdfwork.PANEL_WIDTH}").glob("*.webp"))) >= len(list((paths.derived(root, "pages")).glob("page-*.webp"))):
+    panel = paths.derived(root, "pages") / f"w{pdfwork.PANEL_WIDTH}"
+    if str(root) in _warming or panel.exists() and \
+            len([p for p in panel.glob("page-*") if p.suffix in (".jpg", ".webp")]) >= len(list((paths.derived(root, "pages")).glob("page-*.webp"))):
         return
     if gate:
         gate.begin()  # 在线程启动前登记，避免请求结束到后台启动之间的迁移空档。

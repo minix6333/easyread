@@ -14,7 +14,7 @@ import queue
 import re
 import threading
 
-from . import chat, chat_models, chat_options, config, docmap, kinds, langs, preread, tw
+from . import aijson, chat, chat_models, chat_options, config, docmap, kinds, langs, preread, tw
 from .i18n import tr
 from .log import log
 from .prompts import localize
@@ -99,35 +99,47 @@ def prompt(ws: Workspace, columns: list[dict]) -> str:
     return localize(text + _material(ws, columns), langs.reply_code(meta))
 
 
+def _pages(value, total: int) -> list[int]:
+    """模型給的頁碼：[3, 5]、5、"12"、"p.14"、"12-14"、"第 3、5 頁" 都收；不在這份文件頁數裡的不要。"""
+    out: list[int] = []
+    for p in value if isinstance(value, list) else [value]:
+        if isinstance(p, bool) or p is None:
+            continue
+        if isinstance(p, (int, float)):
+            nums = [int(p)]
+        else:
+            s = str(p)
+            span = re.search(r"(\d{1,4})\s*[-–~～]\s*(\d{1,4})", s)  # i18n-ok（全形波浪號）
+            nums = list(range(int(span.group(1)), int(span.group(2)) + 1))[:6] if span else [int(x) for x in re.findall(r"\d{1,4}", s)]
+        for n in nums:
+            if 1 <= n <= max(1, total) and n not in out:
+                out.append(n)
+    return out[:6]
+
+
 def parse_answer(text: str, columns: list[dict], pages: int, to_tw: bool) -> dict:
     """模型的回答 → {欄名: {"text", "pages"}}；抓不到 JSON 就整段放第一欄，讓讀者看得到發生什麼。"""
     raw = (text or "").strip()
-    m = re.search(r"\{.*\}", raw, re.S)
-    data = None
-    if m:
-        try:
-            data = json.loads(m.group(0))
-        except ValueError:
-            data = None
+    data = aijson.first(raw, "{")  # 前後多的話、TeX 的單條反斜線都收（aijson.py）
+    if not isinstance(data, dict):
+        data = None
     out = {}
     for c in columns:
-        cell = (data or {}).get(c["name"]) if isinstance(data, dict) else None
+        # 提示詞整段轉過繁簡（欄名「軟件」→「軟體」、「信息」→「資訊」），模型照轉過的寫：兩種都找
+        cell = None
+        if data is not None:
+            for key in (c["name"], tw.to_tw(c["name"]), tw.to_cn(c["name"])):
+                if key in data:
+                    cell = data[key]
+                    break
         if isinstance(cell, str):
             cell = {"text": cell}
         if not isinstance(cell, dict):
             cell = {"text": ""}
         txt = " ".join(str(cell.get("text") or "").split())[:600]
-        ps = []
-        for p in cell.get("pages") or []:
-            try:
-                n = int(p)
-            except (TypeError, ValueError):
-                continue
-            if 1 <= n <= max(1, pages) and n not in ps:
-                ps.append(n)
-        out[c["name"]] = {"text": tw.to_tw(txt) if to_tw else txt, "pages": ps[:6]}
+        out[c["name"]] = {"text": tw.to_tw(txt) if to_tw else txt, "pages": _pages(cell.get("pages"), pages)}
     if data is None and columns:
-        out[columns[0]["name"]] = {"text": raw[:600], "pages": [], "raw": True}
+        out[columns[0]["name"]] = {"text": tw.to_tw(raw[:600]) if to_tw else raw[:600], "pages": [], "raw": True}
     return out
 
 

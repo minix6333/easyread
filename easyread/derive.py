@@ -85,7 +85,7 @@ def page_image(root: Path, n: int) -> Path | None:
                 with closing(doc[n - 1]) as page, closing(page.render(scale=2.4)) as bitmap:
                     with bitmap.to_pil() as raw, raw.convert("RGB") as img:
                         tmp = out.with_name(out.name + ".part")
-                        img.save(tmp, "WEBP", quality=84, method=4)
+                        img.save(tmp, "WEBP", quality=84, method=1)  # 讀者正在等這一頁：快一點（method 4 要兩倍半的時間，檔案只小兩成）
                         tmp.replace(out)
         except Exception:  # noqa: BLE001
             log.exception("重做第 %s 頁的圖失敗 %s", n, root)

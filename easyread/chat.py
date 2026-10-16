@@ -446,7 +446,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
         return localize(text, langs.reply_code(meta))
     if followup:
         text = ((_context(ws, anchor, quote, refs, page, whole=has_all and not library_ctx) + "\n\n") if with_context else "读者还指着刚才那一处。\n\n")  # i18n-ok
-        text += ("这一问的范围还是那几份文件（代号同前），和这一问相关的：\n" + library_ctx + "\n\n") if library_ctx else ""  # i18n-ok
+        text += (library_ctx + "\n\n") if library_ctx else ""  # 問整個文獻庫的追問：libask.followup 寫好的那一段
         text += (marks + "\n\n") if marks else ""
         hint = _images_hint(images, engine).strip()
         text += (hint + "\n\n") if hint else ""
