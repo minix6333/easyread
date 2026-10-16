@@ -313,16 +313,53 @@ window.PR = window.PR || {};
     PR.setLook("skin", id, { apply: false });
     PR.lookTransition(PR.applyLook);
   };
-  /* 外觀換了（主題、深淺）：整個畫面淡入淡出換過去（View Transitions），不是每個元件各自跳色；減少動態、不支援的瀏覽器就直接換 */
+  /* ---------- View Transitions 整個視窗一次只能有一個 ----------
+     外殼（最外層）和裡面的 iframe（文獻庫、閱讀頁、筆記）同時各跑一個 View Transitions，Chromium 會讓整個頁面當掉
+     （Electron 44 實測：在閱讀頁的 Aa 換深淺色——閱讀頁、外殼、文獻庫三格同時淡入淡出——renderer crashed，畫面全白）。
+     所以每一格要用之前都先看最外層（同源的 top）記的「有沒有別的正在跑」：有就不做動畫、直接換（PR.vtFree／vtHold／vtDone，
+     面板開合的 PR.morph 也照這個）。同源的 iframe 和外殼共用同一條執行緒，這個記號不會有兩邊同時搶到的問題。 */
+  const topWin = () => { try { return window.top && window.top !== window && window.top.document && window.top.PR ? window.top : window; } catch (e) { return window; } };
+  PR.vtFree = () => Date.now() > (topWin().__foliVT || 0);
+  PR.vtHold = (ms) => { topWin().__foliVT = Date.now() + (ms || 1500); };
+  PR.vtDone = () => { topWin().__foliVT = 0; };
+  /* 外觀換了（主題、深淺）：整個畫面淡入淡出換過去（View Transitions），不是每個元件各自跳色；減少動態、不支援的瀏覽器就直接換。
+     在 iframe 裡叫的交給最外層：外殼跑一個，在它的 update 裡把每一格都照 localStorage 換好（PR.syncLook）——
+     整個視窗同一刻淡過去，也不會有兩個同時跑；後來才收到 storage 事件的那幾格發現已經換好了，不再動。 */
+  let pendingLook = null;  // 最外層：已經叫了、還沒拍完舊畫面的那一次（這中間再叫的都排進同一次）
   PR.lookTransition = function (fn) {
+    const top = topWin();
+    if (top !== window && top.PR.lookTransition) { top.PR.lookTransition(fn); return; }
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (still || !document.startViewTransition || document.visibilityState !== "visible") { fn(); return; }
+    if (pendingLook) { pendingLook.push(fn); return; }
+    if (still || !document.startViewTransition || document.visibilityState !== "visible" || !PR.vtFree()) { fn(); return; }
+    pendingLook = [fn];
+    PR.vtHold(2000);
     try {
-      const t = document.startViewTransition(fn);
+      const t = document.startViewTransition(() => {
+        const q = pendingLook || [];
+        pendingLook = null;
+        q.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
+        syncFrames(document);
+      });
       if (t && t.ready) t.ready.catch(() => {});
-      if (t && t.finished) t.finished.catch(() => {});
-    } catch (e) { fn(); }
+      if (t && t.finished) t.finished.then(PR.vtDone, PR.vtDone);
+    } catch (e) {
+      const q = pendingLook || [];
+      pendingLook = null;
+      PR.vtDone();
+      q.forEach((f) => f());
+    }
   };
+  /* 這一頁裡的每一格（同源的 iframe，一層層往下）都照 localStorage 換好外觀 */
+  function syncFrames(doc) {
+    for (const f of doc.querySelectorAll("iframe")) {
+      try {
+        const w = f.contentWindow;
+        if (w && w.PR && w.PR.syncLook) w.PR.syncLook();
+        if (w && w.document) syncFrames(w.document);
+      } catch (e) { /* 別的網站的 iframe */ }
+    }
+  }
   PR.setAccent = (a) => PR.setLook("accent", a);
   /* 自選背景圖：在瀏覽器裡先縮好再送——大的那張最長邊 2560，小的那張 72（放大就是糊的，材質那一層用） */
   PR.uploadBackdrop = async function (file) {
@@ -434,6 +471,13 @@ window.PR = window.PR || {};
     if (big && PR.lookTransition) PR.lookTransition(go); else go();
     PR.emit && PR.emit("shared-prefs", s);  // 閱讀頁的 Aa 開著的話，選中的那一格跟上
   });
+  // 外殼換外觀時在它的 View Transitions 裡叫每一格的這個（PR.lookTransition 的 syncFrames）：照 localStorage 換好，和 storage 事件做的一樣
+  PR.syncLook = function () {
+    const s = PR.sharedPrefs();
+    PR.pullShared();
+    PR.applyTheme(s.theme);
+    if (PR.applyLook) PR.applyLook();
+  };
   if (typeof matchMedia === "function") {
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
       const t = (PR.ls.get("easyread-prefs", {}) || {}).theme;

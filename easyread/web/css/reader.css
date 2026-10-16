@@ -210,7 +210,7 @@ textarea.editor { display: block; width: 100%; resize: none; overflow: hidden; b
 .editor-bar button.primary { background: var(--ink); color: var(--bg); }
 
 /* ---------------- 边注卡片 ---------------- */
-.card { position: absolute; left: 0; right: 0; padding: 1px 0 2px 12px; border-left: 2px solid var(--accent); font: 13.5px/1.72 var(--ui); color: var(--ink-2); transition: top .25s ease, opacity .2s; }
+.card { position: absolute; left: 0; right: 0; padding: 1px 0 2px 12px; border-left: 2px solid var(--accent); font: 13.5px/1.72 var(--ui); color: var(--ink-2); transition: opacity .2s; }
 .card.mine { border-left-color: var(--mine); }
 .card.check { border-left-style: dashed; }
 .card .lbl { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; letter-spacing: .06em; color: var(--accent); margin-bottom: 2px; }

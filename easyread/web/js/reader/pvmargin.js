@@ -157,10 +157,16 @@
       items.push({ id: n.id, y: yOf(n) * H, pin: n.ui && n.ui.my != null ? n.ui.my * H : null, h: c.offsetHeight, c, n });
     }
     const tops = PR.pvMarginStack(items, GAP);
+    // 頁面本身變大變小（縮放、開關面板）：卡片跟著頁面一起到位、和連線對得上；只有疊的順序變了（卡片展開、加了一張）才滑過去
+    const resized = col.dataset.h !== String(H);
+    col.dataset.h = String(H);
     let paths = "";
     for (const it of items) {
       const top = tops[it.id];
-      if (!(drag && drag.id === it.id)) it.c.style.top = Math.round(top) + "px";
+      if (!(drag && drag.id === it.id)) {
+        if (PR.moveTop && !resized) PR.moveTop(it.c, top);
+        else { it.c.getAnimations().forEach((a) => { if (a.id === "slide") a.cancel(); }); it.c.style.top = Math.round(top) + "px"; }
+      }
       const [bx, by] = badgeAt(it.n);
       // 線：從小圓點水平出頁面，垂直到卡片頂端附近，再進卡片
       paths += '<path data-note="' + PR.esc(it.id) + '" class="' + (it.n.kind === "question" ? "q" : "c-" + (it.n.color || "yellow")) + (shown(it.id) ? " on" : "") + '" d="M' + (bx * W).toFixed(1) + " " + (by * H).toFixed(1) + " H" + (W + 7) + " V" + (top + 14).toFixed(1) + " H" + (W + 16) + '"/>';

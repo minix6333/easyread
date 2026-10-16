@@ -73,6 +73,7 @@
       await leave;
       L.notes = L.notes.filter((x) => x.id !== id);
       L.trashCount = (L.trashCount || 0) + 1;
+      L.moveNext = true;  // 後面的卡片滑上來補位
       L.render();
       if (L.docsGone) L.docsGone([id]);  // 它開著的分頁一起關掉
       if (r.trash) undoToast(r.trash, titleOf(n));

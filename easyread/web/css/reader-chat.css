@@ -35,6 +35,10 @@ body.ch-open #chatpanel { transform: none; }
 .cm.ai .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; }
 .cm.ai .av svg { width: 13px; height: 13px; }
 .cm.ai .body { padding-left: 29px; }
+/* 剛送出的一問、接著的回答：從底下浮上來一點點（chat.js 的 st.fresh；一天問幾十次，所以短、幅度小） */
+.cm.cm-new { animation: cm-in .24s cubic-bezier(.23, 1, .32, 1) both; }
+.cm.ai.cm-new { animation-delay: .06s; }
+@keyframes cm-in { from { opacity: 0; translate: 0 8px; } }
 .cm.ai .body p { margin: 0 0 .7em; }
 .cm.ai .body p:last-child { margin-bottom: 0; }
 .cm.ai .body ol, .cm.ai .body ul { margin: .3em 0 .7em; padding-left: 1.4em; }

@@ -221,8 +221,13 @@
     if (navShown() && (redraw || !shown)) PR.renderDrawer();
   }
   PR.toggleNav = function () {
-    if (navCol()) { pinned = !pinned; PR.ls.set("easyread-nav", pinned); over = false; } else over = !over;
-    syncNav(true);
+    if (!navCol()) { over = !over; syncNav(true); return; }  // 蓋在上面的抽屜：CSS 自己滑
+    // 釘著的一欄：PDF 那一格要讓位——整個畫面用 View Transitions 換過去（PR.morph，見 pageview.js 的 openSide）
+    pinned = !pinned;
+    PR.ls.set("easyread-nav", pinned);
+    over = false;
+    if (PR.morph && PR.sideMotion !== false) PR.morph(() => syncNav(true), { type: "nav", names: PR.readerNames });
+    else syncNav(true);
   };
   /* 舊的入口：打開某一頁（說明…）、Esc 或跳走之後收起來。釘著的那一欄不會被 force=false 收掉 */
   PR.toggleDrawer = function (force, which) {

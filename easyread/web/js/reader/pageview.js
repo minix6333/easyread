@@ -11,10 +11,47 @@
   const articleOpen = () => !PR.articleOpen || PR.articleOpen();
 
   /* 右侧面板开关：pages | notes | null */
-  /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
+  /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。
+     面板開／關（不是面板之間切換）時，整個畫面用 View Transitions 換過去（PR.morph）：畫布、PDF 頁、頂欄右邊的鈕、頁碼膠囊
+     從舊位置、舊大小滑到新的，面板從右邊滑進來——以前是 PDF 頁一下子變窄、重新解碼時整頁白一下，左邊的目錄還閃出來一塊。 */
   PR.side = null;
   PR.openSide = function (name) {
-    PR.side = name;
+    const layout = body.classList.contains("side-open") !== !!name;
+    PR.side = name;  // 馬上就是新的（後面接著叫的程式要看）；畫面上的 class 在 apply 裡換
+    if (layout && PR.morph && PR.sideMotion !== false) PR.morph(() => applySide(name), { type: "side", names: PR.readerNames });
+    else applySide(name);
+  };
+  /* 跟著滑的東西（PR.morph 的 names）：畫布、頂欄兩邊那幾顆、頁碼膠囊、「問 AI」、看得到的 PDF 頁（上下各多一頁）、
+     開著的右側面板和它上面的分頁列（*.panel，從右邊滑進來）、釘著的導覽欄（*.panel-l，從左邊）。
+     開關導覽欄（panels.js）、譯文（pdfmode.js）也用這一份。 */
+  PR.readerNames = function () {
+    const out = [[PR.$("#canvas"), "rd-canvas", "fill"], [PR.$("#progress"), "rd-progress", "fill"]];
+    const bar = PR.$("#bar");
+    [["#backBtn", "rd-back"], ['[data-act="drawer"]', "rd-nav"], ["#jobState", "rd-job"], [".view-seg", "rd-seg"], [".bar-group", "rd-group"], ['[data-act="insp"]', "rd-insp"]].forEach(([q, n]) => {
+      const el = bar && PR.$(q, bar);
+      if (el && el.offsetWidth) out.push([el, n]);
+    });
+    const head = PR.$(".pv-head"), ai = PR.$(".pv-ai"), back = PR.$(".jump-back");
+    if (head && head.offsetWidth && PR.pdfMain && PR.pdfMain()) out.push([head, "rd-pvhead"]);
+    if (ai && ai.offsetWidth) out.push([ai, "rd-ai"]);
+    if (back && back.offsetWidth) out.push([back, "rd-jump"]);
+    if (PR.pdfMain && PR.pdfMain()) {
+      const vh = innerHeight;
+      pageNodes.forEach((e, i) => {
+        const r = e.node.getBoundingClientRect();
+        if (r.height && r.bottom > -vh * 0.5 && r.top < vh * 1.5) out.push([e.node, "rd-p" + (i + 1), "page"]);
+      });
+    }
+    const open = PR.$(body.classList.contains("np-open") ? "#notespanel" : body.classList.contains("ch-open") ? "#chatpanel" : body.classList.contains("in-open") ? "#infopanel" : body.classList.contains("pv-open") && !(PR.pdfMain && PR.pdfMain()) ? "#pageview" : null);
+    if (open) out.push([open, "rd-panel", "panel"]);
+    const tabs = PR.$("#inspTabs");
+    if (tabs && tabs.offsetWidth) out.push([tabs, "rd-tabs", "panel"]);
+    const nav = PR.$("#drawer");
+    if (nav && body.classList.contains("nav-open")) out.push([nav, "rd-drawer", "panel-l"]);
+    return out;
+  };
+  function applySide(name) {
+    if (PR.side !== name) return;  // 這中間又換了（View Transitions 晚一格才跑）：以最後那次為準
     body.classList.toggle("pv-open", name === "pages");
     body.classList.toggle("np-open", name === "notes");
     body.classList.toggle("ch-open", name === "chat");
@@ -38,7 +75,7 @@
       PR.fitWide(); PR.renderMargin();
       if (node) window.scrollBy(0, node.getBoundingClientRect().top - top);
     });
-  };
+  }
   /* 面板滑進滑出要 .22 秒（CSS --dur）：重的工作排到那之後；連著叫幾次只做最後一次 */
   let slideT = null;
   PR.afterSlide = function (fn) { clearTimeout(slideT); slideT = setTimeout(fn, 240); };
@@ -79,12 +116,15 @@
   }
   let pageNodes = [], pageSource = null;
   const scroller = PR.$(".pv-scroll");
+  /* 換清晰度（面板開合、縮放讓頁面變寬變窄）：先在畫面外載好、解碼好，再把整個 <img> 換上去——換的那一幀就畫得出來。
+     以前直接改 src：新的那張要重新解碼，中間整頁白掉十分之一秒。第一次載入還是直接放（那時候本來就是一張空白的紙）。 */
   function loadPage(n) {
     const entry = pageNodes[n - 1];
     if (!entry) return;
-    const img = entry.img, src = srcOf(n);
-    if (img.getAttribute("src") === src) return;
-    if (!img.getAttribute("src")) entry.node.classList.add("loading");  // 只是記著「這一頁的圖在路上」；畫面上就是一張空白的紙（不閃骨架、不淡入，見 reader-panels.css）
+    const img = entry.img, src = srcOf(n), cur = img.getAttribute("src");
+    if (cur === src || entry.want === src) return;
+    if (cur && entry.ok === cur) { swapPage(entry, n, src); return; }
+    if (!cur) entry.node.classList.add("loading");  // 只是記著「這一頁的圖在路上」；畫面上就是一張空白的紙（不閃骨架、不淡入，見 reader-panels.css）
     img.onload = () => { entry.node.classList.remove("loading"); entry.ok = img.getAttribute("src"); entry.fails = 0; };
     // 載不到（伺服器正忙、那張圖還在做）：換清晰度沒成功就先用回原來那張。還在附近的話等一下再試
     img.onerror = () => {
@@ -94,6 +134,26 @@
       if (entry.fails <= 3) setTimeout(() => { if (pageNodes[n - 1] === entry && Math.abs(pvPage - n) <= 2) loadPage(n); }, 700 * entry.fails);
     };
     img.setAttribute("src", src);
+  }
+  function swapPage(entry, n, src) {
+    entry.want = src;
+    const next = document.createElement("img");
+    next.alt = entry.img.alt;
+    next.decoding = "async";
+    next.src = src;
+    next.decode().then(() => {
+      if (pageNodes[n - 1] !== entry || entry.want !== src) return;  // 這中間又換了一次（或整份重建了）
+      entry.want = null;
+      entry.img.replaceWith(next);
+      entry.img = next;
+      entry.ok = src;
+      entry.fails = 0;
+    }, () => {
+      if (entry.want !== src) return;
+      entry.want = null;
+      entry.fails = (entry.fails || 0) + 1;  // 換不成就留著原來那張；還在附近的話等一下再試
+      if (entry.fails <= 3) setTimeout(() => { if (pageNodes[n - 1] === entry && Math.abs(pvPage - n) <= 2) loadPage(n); }, 700 * entry.fails);
+    });
   }
   PR.pageNodes = () => pageNodes;
   PR.pdfPage = () => pvPage;

@@ -343,6 +343,9 @@
     const msgs = t ? t.messages || [] : [];
     el.innerHTML = headHtml() + '<div class="ch-scroll" id="chatList">' + (msgs.length ? msgs.map(msgHtml).join("") : st.loaded ? emptyHtml() : '<p class="hint" style="padding:20px">' + PR.t("加载中…") + "</p>") + "</div>" + composerHtml();
     const box = PR.$("#chatList");
+    // 剛送出的那一問、和接著要寫的回答：從底下浮上來（只有新加的這兩則；整串重畫時其他的不動）
+    if (st.fresh && box.querySelectorAll) Array.from(box.querySelectorAll(":scope > .cm")).slice(-st.fresh).forEach((m) => m.classList.add("cm-new"));
+    st.fresh = 0;
     box.scrollTop = box.scrollHeight;
     const input = PR.$("#chatInput");
     if (input) PR.autosize(input);
@@ -431,6 +434,7 @@
     if (!only) st.images = [];
     if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
     if (noteId) { PR.asking.add(noteId); PR.renderMargin(); }
+    st.fresh = 2;
     render();
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {

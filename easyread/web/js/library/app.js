@@ -33,7 +33,22 @@
       PR.$$("button", seg).forEach((b) => b.classList.toggle("on", b.dataset.lv === v));
     };
     PR.$$("button", seg).forEach((b) => { b.innerHTML = PR.icon(b.dataset.lv === "grid" ? "grid" : "list", "sm"); b.title = b.dataset.lv === "grid" ? PR.t("格子") : PR.t("清單"); });
-    seg.addEventListener("click", (e) => { const b = e.target.closest("[data-lv]"); if (!b) return; PR.ls.set("easyread-lib-view", b.dataset.lv); paint(); });
+    /* 換檢視：封面從格子裡的大張縮成清單裡的小張、飛到新的位置（View Transitions，ui.js 的 PR.morph），其餘的字淡入淡出 */
+    const names = () => {
+      const out = [], vh = innerHeight, k = seg.querySelector(".seg-knob");
+      if (k) out.push([k, "lv-knob"]);
+      PR.$$("#list > .row").forEach((r) => {
+        const t = r.querySelector(".thumb"), b = t && t.getBoundingClientRect();
+        if (b && b.width && b.bottom > -80 && b.top < vh + 80) out.push([t, "lv-th-" + r.dataset.id, "thumb"]);
+      });
+      return out;
+    };
+    seg.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-lv]");
+      if (!b || b.classList.contains("on")) return;
+      PR.ls.set("easyread-lib-view", b.dataset.lv);
+      if (PR.morph) PR.morph(paint, { type: "lv-" + b.dataset.lv, names }); else paint();
+    });
     paint();
   })();
 
@@ -112,6 +127,9 @@
     L.trashCount = d.trash || 0;
     if (PR.libraryLocationNotice) PR.libraryLocationNotice(d);
     engineChip();
+    // 多了、少了幾篇（匯入好了、刪掉、從回收站拿回來、別台同步過來）：重畫時其他卡片滑去補位、新的淡入（不是一下子全部跳過去）
+    const ids = (list) => (list || []).map((i) => i.id).sort().join(",");
+    if (L.items.length && ids(L.items) !== ids(d.items)) L.moveNext = true;
     L.items = d.items;
     L.render();
     schedule();
@@ -176,7 +194,35 @@
       '<div class="side-info">' + statusPill(i) + prog + L.jobLine(i) + notes + "</div></div>";
   }
 
+  /* 清單換了內容但大部分還是同一批（L.moveNext：刪了、多了幾篇、換了排序）：重畫前記下每一張看得到的卡片在哪（照 data-id／data-note），
+     重畫後同一張從舊位置滑到新位置、新出現的淡入。換分類、搜尋這種一天幾十次的不動（直接換）。 */
+  const rowKey = (el) => (el.dataset.id ? "p" + el.dataset.id : el.dataset.note ? "n" + el.dataset.note : "");
+  function rowsBefore() {
+    if (!L.moveNext) return null;
+    L.moveNext = false;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || !document.body.animate) return null;
+    const vh = innerHeight, at = new Map();
+    PR.$$("#list > *").forEach((el) => {
+      const k = rowKey(el), b = k && el.getBoundingClientRect();
+      if (b && b.width && b.bottom > -120 && b.top < vh + 120) at.set(k, b);
+    });
+    return at;
+  }
+  function rowsAfter(at) {
+    if (!at) return;
+    const vh = innerHeight, ease = PR.spring(), dur = PR.dur();
+    PR.$$("#list > *").forEach((el) => {
+      const k = rowKey(el);
+      if (!k) return;
+      const a = el.getBoundingClientRect(), b = at.get(k);
+      if (!(a.bottom > -120 && a.top < vh + 120) && !b) return;
+      if (!b) { el.animate([{ opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1 }], { duration: 260, easing: "cubic-bezier(.23, 1, .32, 1)", delay: 80 }); return; }
+      const dx = b.left - a.left, dy = b.top - a.top;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) el.animate([{ translate: dx + "px " + dy + "px" }, { translate: "0px 0px" }], { duration: dur, easing: ease });
+    });
+  }
   L.render = function () {
+    const before = rowsBefore();
     PR.renderSide();
     // 「全部筆記」只列筆記；點了某個分類，那個分類裡的筆記排在論文前面（library/notes.js）
     const notesView = L.view === "notes" && !L.tag;
@@ -194,6 +240,7 @@
       (list.length ? list.map(rowHtml).join("") : notes.length ? "" : emptyHtml());
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
+    rowsAfter(before);
   };
   function emptyHtml() {
     if (L.items.length) return '<div class="empty-state"><div class="big">' + PR.t("没有符合条件的论文") + "</div>" + PR.t("换个关键词或筛选试试。") + "</div>";
@@ -239,12 +286,32 @@
     PR.renderDetail && PR.renderDetail();
   };
 
+  /* ---------- 欄開合（寬視窗）的動畫 ----------
+     版面一次換好（不做欄寬的動畫——以前卡片會在中途被擠壓、換行，一跳一跳的）：
+     卡片、頂欄的標題從舊位置滑到新位置（PR.flip，只動 translate）；一整條有底色的（清單檢視那張紙、上面的提示條）邊緣跟著滑；
+     欄自己（側欄、右欄）同一條曲線、同一段時間滑進滑出，看起來是欄把內容推開。
+     shrink：內容區變窄（打開側欄、右欄）——卡片的舊位置在新版面會被切掉，所以在舊版面裡滑、滑完才換（hold）。 */
+  L.relayout = function (change, opts) {
+    opts = opts || {};
+    const list = PR.$("#list"), grid = list.classList.contains("grid");
+    const cards = grid ? PR.$$("#list > *") : [];
+    const items = cards.concat(PR.$$("#importBtn, .list-head > *"));
+    const edges = PR.$$(".main > *").filter((e) => e !== list || !grid);
+    return PR.flip(items, change, { hold: opts.shrink ? opts.hold : null, edges, scale: cards, done: opts.done });
+  };
+  /* 不要動畫（視窗跨過寬窄的界線、一開頁）：欄的滑進滑出也跳過 */
+  L.instant = function (change) {
+    const lib = PR.$(".lib");
+    lib.classList.add("lay-instant");
+    change();
+    lib.offsetWidth;
+    requestAnimationFrame(() => lib.classList.remove("lay-instant"));
+  };
+
   /* ---------- 右邊的詳細資訊欄：使用者自己開關（頂欄最右邊那顆、按 i） ----------
-     寬視窗是一欄（記住開著還是關著，預設開著）；窄視窗是從右邊滑出來蓋在內容上的一塊，點外面、按 Esc 收回。
-     開合時卡片從舊位置滑到新位置（PR.flip），欄自己從右邊滑進來、收的時候先滑出去再讓卡片補位。 */
+     寬視窗是一欄（記住開著還是關著，預設開著）；窄視窗是從右邊滑出來蓋在內容上的一塊，點外面、按 Esc 收回。 */
   const INSP_KEY = "easyread-lib-insp";
   const wideLib = matchMedia("(min-width: 1100px)");
-  let inspSeq = 0;
   L.inspOpen = () => PR.$(".lib").classList.contains("insp-on");
   function syncInspBtn() {
     const b = PR.$("#inspBtn");
@@ -252,28 +319,14 @@
   }
   L.setInsp = function (open, opts) {
     opts = opts || {};
-    const lib = PR.$(".lib"), seq = ++inspSeq;
+    const lib = PR.$(".lib");
     open = !!open;
     if (!opts.keep && wideLib.matches) PR.ls.set(INSP_KEY, open);
-    lib.classList.remove("insp-leaving");
     if (L.inspOpen() === open) { syncInspBtn(); return; }
-    const cards = () => PR.$$("#list > *");
-    const still = opts.instant || matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (open) {
-      PR.flip(still ? [] : cards(), () => { lib.classList.add("insp-on"); if (!still) lib.classList.add("insp-enter"); syncInspBtn(); PR.renderDetail && PR.renderDetail(); });
-      if (!still) setTimeout(() => { if (seq === inspSeq) lib.classList.remove("insp-enter"); }, 500);
-      return;
-    }
-    if (still) { lib.classList.remove("insp-on", "insp-enter"); syncInspBtn(); return; }
-    lib.classList.remove("insp-enter");
-    lib.classList.add("insp-leaving");  // 先滑出去（craft.css），再收欄、卡片補位
-    syncInspBtn();
-    const b = PR.$("#inspBtn");
-    if (b) b.classList.remove("on");
-    setTimeout(() => {
-      if (seq !== inspSeq) return;
-      PR.flip(wideLib.matches ? cards() : [], () => { lib.classList.remove("insp-on", "insp-leaving"); syncInspBtn(); });
-    }, 170);
+    const change = () => { lib.classList.toggle("insp-on", open); syncInspBtn(); if (open && PR.renderDetail) PR.renderDetail(); };
+    if (opts.instant) L.instant(change);
+    else if (!wideLib.matches) change();  // 窄視窗：蓋在內容上的一塊，CSS 自己滑進滑出
+    else L.relayout(change, { shrink: open, hold: (on) => lib.classList.toggle("insp-hold", on) });
   };
   L.toggleInsp = () => L.setInsp(!L.inspOpen());
   (function initInsp() {
@@ -334,7 +387,7 @@
     PR.rowMenu && PR.rowMenu(r.dataset.id, { x: e.clientX, y: e.clientY });
   });
   PR.$("#q").addEventListener("input", PR.debounce((e) => { L.q = e.target.value; L.render(); }, 120));
-  PR.$("#sort").addEventListener("change", (e) => { L.sort = e.target.value; PR.ls.set("easyread-sort", L.sort); L.render(); });
+  PR.$("#sort").addEventListener("change", (e) => { L.sort = e.target.value; PR.ls.set("easyread-sort", L.sort); L.moveNext = true; L.render(); });
 
   document.addEventListener("keydown", (e) => {
     if (e.target.closest("input, textarea, select, [contenteditable]")) {

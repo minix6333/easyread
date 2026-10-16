@@ -247,7 +247,7 @@
     let bottom = -Infinity;
     for (const { c, y } of cards) {
       const top = Math.max(y, bottom + 16);
-      c.style.top = Math.round(top) + "px";
+      if (PR.moveTop) PR.moveTop(c, top); else c.style.top = Math.round(top) + "px";
       bottom = top + c.offsetHeight;
     }
     margin.style.minHeight = Math.max(0, bottom) + "px";

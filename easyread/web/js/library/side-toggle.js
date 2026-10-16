@@ -1,4 +1,6 @@
-/* 文獻庫的側欄開合（頂欄最左邊的按鈕）：寬視窗是把欄收進去（記住）；窄視窗（沒地方放欄）是從左邊滑出來蓋在內容上，點外面或選了一列就收回。 */
+/* 文獻庫的側欄開合（頂欄最左邊的按鈕，開著關著都在同一個地方，連按兩下不用重新找）：
+   寬視窗是把欄收進去（記住；卡片從舊位置滑到新位置、欄自己滑出去，見 app.js 的 L.relayout）；
+   窄視窗（沒地方放欄）是從左邊滑出來蓋在內容上，點外面或選了一列就收回。 */
 (function (PR) {
   "use strict";
   const btn = PR.$("#sideBtn");
@@ -15,12 +17,14 @@
     btn.classList.toggle("on", narrow.matches && drawer());
   }
   btn.onclick = () => {
-    if (narrow.matches) document.body.classList.toggle("side-drawer");
-    else PR.ls.set(KEY, !PR.ls.get(KEY, false));
-    apply();
+    if (narrow.matches) { document.body.classList.toggle("side-drawer"); apply(); return; }
+    const collapse = !PR.ls.get(KEY, false), lib = PR.$(".lib");
+    PR.ls.set(KEY, collapse);
+    if (PR.lib && PR.lib.relayout) PR.lib.relayout(apply, { shrink: !collapse, hold: (on) => lib.classList.toggle("side-hold", on) });
+    else apply();
   };
   scrim.onclick = () => { document.body.classList.remove("side-drawer"); apply(); };
-  narrow.addEventListener("change", () => { document.body.classList.remove("side-drawer"); apply(); });
+  narrow.addEventListener("change", () => { document.body.classList.remove("side-drawer"); if (PR.lib && PR.lib.instant) PR.lib.instant(apply); else apply(); });
   PR.$("#side").addEventListener("click", (e) => {
     if (!narrow.matches || !drawer()) return;
     const row = e.target.closest(".srow, a.recent");

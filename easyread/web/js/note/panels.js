@@ -51,10 +51,26 @@
   $("#outlineBtn").addEventListener("click", () => {
     ui.outline = !ui.outline;
     if (ui.outline && narrow.matches && ui.insp) { ui.insp = ""; $("#noteInsp").innerHTML = ""; paintInsp(); }
-    saveUi(); $("#noteOutline").dataset.key = ""; paintOutline();
+    saveUi();
+    morph(() => { $("#noteOutline").dataset.key = ""; paintOutline(); });
   });
   let scrollQueued = false;
   addEventListener("scroll", () => { if (scrollQueued) return; scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; markCurrent(); }); }, { passive: true });
+
+  /* 寬視窗開關兩欄：整個畫面用 View Transitions 換過去（ui.js 的 PR.morph）——紙從舊位置滑到新位置、欄從旁邊滑進來、滑出去，
+     頂欄的鈕跟著欄的邊走。以前是動畫布的 left／right 和整頁的 padding：四百塊的筆記每一格都要重排一次，收面板時面板一下就不見了。
+     窄視窗兩欄是蓋在紙上面的，CSS 自己滑。 */
+  function noteNames() {
+    const b = document.body, out = [[$("#canvas"), "nt-canvas", "fill"], [$("#noteMain"), "nt-paper"], [$("#noteAi"), "nt-ai"]];
+    [["#backBtn", "nt-back"], ["#outlineBtn", "nt-ol"], ["#noteState", "nt-state"], ["#starBtn", "nt-star"], ["#inspBtn", "nt-insp"], ["#noteMore", "nt-more"]].forEach(([q, n]) => {
+      const el = $(q);
+      if (el && el.offsetWidth) out.push([el, n]);
+    });
+    if (b.classList.contains("ol-open")) out.push([$("#noteOutline"), "nt-outline", "panel-l"]);
+    if (b.classList.contains("in-open")) out.push([$("#noteInsp"), "nt-inspector", "panel"]);
+    return out;
+  }
+  const morph = (fn) => (!narrow.matches && PR.morph ? PR.morph(fn, { type: "note", names: noteNames }) : fn());
 
   /* ---------- 右邊的面板 ---------- */
   const TABS = () => [["insert", PR.t("插入")], ["format", PR.t("格式")], ["style", PR.t("樣式")], ["info", PR.t("資訊")]];
@@ -139,8 +155,12 @@
     ui.insp = tab;
     if (tab && narrow.matches && ui.outline) { ui.outline = false; paintOutline(); }
     saveUi();
-    if (!!was !== !!tab || !tab) $("#noteInsp").innerHTML = "";
-    paintInsp();
+    const run = () => {
+      if (ui.insp !== tab) return;  // 這中間又換了（View Transitions 晚一格才跑）
+      if (!!was !== !!tab || !tab) $("#noteInsp").innerHTML = "";
+      paintInsp();
+    };
+    if (!!was !== !!tab) morph(run); else run();
   }
   narrow.addEventListener("change", () => {  // 視窗拉過寬窄的分界：窄了就都收起來，寬了回到上次的樣子
     Object.assign(ui, narrow.matches ? { outline: false, insp: "" } : { outline: saved.outline, insp: saved.insp });

@@ -243,7 +243,8 @@
 
   /* 侧栏宽度：右边缘拖动，记在本机 */
   const lib = PR.$(".lib");
-  const setW = (w) => lib.style.setProperty("--side-w", Math.max(180, Math.min(420, w)) + "px");
+  // --side-open-w：欄自己的寬度（收起來時欄是 0，側欄還是這麼寬，疊在內容上滑出去）
+  const setW = (w) => { const v = Math.max(180, Math.min(420, w)) + "px"; lib.style.setProperty("--side-w", v); lib.style.setProperty("--side-open-w", v); };
   setW(PR.ls.get("easyread-side-w", 248));
   const grip = PR.el("div", { class: "side-grip", title: PR.t("拖动调整侧栏宽度（双击恢复）") });
   lib.appendChild(grip);

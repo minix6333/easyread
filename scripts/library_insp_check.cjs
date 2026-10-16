@@ -49,13 +49,15 @@ app.whenReady().then(async () => {
   const mid = await js('JSON.stringify(Array.from(document.querySelectorAll("#list .row")).map(function (r) { return r.getAnimations().length; }))');
   await sleep(700);
   const s2 = await state(), btn2 = await rect("#inspBtn"), card1 = await rect("#list .row:last-child");
-  check("按頂欄的開關收起：欄先滑出去、卡片滑到新位置（動畫中量得到）；開關本身留在原地", !s2.insp && !s2.btnOn && JSON.stringify(btn) === JSON.stringify(btn2) && JSON.parse(mid).some((n) => n > 0) || (!s2.insp && JSON.stringify(btn) === JSON.stringify(btn2) && JSON.stringify(card0) !== JSON.stringify(card1)), { mid, btn, btn2, card0, card1, s2 });
+  check("按頂欄的開關收起：欄滑出去、卡片同時滑到新位置（動畫中量得到）；開關本身留在原地", !s2.insp && !s2.btnOn && JSON.stringify(btn) === JSON.stringify(btn2) && JSON.parse(mid).some((n) => n > 0) || (!s2.insp && JSON.stringify(btn) === JSON.stringify(btn2) && JSON.stringify(card0) !== JSON.stringify(card1)), { mid, btn, btn2, card0, card1, s2 });
   await js('document.querySelector("#inspBtn").click(); 1');
   await sleep(120);
-  const enter = await js('getComputedStyle(document.querySelector("#detail")).animationName');
+  // 欄自己是 translate 的 transition 滑進來；卡片在舊版面裡滑到新位置（PR.flip 的 hold），滑完才換版面
+  const enter = await js('JSON.stringify({ slide: document.querySelector("#detail").getAnimations().some(function (a) { return a.transitionProperty === "translate"; }), hold: document.querySelector(".lib").classList.contains("insp-hold"), cards: Array.from(document.querySelectorAll("#list .row")).some(function (r) { return r.getAnimations().length > 0; }) })').then(JSON.parse);
   await sleep(700);
   const s3 = await state();
-  check("再按一次打開：欄從右邊滑進來，還是選著的那篇", s3.insp && s3.sel === id && /insp-in/.test(enter), { enter, s3 });
+  const held = await js('document.querySelector(".lib").classList.contains("insp-hold")');
+  check("再按一次打開：欄從右邊滑進來（卡片同時滑到新位置，滑完才換版面），還是選著的那篇", s3.insp && s3.sel === id && enter.slide && enter.hold && enter.cards && !held, { enter, held, s3 });
   await js('document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true })); 1'); await sleep(500);
   const s4 = await state();
   await js('document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true })); 1'); await sleep(700);

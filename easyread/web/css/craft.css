@@ -312,7 +312,7 @@ body.sizing #dockGrip::after, body.sizing .gap::after { opacity: 1; height: 58px
 /* 頂欄一直是整個寬度：右邊的欄開合時，搜尋框和最右邊那顆開關都留在原地（不會被推走、要重新找） */
 .lib > .topbar::before { --edge: var(--mat-bg); left: var(--side-w, 248px); border-radius: 0; }
 html.desktop .lib > .topbar::before { background: none; }
-.bar-side { display: flex; justify-content: flex-end; flex: none; width: calc(var(--side-w, 248px) - 20px); min-width: var(--ctl-w); transition: width var(--dur) var(--spring); }
+.bar-side { display: flex; justify-content: flex-start; flex: none; width: calc(var(--side-w, 248px) - 20px); min-width: var(--ctl-w); }
 body.side-collapsed .lib { --side-w: 0px !important; }
 /* 側欄頂上那顆（開合側欄）沒有底，像 Craft 的 */
 .bar-side > .btn.icon { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ink-2); }
@@ -391,7 +391,7 @@ body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.ico
   /* 側欄是從左邊滑出來的一塊厚玻璃 */
   .side { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); border-right: 0; box-shadow: none; }
   body.side-drawer .side { box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); }
-  .lib.insp-on .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
+  .lib > .detail { top: 0; background: var(--lg-tint-2); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); box-shadow: 0 0 0 .5px var(--line), var(--shadow-lg); z-index: 60; }
 }
 @media (max-width: 760px) {
   .list-head .count { display: none; }
@@ -587,7 +587,7 @@ mark.hl.agent { background: transparent; }
    - 提問、AI、本頁筆記才有一行標題（要說明是誰寫的、是哪一種）。 */
 :root { --note-bg: var(--sheet); }
 :root[data-theme="dark"] { --note-bg: color-mix(in srgb, #fff 7%, var(--mat)); }  /* 深色：比底亮一階，像浮起來的一張卡（Craft 的深色卡片也是這樣） */
-.card { --nc: var(--ink-3); position: relative; display: flow-root; padding: 11px 13px 12px; border: 0; border-radius: 13px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.65; transition: top var(--dur) var(--ease), box-shadow var(--dur-fast), background var(--dur-fast); }
+.card { --nc: var(--ink-3); position: relative; display: flow-root; padding: 11px 13px 12px; border: 0; border-radius: 13px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.65; transition: box-shadow var(--dur-fast), background var(--dur-fast); }
 .card.mine { --nc: var(--uc, var(--ul-yellow)); background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); }
 .card.mine.k-question, .card.agent { --nc: var(--accent); }
 .card.agent, .card.pnote, .card.check { background: var(--note-bg); box-shadow: 0 0 0 .5px var(--line); }
@@ -1021,13 +1021,10 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 
 /* ---------- 文獻庫右邊的詳細資訊欄（library/app.js 的 L.setInsp）----------
    寬視窗：第三欄，頂欄蓋在它上面（欄的內容從頂欄底下開始，捲上去時從頂欄的模糊底下過）；自己的「收起」不要了，開關在頂欄最右邊、一直在同一個地方。
-   開：欄從右邊滑進來（卡片同時滑到新位置）；收：先滑出去，再收欄、卡片補位。窄視窗：蓋在內容上的一塊厚玻璃，滑進滑出。 */
+   窄視窗：蓋在內容上的一塊厚玻璃。開合的動畫在下面「欄開合」那段。 */
 .lib .detail { padding-top: var(--bar-h); box-sizing: border-box; }
 .lib .detail .detail-head { display: none; }
 .lib .detail-inner { width: auto; max-width: 380px; padding-top: 6px; }
-.lib.insp-enter .detail { animation: insp-in .46s var(--spring) both; }
-.lib.insp-leaving .detail { opacity: 0; translate: 28px 0; transition: opacity .16s ease-out, translate .17s ease-in; }
-@keyframes insp-in { from { opacity: 0; translate: 36px 0; } }
 #inspBtn.on { background: var(--ctl-hover); color: var(--accent); }
 .detail-empty { height: calc(100% - 60px); min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--ink-3); text-align: center; }
 .detail-empty svg.i { width: 30px; height: 30px; stroke-width: 1.4; opacity: .55; }
@@ -1035,9 +1032,67 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 @media (max-width: 1099px) {
   .lib .detail { padding-top: 0; }
   .lib .detail .detail-head { display: flex; }
-  .lib:not(.insp-on) .detail { display: none; }
 }
+
+/* ---------- 文獻庫的欄開合（library/app.js 的 L.relayout）----------
+   欄寬一次到位（不做寬度動畫：以前動 grid-template-columns，卡片在中途被擠壓、換行，一跳一跳的）。
+   側欄、右欄是固定寬度的一塊：欄收成 0 的時候它還在，疊在內容上滑出去、淡掉；打開時從外面滑進來——和卡片同一條彈簧、同一段時間。
+   .side-hold／.insp-hold：內容區變窄時，卡片先在舊版面裡滑到新位置，這段時間欄先佔 0 寬（欄本身疊在內容上滑進來），滑完才換。
+   開合鈕固定在左上角（開著關著同一個地方，連按兩下不用重新找）。 */
+.lib, .bar-side { transition: none; }
+.bar-side { justify-content: flex-start; }
+.lib > .side, .lib > .detail { --lay-in: translate var(--dur) var(--spring), opacity .24s ease-out, visibility 0s;
+  --lay-out: translate var(--dur) var(--spring), opacity .18s ease-out, visibility 0s var(--dur); }
+@media (min-width: 1100px) {
+  .lib > .side { width: var(--side-open-w, 248px); z-index: 3; transition: var(--lay-in); }
+  body.side-collapsed .lib > .side { translate: -100% 0; opacity: 0; visibility: hidden; pointer-events: none; transition: var(--lay-out); }
+  .lib.side-hold { --side-w: 0px !important; }
+  .lib > .detail { position: relative; width: 380px; justify-self: end; z-index: 3; transition: var(--lay-in); }
+  .lib:not(.insp-on) > .detail { translate: 100% 0; opacity: 0; visibility: hidden; pointer-events: none; transition: var(--lay-out); }
+  .lib.insp-hold { grid-template-columns: var(--side-w, 248px) minmax(0, 1fr) 0 !important; }
+}
+@media (max-width: 1099px) {
+  .lib > .detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(380px, 100vw); transition: var(--lay-in); }
+  .lib:not(.insp-on) > .detail { translate: 100% 0; opacity: 0; visibility: hidden; pointer-events: none; transition: var(--lay-out); }
+}
+.lib.lay-instant > .side, .lib.lay-instant > .detail { transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .lib.insp-enter .detail { animation: none; }
-  .lib.insp-leaving .detail { translate: none; }
+  .lib > .side, .lib > .detail { --lay-in: opacity .2s ease, visibility 0s; --lay-out: opacity .16s ease, visibility 0s .16s; }
+  body.side-collapsed .lib > .side, .lib:not(.insp-on) > .detail { translate: none; }
 }
+}
+
+/* ---------- 版面大改的 View Transitions（ui.js 的 PR.morph；閱讀頁、筆記頁開關側面板）----------
+   有名字的元素：截圖從舊的位置、大小滑到新的（彈簧、--dur）；*.page 是 PDF 頁（等比例縮放，看起來就是那一頁變大變小）；
+   *.fill 是一大塊背景（畫布）：兩張截圖拉滿格子（預設等比例、高度自動，換寬度時底下會缺一塊）；
+   *.panel 是側面板和它上面的分頁列：只有一邊有的時候從右邊滑進來、滑出去；*.panel-l 是左邊的（釘著的導覽欄）。其餘的（文章）淡入淡出。
+   動畫期間滑鼠點得到底下真的元素。拍畫面的那一刻元素要已經在終點，所以它們自己的 transition 先關掉。 */
+html[data-vt]::view-transition { pointer-events: none; }
+html[data-vt]::view-transition-group(*) { animation-duration: var(--dur); animation-timing-function: var(--spring); }
+html[data-vt]::view-transition-old(root), html[data-vt]::view-transition-new(root) { animation-duration: .2s; animation-timing-function: ease-out; }
+html[data-vt]::view-transition-old(*.fill), html[data-vt]::view-transition-new(*.fill) { height: 100%; }
+html[data-vt]::view-transition-old(*.thumb), html[data-vt]::view-transition-new(*.thumb) { height: 100%; object-fit: cover; object-position: top; overflow: clip; mix-blend-mode: normal; }  /* 封面：格子裡和清單裡長寬比不一樣，裁掉多的，不要拉扁 */
+/* 格子⇄清單：飛的途中用大張的那一張（小張放大是糊的，兩張一直疊著淡入淡出看起來是一塊塊灰的）；
+   快到的時候才換成小張（深色時清單裡的小封面是反相的，不換的話最後會一下子從白變黑） */
+html[data-vt="lv-list"]::view-transition-old(*.thumb) { animation: vt-hold-out var(--dur) linear both; }
+html[data-vt="lv-list"]::view-transition-new(*.thumb) { animation: vt-late-in var(--dur) linear both; }
+html[data-vt="lv-grid"]::view-transition-old(*.thumb) { animation: vt-early-out var(--dur) linear both; }
+html[data-vt="lv-grid"]::view-transition-new(*.thumb) { animation: none; opacity: 1; }
+@keyframes vt-hold-out { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vt-late-in { 0%, 45% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes vt-early-out { 0% { opacity: 1; } 35%, 100% { opacity: 0; } }
+html[data-vt]::view-transition-new(*.panel):only-child { animation: vt-panel-in var(--dur) var(--spring) both; }
+html[data-vt]::view-transition-old(*.panel):only-child { animation: vt-panel-out var(--dur) var(--spring) both; }
+html[data-vt]::view-transition-new(*.panel-l):only-child { animation: vt-panel-l-in var(--dur) var(--spring) both; }
+html[data-vt]::view-transition-old(*.panel-l):only-child { animation: vt-panel-l-out var(--dur) var(--spring) both; }
+@keyframes vt-panel-in { from { translate: 100% 0; opacity: 0; } }
+@keyframes vt-panel-out { to { translate: 100% 0; opacity: 0; } }
+@keyframes vt-panel-l-in { from { translate: -100% 0; opacity: 0; } }
+@keyframes vt-panel-l-out { to { translate: -100% 0; opacity: 0; } }
+html[data-vt] .side-panel, html[data-vt] #canvas, html[data-vt] #progress, html[data-vt] .topbar, html[data-vt] #inspTabs, html[data-vt] .pv-ai, html[data-vt] #drawer, html[data-vt] #stage,
+html[data-vt] .note-shell, html[data-vt] .note-main, html[data-vt] .note-outline, html[data-vt] .note-insp, html[data-vt] .note-ai { transition: none !important; }
+
+/* 導覽欄（目錄）從「釘著的一欄」換成「蓋在上面的抽屜」時（開右側面板、視窗變窄，放不下一欄）：關著的抽屜要藏好——
+   以前抽屜的 transform 從欄的位置滑到抽屜收起來的位置，那一下整塊玻璃在左邊閃過去 */
+#drawer { visibility: hidden; transition: transform var(--dur) var(--spring), visibility 0s var(--dur); }
+body.drawer-open #drawer { visibility: visible; transition: transform var(--dur) var(--spring), visibility 0s; }

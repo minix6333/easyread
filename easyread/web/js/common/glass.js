@@ -30,12 +30,31 @@
   }
   PR.glassLevel = level;
 
+  /* 畫面正在換版面（PR.morph 的 View Transitions 正在拍新畫面，<html data-vt>）：做折射的 map（canvas → toDataURL）這時候會卡在等 GPU，
+     一塊輸入框就要一百多毫秒、面板晚一拍才開始滑。先只掛上材質的 class，折射等換完再補（看不太出來：只差邊上那一圈）。 */
+  const waiting = new Map();  // 元素 → [kind, opts]
+  let waitT = 0;
+  const busy = () => !!document.documentElement.dataset.vt;
+  function later() {
+    if (waitT) return;
+    waitT = setTimeout(() => {
+      waitT = 0;
+      if (busy()) { later(); return; }
+      const list = Array.from(waiting);
+      waiting.clear();
+      for (const [el, [kind, opts]] of list) if (el.isConnected && !live.has(el)) optics(el, kind, opts);
+    }, 160);
+  }
   function apply(el, kind, opts) {
     if (!el || live.has(el)) return live.get(el);
     el.classList.add("lg");
     if (kind) el.dataset.glass = kind;
     all.add(el);
     if (reduceT.matches || typeof liquidGlass !== "function") { el.classList.add("lg-flat"); return null; }
+    if (busy()) { waiting.set(el, [kind, opts]); later(); return null; }
+    return optics(el, kind, opts);
+  }
+  function optics(el, kind, opts) {
     const k = level() / BASE;
     const p = PRESET[kind || ""] || PRESET[""];
     if (k <= 0) {  // 強度 0：只有毛玻璃，不折射

@@ -127,10 +127,15 @@
     const open = force != null ? !!force : !artOpen;
     if (open === artOpen) return;
     artOpen = open;
-    PR.applyLayout();
+    const to = open && ((opts && opts.to) || (PR.pdfBlockNow ? PR.pdfBlockNow() : PR.pdfBlock && PR.pdfBlock()));  // PDF 畫面中間那一段（「跟隨」關著也一樣對得到）
+    // PDF 那一格變窄、譯文出來：整個畫面用 View Transitions 換過去（PDF 頁從舊大小縮到新大小，不是一下子跳；見 pageview.js 的 openSide）
+    const change = () => {
+      PR.applyLayout();
+      if (open && !(opts && opts.quiet) && to && PR.blockById[to]) PR.jumpTo("b-" + to, { noBack: true, instant: true });
+    };
+    if (PR.morph && PR.sideMotion !== false && !(opts && opts.instant)) PR.morph(change, { type: "article", names: PR.readerNames });
+    else change();
     if (!open) return;
-    const to = (opts && opts.to) || (PR.pdfBlockNow ? PR.pdfBlockNow() : PR.pdfBlock && PR.pdfBlock());  // PDF 畫面中間那一段（「跟隨」關著也一樣對得到）
-    if (!(opts && opts.quiet) && to && PR.blockById[to]) PR.jumpTo("b-" + to, { noBack: true, instant: true });
     // 寬公式重量（實測 140 ms）和邊注排版等譯文滑出來之後再做，先讓面板順順地滑；量完把剛才跳到的段落停回原位
     const node = to && document.getElementById("b-" + to);
     PR.afterSlide(() => {
@@ -353,10 +358,13 @@
     const n = PR.pdfPage ? PR.pdfPage() : 1;
     fab.classList.toggle("has-note", !!(((S.reader.page_notes || {})[n] || {}).body || "").trim());
   }
+  /* 每一頁的高度（--ph，頁邊的東西用）：用 ResizeObserver 給的大小，不去讀 clientHeight——一頁讀一次就是逼瀏覽器重排一次，
+     開關面板時十九頁連著讀寫要十幾毫秒。整份共用一個觀察者。 */
+  let phRO = null;
   PR.on("pages-built", (nodes) => {
-    nodes.forEach((entry) => {
-      new ResizeObserver(() => { entry.node.style.setProperty("--ph", entry.node.clientHeight + "px"); }).observe(entry.node);
-    });
+    if (phRO) phRO.disconnect();
+    phRO = new ResizeObserver((entries) => { for (const e of entries) e.target.style.setProperty("--ph", Math.round(e.contentRect.height) + "px"); });
+    nodes.forEach((entry) => phRO.observe(entry.node));
     PR.renderPdfMarks();
     markPageNote();
     ensureNear();

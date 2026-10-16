@@ -211,9 +211,15 @@
       "url(#" + id + ") blur(" + o.blur + "px) saturate(" + o.saturate + ")";
 
     let timer = null;
+    // FOLI: while the page is swapping layouts in a View Transition (<html data-vt>), toDataURL() stalls on the
+    // GPU for 100+ ms; redraw the map once the transition is over.
+    function later() {
+      if (document.documentElement.dataset.vt) { timer = setTimeout(later, 160); return; }
+      refresh();
+    }
     const ro = new ResizeObserver(function () {
       clearTimeout(timer);
-      timer = setTimeout(refresh, 120);
+      timer = setTimeout(later, 120);
     });
     ro.observe(el);
 

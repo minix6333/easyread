@@ -74,7 +74,7 @@ body.pdf-main .pv-page { max-width: calc(min(100%, 920px) * var(--pv-zoom)); }
 body.pdf-main .pv-scroll.has-margin { padding-right: calc(24px + var(--pv-margin-w)); }
 .pv-margin { display: none; position: absolute; left: calc(100% + 16px); top: 0; width: calc(var(--pv-margin-w) - 16px); height: 100%; font-size: 13.5px; }
 .pv-scroll.has-margin .pv-margin { display: block; }
-.pv-margin .card { position: absolute; left: 0; right: 0; padding: 8px 10px 9px; font-size: calc(12.5px * var(--fs-ratio, 1)); line-height: 1.6; background: color-mix(in srgb, var(--card) 92%, transparent); transition: top var(--dur) var(--ease), box-shadow var(--dur-fast); }
+.pv-margin .card { position: absolute; left: 0; right: 0; padding: 8px 10px 9px; font-size: calc(12.5px * var(--fs-ratio, 1)); line-height: 1.6; background: color-mix(in srgb, var(--card) 92%, transparent); transition: box-shadow var(--dur-fast); }  /* 換位置是 PR.moveTop（translate），不動 top */
 .pv-margin .card .quote, .pv-margin .card .clip { display: none !important; }  /* 標記就在旁邊，不用再抄一遍（notes.css 裡依顏色的 .quote 規則更專一，要壓過它） */
 .pv-margin .card .hd { cursor: grab; }
 .pv-margin .card .acts, .pv-margin .card .meta { opacity: 1; }

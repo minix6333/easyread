@@ -5,9 +5,9 @@
 body.note-page { --ol-w: 0px; --in-w: 0px; --nav-now: var(--ol-w); --insp-now: var(--in-w); }
 body.note-page.ol-open { --ol-w: 228px; }
 body.note-page.in-open { --in-w: 300px; }
-.note-page #canvas, .note-page #bar { transition: left .34s var(--ease), right .34s var(--ease); }
+/* 兩欄開合不動畫布、頂欄、紙的位置（以前動 left／right／padding，每一格都要重排整份筆記）：寬視窗整個畫面用 View Transitions 換（note/panels.js） */
 .note-page .topbar { left: calc(var(--nav-now) + var(--pad)); right: calc(var(--insp-now) + var(--pad)); }
-.note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); transition: padding .34s var(--ease); }
+.note-shell { padding-left: var(--nav-now); padding-right: var(--insp-now); }
 /* 紙：左邊的留白裡有一道 44px 是區塊的槽（「＋」和把手），所以左邊的內距少 44px，字的左右留白才一樣寬 */
 .note-page .note-main { position: relative; max-width: var(--note-w, 820px); padding-left: 12px; margin-bottom: 26px; min-height: calc(100vh - var(--bar-h) - 38px); box-sizing: border-box; transition: max-width .38s var(--spring); }
 @media (max-width: 900px) { .note-page .note-main { padding-left: 0; padding-right: 22px; } }
@@ -27,7 +27,7 @@ body.nw-dragging, body.nw-dragging * { cursor: ew-resize !important; user-select
 body.nw-dragging .nw-tip { opacity: .92; scale: 1; }
 @media (max-width: 900px) { .nw-grip, .nw-tip { display: none; } }
 @media print { .nw-grip, .nw-tip { display: none; } }
-.note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); transition: left .34s var(--ease), width .34s var(--ease); }
+.note-page .note-ai { left: calc(var(--nav-now) + (100vw - var(--nav-now) - var(--insp-now)) / 2); width: min(720px, calc(100vw - var(--nav-now) - var(--insp-now) - 48px)); }
 /* 筆記 AI：平常是右下角一顆鈕（和閱讀頁的「問 AI」同一個樣子），展開才是整條輸入列 */
 .note-page .note-ai:not(.open) { left: auto; right: calc(var(--insp-now) + var(--pad) + 16px); bottom: 16px; width: auto; transform: none; }
 .nai-pill { height: 40px; padding: 0 15px 0 12px; border-radius: 13px; display: inline-flex; align-items: center; gap: 7px; font: 600 13.5px var(--ui); color: var(--ink); background: var(--ctl-bg);
