@@ -19,8 +19,8 @@ function page(url = "http://127.0.0.1:8765/", storage = new Map(), state = null,
   const node = selector => {
     if (!nodes.has(selector)) nodes.set(selector, {
       value: "", style: {}, dataset: {}, scrollTop: 0, offsetHeight: selector === ".topbar" ? 60 : 0,  // 清單從浮著的頂欄底下捲過去（以前是黏在清單上面的表頭）
-      classList: { toggle() {}, add() {}, remove() {} },
-      insertAdjacentHTML() {},
+      classList: { toggle() {}, add() {}, remove() {}, contains() { return false; } },
+      insertAdjacentHTML() {}, setAttribute() {},
       addEventListener(name, fn) { this[name] = fn; },
       focus(options) { this.focused = options || true; },
       getBoundingClientRect() { return { top: 50, bottom: 650, height: 600 }; },
@@ -55,6 +55,7 @@ function page(url = "http://127.0.0.1:8765/", storage = new Map(), state = null,
     localStorage: { getItem: key => { if (blocked) throw new Error("storage blocked"); return storage.get(key) || null; },
       setItem: (key, value) => { if (blocked) throw new Error("storage blocked"); storage.set(key, value); } },
     requestAnimationFrame: fn => frames.push(fn), setTimeout() {}, clearTimeout() {},
+    matchMedia: () => ({ matches: true, addEventListener() {} }),  // 寬視窗（右邊的詳細資訊欄是一欄）
   };
   vm.runInNewContext(source("common/library-nav.js"), context);
   return { PR, location, history, storage, node, listeners, windowEvents,

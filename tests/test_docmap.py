@@ -71,7 +71,8 @@ class DocmapTest(unittest.TestCase):
         self.assertLess(text.index("整份文件的文字"), text.index("读者正在看"))  # 不變的在前，吃得到快取
         self.assertLess(text.index("读者正在看"), text.index("读者现在问"))
         codex = chat.prompt(self.ws, msgs, None, "", "codex", page=1)
-        self.assertIn(str(paths.derived(self.ws.root, "extract")), codex)  # Codex 也能自己去讀別頁
+        self.assertNotIn(str(paths.derived(self.ws.root, "extract")), codex)  # Codex 在對話裡沒有讀檔的工具（codex_lean.thread_config）：不叫它去讀別頁
+        self.assertIn(str(paths.derived(self.ws.root, "extract")), chat.prompt(self.ws, msgs, None, "", "claude", page=1))  # Claude Code 可以（Read 只准讀這兩個資料夾）
         follow = chat.prompt(self.ws, msgs, None, "", "openai", page=1, followup=True)
         self.assertNotIn("整份文件的文字", follow)       # 行程記得整份，追問不重送
         self.assertNotIn("[第 3 页]", follow)

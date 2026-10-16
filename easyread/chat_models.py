@@ -10,7 +10,7 @@ import copy
 import re
 from pathlib import Path
 
-from . import engines
+from . import engines, webtools
 from .presets import PRESETS
 from .i18n import tr
 
@@ -156,7 +156,11 @@ def listing(cfg: dict) -> dict:
             ready = bool(_key(cfg, m.get("preset") or "")) or not needs_key({"preset": m.get("preset"), "base_url": m.get("base_url", "")})
             source = p["name"] if p else tr("自定义地址")
             hint = "" if ready else tr("还没填 {source} 的 Key（设置 → 模型 → 点这张卡片 → 修改）", source=source)
-        out.append({**m, "label": label(m), "source": source, "ready": ready, "hint": hint,
+        try:  # 能不能上網查（頁面上那顆地球）：Codex、Claude Code、OpenAI 官方的 Responses 可以
+            web = webtools.supported(engine_cfg(cfg, m.get("id"))[0])
+        except Exception:  # noqa: BLE001
+            web = False
+        out.append({**m, "label": label(m), "source": source, "ready": ready, "hint": hint, "web": web,
                     "detail": (actual_of(m.get("model", "")) or m.get("model") or _claude_default()) if e == "claude"
                     else m.get("model") or (tr("{model}（跟随 Codex 默认）", model=codex_default_model()) if e == "codex" and codex_default_model() else "")})
     default = (cfg.get("chat") or {}).get("default") or (out[0]["id"] if out else "")

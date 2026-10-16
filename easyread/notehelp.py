@@ -9,7 +9,7 @@ import json
 import threading
 
 from . import kinds, langs, tw
-from . import chat, chat_models, config, engines, pdfwork, webimg
+from . import chat, chat_models, config, engines, pdfwork, webimg, webtools
 from .i18n import tr
 from .log import log
 from .prompts import _block_text, localize
@@ -190,10 +190,24 @@ def handle(handler, ws: Workspace, body: dict) -> None:
         text = edit_prompt(ws, body, ecfg["engine"])
     else:
         text = prompt(ws, mode, note, ecfg["engine"])
-    return _stream(handler, ecfg, m, text, ws.root, images, langs.reply_code(ws.load("paper").get("meta")))
+    web = mode in ("edit", "write") and _web(body, ecfg)  # 筆記 AI 照讀者的要求寫、改時可以上網查（幫這頁寫筆記、點評不用）
+    if web:
+        text = localize_web(text, langs.reply_code(ws.load("paper").get("meta")))
+    return _stream(handler, ecfg, m, text, ws.root, images, langs.reply_code(ws.load("paper").get("meta")), web)
 
 
-def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str) -> None:
+def _web(body: dict, ecfg: dict) -> bool:
+    """頁面上那顆地球（和問 AI 共用）；沒帶就照設定。模型不能上網的當成沒開。"""
+    return (bool(body["web"]) if "web" in body else webtools.enabled_default()) and webtools.supported(ecfg)
+
+
+def localize_web(text: str, code: str) -> str:
+    """上網那一段接在提示詞最後（照回答的語言）。"""
+    part = webtools.PROMPT if tw.is_tw(code) else tw.to_cn(webtools.PROMPT)
+    return text + "\n\n" + part
+
+
+def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str, web: bool = False) -> None:
     """把模型的回答一行一個 JSON 流給頁面：{"model"} {"t": 片段}… {"done": true} 或 {"error"}。"""
     handler.send_response(200)
     handler.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -210,7 +224,7 @@ def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str) -> 
     try:
         send({"model": chat_models.label(m)})
         guard = tw.Stream(tw.is_tw(code))  # 繁體保險
-        for piece in chat.stream(ecfg, text, cwd, cancel, images=images):
+        for piece in chat.stream(ecfg, text, cwd, cancel, images=images, web=web, on_status=lambda st: send({"status": st})):
             piece = guard.feed(piece)
             if piece:
                 send({"t": piece})
@@ -260,4 +274,6 @@ def handle_note(handler, body: dict, note: dict, cwd) -> None:
     if mode == "edit" and not str(body.get("selection") or "").strip():
         raise ValueError(tr("先選要改的那幾塊"))
     ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
-    return _stream(handler, ecfg, m, note_prompt(note, body), cwd, [], langs.reply_code(None))
+    web = _web(body, ecfg)
+    text = note_prompt(note, body)
+    return _stream(handler, ecfg, m, localize_web(text, langs.reply_code(None)) if web else text, cwd, [], langs.reply_code(None), web)

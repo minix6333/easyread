@@ -5,7 +5,7 @@
 - 模型回來的文字（翻譯、問 AI、筆記點評）：一律再過一遍，保證介面上不出現簡體字。
 
 怎麼轉（to_tw）：
-1. 字：簡體字轉成繁體（OpenCC 的 s2t；一對多的字靠詞組判斷，发→發／髮），最後換成台灣的標準字形（t2tw）。這一步每段都做。
+1. 字：夾了簡體字的那一小句轉成繁體（OpenCC 的 s2t；一對多的字靠詞組判斷，发→發／髮）；最後整段換成台灣的標準字形（t2tw）。
 2. 詞：大陸用語換成台灣的說法（软件→軟體）。**只對真的夾了簡體字的那一小句做**；本來就是繁體的句子不換詞
    （只有 _ALWAYS 那幾個台灣完全不用的詞例外）。
 
@@ -61,8 +61,12 @@ _TERMS = {  # i18n-ok 詞表
 _ALWAYS = {  # i18n-ok 詞表
     "信息": "資訊", "概率": "機率", "默認": "預設", "視頻": "影片", "軟件": "軟體", "硬件": "硬體", "網絡": "網路", "算法": "演算法",  # i18n-ok 詞表
     "運算法則": "運算法則", "計算法則": "計算法則", "估算法": "估算法", "沉默認": "沉默認",  # i18n-ok 詞表
+    # 字都是簡繁共用、所以整句看不出是簡體的幾個常見詞（模型偶爾漏出來）；後面那幾個是保護：繁體裡本來就這樣寫的，不要湊成別的
+    "然后": "然後", "之后": "之後", "以后": "以後", "最后": "最後", "后来": "後來", "里面": "裡面",  # i18n-ok 詞表
+    "公里": "公里", "英里": "英里", "千里": "千里", "鄰里": "鄰里", "故里": "故里", "皇后": "皇后", "王后": "王后", "太后": "太后",  # i18n-ok 詞表
 }
 _CLAUSE = re.compile("[^。！？；，、：\n.,;:!?]*[。！？；，、：\n.,;:!?]?")  # i18n-ok 一小句一小句切（連同後面那個標點）
+_SENTENCE = re.compile("[^。！？\n]*[。！？\n]?")  # i18n-ok 一整句一整句切（連同後面那個句號）
 
 
 @lru_cache(maxsize=1)
@@ -150,20 +154,28 @@ def _phrases(text: str, table: dict[str, str], longest: int) -> str:
 
 
 def _convert(text: str) -> str:
-    """一小句一小句來：字都轉；詞只在這一小句真的夾了簡體字時才整張表換，否則只換 _ALWAYS 那幾個。"""
+    """字：這一整句（到句號、問號、換行）夾了簡體字，整句轉成繁體（s2t）——「然后，我们…」的「然后」也會一起轉；
+    整句都沒有簡體字就不轉字（2.1.0-tw.12 以前每一句都跑 s2t：「只」這種簡繁共用、一對多的字會被它的詞組表改掉，
+    「還是只用在」變成「還是隻用在」）。
+    詞：一小句一小句看，那一小句真的夾了簡體字才照整張表換，否則只換 _ALWAYS 那幾個。"""
     simp = _simplified()
     full, full_len = _table()
     out = []
-    for m in _CLAUSE.finditer(text):
-        clause = m.group(0)
-        if not clause:
+    for sm in _SENTENCE.finditer(text):
+        sentence = sm.group(0)
+        if not sentence:
             continue
-        if not _HAN.search(clause):
-            out.append(clause)
-        elif any(ch in simp for ch in clause):
-            out.append(_phrases(_cc().convert(clause), full, full_len))
-        else:
-            out.append(_phrases(_cc().convert(clause), _ALWAYS, 4))
+        chars = any(ch in simp for ch in sentence)
+        for m in _CLAUSE.finditer(sentence):
+            clause = m.group(0)
+            if not clause:
+                continue
+            if not _HAN.search(clause):
+                out.append(clause)
+            elif any(ch in simp for ch in clause):
+                out.append(_phrases(_cc().convert(clause), full, full_len))
+            else:
+                out.append(_phrases(_cc().convert(clause) if chars else clause, _ALWAYS, 4))
     return "".join(out)
 
 

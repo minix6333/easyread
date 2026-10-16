@@ -52,7 +52,7 @@
       if (PR.chatModel) await PR.chatModel.load();
       const res = await fetch("/api/p/" + PR.pid + "/notehelp", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ mode, note: ed.getValue(), selection: sel ? sel.md : "", ask: text, page, model: PR.chatModel ? PR.chatModel.id() : "" }),
+        body: JSON.stringify({ mode, note: ed.getValue(), selection: sel ? sel.md : "", ask: text, page, model: PR.chatModel ? PR.chatModel.id() : "", ...(PR.chatModel && PR.chatModel.web ? PR.chatModel.web() : PR.web.body()) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -67,6 +67,7 @@
           if (!line.trim()) continue;
           const ev = JSON.parse(line);
           if (ev.model) label = ev.model;
+          if (ev.status && PR.webStatusText(ev.status)) ed.updatePreview(clean(out), { streaming: true, label: PR.webStatusText(ev.status) + "…" });  // 上網查的時候，建議的標題說在查什麼
           if (ev.t) { out += ev.t; ed.updatePreview(clean(out)); }
           if (ev.error) throw new Error(ev.error);
         }

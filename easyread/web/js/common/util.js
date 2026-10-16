@@ -95,6 +95,23 @@ window.PR = window.PR || {};
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
     del(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } },
   };
+  /* 上網查資料（2.1.0-tw.12）：問 AI、便利貼、邊注、小視窗追問、筆記 AI 共用一個開關（輸入框旁邊那顆地球），預設開著——
+     模型自己判斷要不要查（文件裡就有答案的不會查）。模型不能上網（別家的 API）時不送 web：後端也會擋。 */
+  PR.web = {
+    on: () => PR.ls.get("easyread-web", true) !== false,
+    set(v) { PR.ls.set("easyread-web", !!v); if (PR.emit) PR.emit("web"); },
+    ok: (m) => !m || m.web !== false,
+    body: (m) => ({ web: PR.web.on() && PR.web.ok(m) }),
+  };
+  /* 上網查的動作 → 一句話（等待的地方、回答寫到一半又去查時那一行、筆記 AI 的建議標題都用這個） */
+  PR.webStatusText = function (s) {
+    if (!s) return "";
+    if (s.kind === "search") return s.query ? PR.t("搜尋「{q}」", { q: s.query }) : PR.t("上網搜尋");
+    if (s.kind === "open") return PR.t("讀 {site}", { site: s.domain || s.url || "" });
+    if (s.kind === "find") return PR.t("在 {site} 裡找「{q}」", { site: s.domain || "", q: s.pattern || "" });
+    if (s.kind === "note" && s.text) return s.text.length > 60 ? s.text.slice(0, 58) + "…" : s.text;  // 模型動手前說的那句（「我會去查…」）
+    return "";
+  };
   try { // 改名前（coread-*）存的偏好搬过来
     Object.keys(localStorage).filter((k) => k.startsWith("coread-")).forEach((k) => {
       const nk = "easyread-" + k.slice(7);

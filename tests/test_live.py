@@ -214,6 +214,9 @@ class CodexLiveTest(unittest.TestCase):
         self.addCleanup(codex_live.disable)
         self.addCleanup(setattr, codex_live, "_disabled", False)
         self.cwd = Path(tempfile.gettempdir()) / "paper-x"
+        p = mock.patch.object(codex_live.codex_lean, "config_path", lambda: Path(tempfile.gettempdir()) / "no-such-codex" / "config.toml")
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_streams_deltas_keeps_thread_and_reports_plan_usage(self):
         srv = FakeAppServer()
@@ -221,7 +224,7 @@ class CodexLiveTest(unittest.TestCase):
         live_calls = []
         c = {"model": "gpt-6.1-sol", "reasoning_effort": "low"}
         with mock.patch.object(engines, "codex_path", lambda c: "codex"), mock.patch.object(engines, "_popen", lambda a, cwd: srv), \
-                mock.patch.object(codex_live.codex_lean, "args", lambda: ["-c", "features.apps=false"]):
+                mock.patch.object(codex_live.codex_lean, "args", lambda path=None, tools=False: ["-c", "features.apps=false"]):
             out = list(codex_live.stream(c, "問題", self.cwd, threading.Event(), meter, None, "t1", 0, None, lambda: live_calls.append(1)))
             self.assertEqual(out, ["你", "好"])
             self.assertEqual(live_calls, [1])
@@ -247,7 +250,7 @@ class CodexLiveTest(unittest.TestCase):
         png.parent.mkdir(parents=True, exist_ok=True)
         png.write_bytes(PNG)
         with mock.patch.object(engines, "codex_path", lambda c: "codex"), mock.patch.object(engines, "_popen", lambda a, cwd: srv), \
-                mock.patch.object(codex_live.codex_lean, "args", lambda: []):
+                mock.patch.object(codex_live.codex_lean, "args", lambda path=None, tools=False: []):
             list(codex_live.stream({"model": "a"}, "q1", self.cwd, threading.Event(), None, None, "t1", 0, None, None))
             list(codex_live.stream({"model": "b"}, "q2", self.cwd, threading.Event(), None, [png], "t1", 1, "追問", None))
         turns = [x["params"] for x in srv.sent if x.get("method") == "turn/start"]
@@ -274,7 +277,7 @@ class CodexLiveTest(unittest.TestCase):
 
     def _patched(self, srv):
         return (mock.patch.object(engines, "codex_path", lambda c: "codex"), mock.patch.object(engines, "_popen", lambda a, cwd: srv),
-                mock.patch.object(codex_live.codex_lean, "args", lambda: []), mock.patch.object(codex_live, "RETRY_WAITS", (0, 0)))
+                mock.patch.object(codex_live.codex_lean, "args", lambda path=None, tools=False: []), mock.patch.object(codex_live, "RETRY_WAITS", (0, 0)))
 
     @staticmethod
     def _ok(tid):

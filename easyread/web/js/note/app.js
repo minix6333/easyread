@@ -191,7 +191,7 @@
     let out = "", label = "";
     try {
       const res = await fetch(url + "/ai", { method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ mode, note: st.ed.getValue(), selection: sel ? sel.md : "", ask: text, model: st.model }) });
+        body: JSON.stringify({ mode, note: st.ed.getValue(), selection: sel ? sel.md : "", ask: text, model: st.model, ...PR.web.body(st.models.find((m) => m.id === st.model)) }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
       let buf = "";
@@ -205,6 +205,7 @@
           if (!line.trim()) continue;
           const ev = JSON.parse(line);
           if (ev.model) label = ev.model;
+          if (ev.status && PR.webStatusText(ev.status)) st.ed.updatePreview(clean(out), { streaming: true, label: PR.webStatusText(ev.status) + "…" });  // 上網查的時候說在查什麼
           if (ev.t) { out += ev.t; st.ed.updatePreview(clean(out)); }
           if (ev.error) throw new Error(ev.error);
         }

@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -238,16 +238,20 @@ class Handler(BaseHTTPRequestHandler):
             user["aside"] = {"thread": str(aside_in.get("thread")), "msg": str(aside_in.get("msg") or ""), "quote": aside["quote"]}
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"] + chat.images_note(x.get("images"))} for x in past] + [{"role": "user", "content": text}]
+        # 可以上網查：頁面上那顆地球（每問一次都帶著）；沒帶就照設定。模型不能上網的（別家的 API）當成沒開
+        web = (bool(body["web"]) if "web" in body else webtools.enabled_default()) and webtools.supported(ecfg)
+        if web:
+            user["web"] = True
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                  images=user.get("images"), mode=mode, aside=aside)
+                                  images=user.get("images"), mode=mode, aside=aside, web=web)
         # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
         prev_turns = sum(1 for x in past if x.get("role") == "assistant")
         live = {"thread": tid, "turns": prev_turns}
-        if prev_turns and chat.bound_turns(ecfg, ws, tid) == prev_turns:
+        if prev_turns and chat.bound_turns(ecfg, ws, tid, web) == prev_turns:
             prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
             same = chat.same_spot(prev_user, user, refs, page) and not images
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                                images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside)
+                                                images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside, web=web)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -263,9 +267,17 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
             self.wfile.flush()
 
+        found = webtools.Sources()  # 這一題上網碰過的網頁；回答底下列的是回答裡引用的＋真的打開讀過的（found.final）
+
+        def on_source(url, title="", domain="", kind="result"):
+            if found.add(url, title, domain, kind) and kind != "result":  # 真的打開讀過的：馬上加到回答底下；搜尋結果只是候選，最後看有沒有引用
+                send({"source": found.get(url)})
+
         def keep_partial():  # 寫到一半被停下來：已經寫出來的留著，後面記一筆（已停止）
             if pieces:
-                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot())
+                text = webtools.clean("".join(pieces))
+                chat_store.append(ws, tid, {**user, "note": None}, text + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot(),
+                                  sources=found.final(text))
         try:
             send({"model": model, "thread": tid, "answer_style": style})
             def seen(actual):
@@ -277,7 +289,8 @@ class Handler(BaseHTTPRequestHandler):
             first = 0.0
             answer = chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **({"images": images} if images else {}),
                                  live=live, on_live=lambda: send({"stream": "live"}),
-                                 on_status=lambda st: send({"status": st}))  # 還沒出字時：重新連線、太擠自動再問、開始思考
+                                 on_status=lambda st: send({"status": st}),  # 還沒出字時：重新連線、太擠自動再問、開始思考；上網查的動作隨時報
+                                 web=web, on_source=on_source)
             try:
                 for piece in answer:
                     piece = guard.feed(piece)
@@ -294,13 +307,19 @@ class Handler(BaseHTTPRequestHandler):
             if tail:
                 pieces.append(tail)
                 send({"t": tail})
-            msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot())
+            answer_text = webtools.clean("".join(pieces))
+            final = found.final(answer_text)
+            if final:  # 回答最後自己列的那份「Sources:」：底下已經有來源了，拿掉（先算完引用了哪些再拿）
+                answer_text = webtools.strip_source_list(answer_text)
+            if final or len(found):
+                send({"sources": final})  # 換掉寫的時候一個個加進來的那幾個：最後的清單（引用的照文中順序）
+            msg = chat_store.append(ws, tid, user, answer_text, m["id"], model, meter.snapshot(), sources=final)
             # 整則花了多久、寫得多快（慢是等第一個字、還是寫得慢，看這一行就知道）
             total, snap = time.time() - t0, meter.snapshot() or {}
             log.info("問 AI 寫完 %.1f 秒（首字 %.1f 秒，%d 字，輸出 %s token，每秒約 %.0f；輸入 %s、快取 %s；%s%s）", total, first, len("".join(pieces)),  # i18n-ok 終端機記錄
                      snap.get("output", "?"), (snap.get("output") or 0) / max(0.1, total - first), snap.get("input", "?"), snap.get("cached", "?"),
-                     model, "，Fast" if (ecfg.get(ecfg.get("engine")) or {}).get("service_tier") == "fast" else "")  # i18n-ok
-            send({"done": True, "id": msg["id"], "usage": msg.get("usage")})
+                     model, ("，Fast" if (ecfg.get(ecfg.get("engine")) or {}).get("service_tier") == "fast" else "") + ("，上網查了 %d 個網頁" % len(found) if found else ""))  # i18n-ok
+            send({"done": True, "id": msg["id"], "usage": msg.get("usage"), **({"text": answer_text} if answer_text != "".join(pieces) else {})})  # 存的和寫出來的不一樣（拿掉了引用記號、來源清單）：頁面換成存的
             # 還沒讀過整份（舊論文、另一台匯入的）：答完這一問才在背景讀，下一問起就帶著全文筆記。
             # 以前是一收到問題就開始讀——兩件事同時搶同一個帳號，這一問的第一個字被拖慢（實測 30 秒以上）
             preread.auto(ws)
@@ -662,7 +681,7 @@ class Handler(BaseHTTPRequestHandler):
                 sub, tid = parts[5], body.get("thread", "")
                 if sub == "warm":  # 讀者打開面板、開始打字：先把模型行程拉起來（claude_live / codex_live），不連網、不花額度
                     ecfg, _ = chat_models.engine_cfg(config.load(), body.get("model"))
-                    chat.warm(ecfg, ws.root)
+                    chat.warm(ecfg, ws.root, web=(bool(body["web"]) if "web" in body else webtools.enabled_default()) and webtools.supported(ecfg))
                     return self._json(200, {"ok": True})
                 if sub == "pin":
                     chat_store.pin(ws, tid, body.get("id", ""))

@@ -23,7 +23,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import engines, usage
+from . import engines, usage, webtools
 from .i18n import tr
 from .log import log
 
@@ -66,25 +66,42 @@ def content(text: str, images=None) -> list[dict]:
     return blocks + [{"type": "text", "text": text}]
 
 
-def key_of(c: dict, cwd: Path, tools: str | None, system_prompt: str | None) -> tuple:
+def key_of(c: dict, cwd: Path, tools: str | None, system_prompt: str | None, read_dirs=None) -> tuple:
     return (c.get("command") or "claude", c.get("model") or "", c.get("reasoning_effort") or "", tuple(c.get("extra_args") or []),
-            tools, system_prompt or "", str(cwd))
+            tools, system_prompt or "", str(cwd), tuple(read_dirs or ()))
+
+
+WEB_TOOLS = "Read,WebSearch,WebFetch"
+
+
+def allow_rules(tools: str, read_dirs=None) -> list[str]:
+    """--allowedTools 的規則。read_dirs 給了：Read 只准讀這幾個資料夾（Read(//絕對路徑/**)），外面的一律被擋——
+    只寫「Read」的話 Claude Code 讀得到整台電腦（實測讀得到 ~/.zshrc），開了上網就可能被文件或網頁裡的指示騙去讀檔案再送出去。
+    每條規則一個參數（路徑裡有空白、中文都沒問題）。"""
+    out: list[str] = []
+    for t in [x.strip() for x in (tools or "").split(",") if x.strip()]:
+        if t == "Read" and read_dirs:
+            for d in read_dirs:
+                out.append("Read(/" + str(Path(d).resolve()).rstrip("/") + "/**)")
+        else:
+            out.append(t)
+    return out
 
 
 class Session:
     """一個常駐的 claude -p 行程。turn() 送一則訊息、逐字吐回答；同一個 Session 可以多輪（Claude Code 記著對話）。"""
 
-    def __init__(self, c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | None = None):
+    def __init__(self, c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | None = None, read_dirs=None):
         exe = engines.claude_path(c)
         if not exe:
             raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))
-        self.key = key_of(c, cwd, tools, system_prompt)
+        self.key = key_of(c, cwd, tools, system_prompt, read_dirs)
         args = [exe, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                 "--include-partial-messages", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
         if tools is not None:  # 只給用得到的工具：其餘內建工具的定義每問一次都要發（約 2.7 萬 token）
             args += ["--tools", tools]
             if tools:
-                args += ["--allowedTools", tools]
+                args += ["--allowedTools", *allow_rules(tools, read_dirs)]
         if c.get("model"):
             args += ["--model", c["model"]]
         if c.get("reasoning_effort"):
@@ -131,8 +148,9 @@ class Session:
             return ""
 
     def turn(self, blocks: list[dict], cancel: threading.Event | None = None, on_model=None, meter: usage.Meter | None = None,
-             timeout: float | None = None) -> Iterator[str]:
-        """送一則訊息，逐段吐出回答文字。取消就把行程殺掉（這一輪作廢，下次重新啟動）。"""
+             timeout: float | None = None, on_status=None, on_source=None) -> Iterator[str]:
+        """送一則訊息，逐段吐出回答文字。取消就把行程殺掉（這一輪作廢，下次重新啟動）。
+        on_status(dict)：上網查的動作（搜尋什麼、打開哪一頁）；on_source(url, title, domain)：查到、打開的網頁。"""
         self.busy = True
         self.last_used = time.time()
         deadline = time.time() + timeout if timeout else None
@@ -179,6 +197,8 @@ class Session:
                         yield d["text"]
                 elif t == "rate_limit_event":
                     rate = ev
+                elif t in ("assistant", "user"):
+                    web_events(ev, on_status, on_source)
                 elif t == "result":
                     if meter is not None:
                         meter.add(**usage.from_claude(ev, rate))
@@ -193,6 +213,21 @@ class Session:
         finally:
             self.busy = False
             self.last_used = time.time()
+
+
+def web_events(ev: dict, on_status=None, on_source=None) -> None:
+    """assistant 訊息裡的 tool_use（WebSearch／WebFetch）→ 狀態；user 訊息帶的 tool_use_result → 查到的網頁。一次性呼叫也用。"""
+    try:
+        if ev.get("type") == "assistant" and on_status:
+            for b in (ev.get("message") or {}).get("content") or []:
+                st = webtools.claude_tool_use(b)
+                if st:
+                    on_status(st)
+        elif ev.get("type") == "user" and on_source:
+            for f in webtools.claude_result(ev.get("tool_use_result")):
+                on_source(f["url"], f.get("title"), f.get("domain"), f.get("kind", "result"))
+    except Exception:  # noqa: BLE001 —— 只是給人看的，出錯不能影響回答
+        pass
 
 
 # ---------- 行程池 ----------
@@ -221,8 +256,8 @@ def _ensure_reaper():
         threading.Thread(target=_reaper, daemon=True).start()
 
 
-def _spawn(c: dict, cwd: Path, tools, system_prompt) -> Session:
-    s = Session(c, cwd, tools, system_prompt)
+def _spawn(c: dict, cwd: Path, tools, system_prompt, read_dirs=None) -> Session:
+    s = Session(c, cwd, tools, system_prompt, read_dirs)
     with _lock:
         if len(_sessions) >= MAX_SESSIONS:  # 太多了：先關最久沒用、沒在忙的
             idle = sorted((x for x in _sessions if not x.busy), key=lambda x: x.last_used)
@@ -234,11 +269,11 @@ def _spawn(c: dict, cwd: Path, tools, system_prompt) -> Session:
     return s
 
 
-def warm(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | None = None) -> None:
+def warm(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | None = None, read_dirs=None) -> None:
     """讀者打開面板、開始打字、選了字：先把行程拉起來（背景做，不等）。已經有一個備著就不再開。"""
     if not enabled():
         return
-    key = key_of(c, cwd, tools, system_prompt)
+    key = key_of(c, cwd, tools, system_prompt, read_dirs)
     with _lock:
         if key in _spawning or any(s.key == key and s.turns == 0 and not s.busy and s.alive() for s in _sessions):
             return
@@ -248,7 +283,7 @@ def warm(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | No
 
     def go():
         try:
-            _spawn(c, cwd, tools, system_prompt)
+            _spawn(c, cwd, tools, system_prompt, read_dirs)
         except Exception as e:  # noqa: BLE001 —— 預熱失敗不影響之後正常提問
             log.info("Claude Code 預先啟動失敗：%s", str(e)[-200:])
         finally:
@@ -258,9 +293,10 @@ def warm(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | No
 
 
 def acquire(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str | None = None, thread: str | None = None,
-            expect_turns: int | None = None) -> Session:
-    """拿一個行程來問：thread 給了就先找綁著這個對話、而且輪數對得上的（追問）；沒有就拿預熱好的，再沒有就現開一個。"""
-    key = key_of(c, cwd, tools, system_prompt)
+            expect_turns: int | None = None, read_dirs=None) -> Session:
+    """拿一個行程來問：thread 給了就先找綁著這個對話、而且輪數對得上的（追問）；沒有就拿預熱好的，再沒有就現開一個。
+    上網的開關換了（工具不一樣）就不是同一種行程，綁著的那個不能接著用。"""
+    key = key_of(c, cwd, tools, system_prompt, read_dirs)
     with _lock:
         if thread:
             for s in list(_sessions):
@@ -275,7 +311,7 @@ def acquire(c: dict, cwd: Path, tools: str | None = "Read", system_prompt: str |
             fresh.busy = True
             fresh.bound = thread
             return fresh
-    s = _spawn(c, cwd, tools, system_prompt)
+    s = _spawn(c, cwd, tools, system_prompt, read_dirs)
     s.busy = True
     s.bound = thread
     return s
@@ -299,6 +335,15 @@ def bound_turns(thread: str | None) -> int | None:
     with _lock:
         s = next((x for x in _sessions if x.bound == thread and x.alive() and not x.busy), None)
         return s.turns if s else None
+
+
+def bound_tools(thread: str | None) -> str | None:
+    """綁著這個對話的行程給了哪些工具（上網的開關換了，chat.bound_turns 就不讓它接著用）。"""
+    if not thread:
+        return None
+    with _lock:
+        s = next((x for x in _sessions if x.bound == thread and x.alive() and not x.busy), None)
+        return s.key[4] if s else None
 
 
 def close_all() -> None:

@@ -48,14 +48,18 @@ def new_id() -> str:
     return "t" + uuid4().hex
 
 
-def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None) -> dict:
-    """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。"""
+def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None,
+           sources: list[dict] | None = None) -> dict:
+    """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。
+    sources：這一題上網查到、打開過的網頁（webtools.Sources），存在回答上，頁面顯示在回答底下。"""
     stamp = now_iso()
     style = answer_styles.parse(user.get("answer_style"))
     msg = {"id": "m" + uuid4().hex, "role": "assistant", "content": answer, "at": stamp,
            "model": model_name, "anchor": user.get("anchor"), "note": user.get("note"), "answer_style": style}
     if used and used.get("calls"):
         msg["usage"] = used  # 这条回答的 token 用量（usage.Meter 的快照）
+    if sources:
+        msg["sources"] = [{k: str(x.get(k) or "")[:2000] for k in ("url", "title", "domain")} for x in sources[:12] if isinstance(x, dict) and x.get("url")]
 
     def apply(chat):
         _normalize(chat)

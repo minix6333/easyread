@@ -426,3 +426,27 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .nai-send:active { transform: scale(.92); }
 .nai-send.stop { background: var(--ink); color: var(--bg); }
 .np-page .nai { margin-top: auto; }
+
+/* ---------- 上網查資料（2.1.0-tw.12）：輸入框的地球、回答底下的來源、寫到一半又去查的那一行 ---------- */
+.ch-web { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink-3); transition: color var(--dur-fast), background var(--dur-fast); }
+.ch-web svg.i { width: 15px; height: 15px; }
+.ch-web.on { color: var(--accent); }
+.ch-web:disabled { opacity: .4; }
+@media (hover: hover) and (pointer: fine) { .ch-web:not(:disabled):hover { background: var(--surface-2); } }
+.cm-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 2px 29px; font: 12px/1.4 var(--ui); }
+.cm-sources .src-h { display: inline-flex; align-items: center; gap: 5px; margin-right: 2px; color: var(--ink-3); }
+.cm-sources .src-h svg.i { width: 13px; height: 13px; }
+.cm-sources .src { display: inline-flex; align-items: baseline; gap: 6px; max-width: 260px; padding: 4px 9px; border-radius: 8px; color: var(--ink-2); text-decoration: none;
+  background: var(--fill); transition: background var(--dur-fast), color var(--dur-fast); min-width: 0; }
+.cm-sources .src b { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.cm-sources .src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+@media (hover: hover) and (pointer: fine) { .cm-sources .src:hover { background: var(--fill-2); color: var(--ink); } }
+.cm-sources .src-more { display: contents; }
+.cm-sources .src-more > summary { list-style: none; cursor: pointer; padding: 4px 8px; border-radius: 8px; color: var(--ink-3); }
+.cm-sources .src-more > summary::-webkit-details-marker { display: none; }
+.cm-sources .src-more[open] > summary { display: none; }
+.cm-sources.live .src { animation: src-in .26s var(--spring) both; }  /* 只有還在寫的回答：一個個加進來時淡入；存著的回答重畫時不再動 */
+@keyframes src-in { from { opacity: 0; translate: 0 3px; } }
+.web-live { display: flex; align-items: center; gap: 8px; margin: 6px 0 0 29px; font: 12px var(--ui); color: var(--ink-3); }
+.web-live[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .cm-sources.live .src { animation: none; } }

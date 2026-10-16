@@ -37,6 +37,10 @@ async function reader(threads = [], options = {}) {
     nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {},
     esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
     throttle: fn => fn, debounce: fn => fn, usageChip: () => "", usagePop: () => "", toast() {},
+    // 上網查資料的開關（util.js）、來源清單（markup.js）、狀態的字：照真的那幾個的樣子
+    webState: true,
+    web: { on() { return PR.webState; }, set(v) { PR.webState = !!v; }, ok: m => !m || m.web !== false, body(m) { return { web: PR.webState && (!m || m.web !== false) }; } },
+    sourcesHtml: list => (list || []).map(x => '<a class="src" href="' + x.url + '">' + x.domain + "</a>").join(""), webStatusText: s => (s && s.kind === "search" ? "搜尋「" + s.query + "」" : ""),
   };
   if (options.markup) vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), {
     window: { PR }, katex: require("../easyread/web/vendor/katex/katex.min.js"),
@@ -332,3 +336,24 @@ test("a Codex model that has a Fast tier gets a speed switch in the model menu; 
   assert.equal(E.tierFor(st, sol, false), "default");
 });
 
+
+test("the globe switch sends web with each question, turns off with one click, and saved answers list their sources", async () => {
+  const r = await reader([{ id: "w", title: "W", messages: [{ id: "a", role: "assistant", content: "3.14 是 2025 年發佈的。", sources: [{ url: "https://python.org/x", title: "Python 3.14.0", domain: "python.org" }] }] }]);
+  assert.match(r.panel.innerHTML, /class="ch-web on" data-c="web"/, "on by default");
+  r.nodes.get("#chatInput").value = "Python 3.14 哪天發佈";
+  const first = r.click("send");
+  await settled();
+  assert.equal(r.requests[0].web, true);
+  r.finish();
+  await first;
+  await r.click("web");
+  assert.match(r.panel.innerHTML, /class="ch-web" data-c="web"/, "one click turns it off");
+  r.nodes.get("#chatInput").value = "不用查";
+  const second = r.click("send");
+  await settled();
+  assert.equal(r.requests[1].web, false);
+  r.finish();
+  await second;
+  await r.selectThread("w");
+  assert.ok(r.panel.innerHTML.includes('href="https://python.org/x"'), "a saved answer shows where it looked");
+});

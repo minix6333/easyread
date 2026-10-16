@@ -136,7 +136,7 @@
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify(Object.assign({ thread: a.thread, text, model: PR.chatModel ? PR.chatModel.id() : "" }, mode ? { mode } : {},
+        body: JSON.stringify(Object.assign({ thread: a.thread, text, model: PR.chatModel ? PR.chatModel.id() : "" }, PR.chatModel && PR.chatModel.web ? PR.chatModel.web() : PR.web.body(), mode ? { mode } : {},
           a.thread ? {} : { aside: { thread: a.parent.thread, msg: a.parent.msg, quote: a.quote } })),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);

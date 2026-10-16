@@ -1746,5 +1746,18 @@
  "在維基共享資源看原圖": "See the original on Wikimedia Commons",
  "換一張（{i}／{n}）": "Another picture ({i}/{n})",
  "維基共享資源": "Wikimedia Commons",
- "講到通用的概念時，回答可以附一張維基百科上的圖，圖下面會註明出處。找圖時會連到維基百科和維基共享資源（只送出要找的條目名和關鍵詞）；關掉就只用回答自己畫的圖。": "When an answer covers a general concept it can attach a picture from Wikipedia, with its source shown underneath. Finding the picture contacts Wikipedia and Wikimedia Commons (only the article name and keywords are sent); turn this off to use only figures the answer draws itself."
+ "講到通用的概念時，回答可以附一張維基百科上的圖，圖下面會註明出處。找圖時會連到維基百科和維基共享資源（只送出要找的條目名和關鍵詞）；關掉就只用回答自己畫的圖。": "When an answer covers a general concept it can attach a picture from Wikipedia, with its source shown underneath. Finding the picture contacts Wikipedia and Wikimedia Commons (only the article name and keywords are sent); turn this off to use only figures the answer draws itself.",
+ "詳細資訊": "Details",
+ "詳細資訊（i）": "Details (i)",
+ "選一篇看詳細資訊": "Select an item to see its details",
+ "{n} 秒": "{n}s",
+ "上網搜尋": "Searching the web",
+ "不上網查": "Don't search the web",
+ "參考了 {n} 個網頁": "Looked at {n} web pages",
+ "可以上網查資料（需要時才查）": "May search the web (only when needed)",
+ "在 {site} 裡找「{q}」": "Finding “{q}” on {site}",
+ "搜尋「{q}」": "Searching “{q}”",
+ "讀 {site}": "Reading {site}",
+ "這個模型不能上網查": "This model can't search the web",
+ "還有 {n} 個": "{n} more"
 }

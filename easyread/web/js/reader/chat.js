@@ -40,9 +40,10 @@
   function warm() {
     const id = st.model || st.def;
     if (!id || !PR.canChat()) return;
-    if (warmedAt[id] && Date.now() - warmedAt[id] < 60000) return;
-    warmedAt[id] = Date.now();
-    PR.api("/api/p/" + PR.pid + "/chat/warm", { method: "POST", body: { model: id } }).catch(() => {});
+    const key = id + (PR.web.on() ? "+web" : "");  // 上網的開關不一樣，備好的行程也不一樣（工具不同）
+    if (warmedAt[key] && Date.now() - warmedAt[key] < 60000) return;
+    warmedAt[key] = Date.now();
+    PR.api("/api/p/" + PR.pid + "/chat/warm", { method: "POST", body: Object.assign({ model: id }, PR.web.body(st.models.find((m) => m.id === id))) }).catch(() => {});
   }
   document.addEventListener("focusin", (e) => { if (e.target.id === "chatInput") warm(); });
 
@@ -140,6 +141,8 @@
       const n = Math.round((Date.now() - w.t0) / 1000), s = w.status || {};
       if (s.kind === "reconnect") return PR.t("連線斷了，重新連線中… {n} 秒", { n });
       if (s.kind === "busy") return PR.t("模型太擠，自動再問（第 {a}／{b} 次）… {n} 秒", { a: s.attempt || 1, b: s.of || 1, n });
+      const web = PR.webStatusText(s);
+      if (web) return web + " · " + PR.t("{n} 秒", { n });
       if (n < 4) return "";
       return s.kind === "thinking" ? PR.t("思考中… {n} 秒", { n }) : PR.t("已等 {n} 秒", { n });
     };
@@ -165,6 +168,7 @@
     load: () => load(),
     id: () => st.model || st.def || "",
     label: () => (st.models.length ? modelOf(st.model).label || "" : ""),
+    web: () => PR.web.body(st.models.length ? modelOf(st.model || st.def) : null),  // 這一問帶不帶「可以上網查」
     set(id) {
       if (st.streaming || !st.models.some((m) => m.id === id)) return;
       st.model = id; st.chatOptions = {};
@@ -287,6 +291,7 @@
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i>' + (live ? PR.waitStatus.html("chat") : "") + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
+      (live ? '<div class="web-live" hidden></div>' : "") + '<div class="src-slot">' + PR.sourcesHtml(m.sources, live ? { live: true } : null) + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + '</button><button data-c="tonote" title="' + PR.t("加進論文筆記的某個分類，或這一頁的筆記") + '">' + PR.icon("notebook", "sm") + PR.t("加入筆記") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
@@ -315,11 +320,15 @@
     const brief = st.answerStyle === "ste100";
     const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
       PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
+    // 上網查資料：一顆地球（開著是強調色）；模型不能上網時是灰的、說明為什麼
+    const webOk = PR.web.ok(m), webOn = webOk && PR.web.on();
+    const web = '<button class="ch-web' + (webOn ? " on" : "") + '" data-c="web"' + (st.streaming || !webOk ? " disabled" : "") + ' aria-pressed="' + webOn + '" title="' +
+      PR.esc(!webOk ? PR.t("這個模型不能上網查") : webOn ? PR.t("可以上網查資料（需要時才查）") : PR.t("不上網查")) + '">' + PR.icon("globe", "sm") + "</button>";
     const imgs = st.images.length || st.uploading ? '<div class="ch-imgs">' + st.images.map((src, i) => '<span class="ch-img"><img class="' + clipCls(src).trim() + '" src="' + PR.esc(clipUrl(src)) + '" alt=""><button data-c="unimg" data-i="' + i + '" title="' + PR.t("不附這張") + '">×</button></span>').join("") +
       (st.uploading ? '<span class="ch-img busy"><span class="spin"></span></span>' : "") + "</div>" : "";
     return '<div class="ch-compose"><div class="ch-chips">' + chips + "</div>" + imgs +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
-      '<div class="ch-bar"><button class="ch-attach" data-c="attach" title="' + PR.t("附圖片（也可以直接貼上）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("clip", "sm") + "</button>" +
+      '<div class="ch-bar"><button class="ch-attach" data-c="attach" title="' + PR.t("附圖片（也可以直接貼上）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("clip", "sm") + "</button>" + web +
       '<button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
@@ -376,6 +385,23 @@
     if (box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
   }
   const renderLiveSoon = PR.throttle(renderLive, 60);
+  /* 寫到一半又去上網查：回答最後一行說在查什麼（下一段字來了就收掉） */
+  function webLive(text) {
+    const el = PR.$("#chatList .cm.ai:last-child .web-live");
+    if (!el) return;
+    el.hidden = !text;
+    if (text) el.innerHTML = '<span class="spin"></span>' + PR.esc(text);
+  }
+  /* 查到的網頁：一個個加到回答底下（只加新的那一個，前面的不重畫、不再淡入一次） */
+  function paintSources(msg) {
+    const slot = st.streaming && st.streaming.msg === msg ? PR.$("#chatList .cm.ai:last-child .src-slot") : null;
+    if (!slot) return;
+    const box = slot.querySelector(".cm-sources"), last = msg.sources[msg.sources.length - 1];
+    if (!box || !last || !PR.sourceChip) { slot.innerHTML = PR.sourcesHtml(msg.sources, { live: true }); return; }
+    box.insertAdjacentHTML("beforeend", PR.sourceChip(last));
+    const h = box.querySelector(".src-h");
+    if (h) h.innerHTML = PR.icon("globe", "sm") + PR.t("參考了 {n} 個網頁", { n: msg.sources.length });
+  }
 
   /* ---------- 发送 ---------- */
   async function send(text, noteId, only, opts) {
@@ -409,7 +435,7 @@
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) }),
+        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, ...PR.web.body(modelOf(modelId)), ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -427,9 +453,11 @@
           if (ev.model) msg.model = ev.model;
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.stream === "live" && st.streaming) { st.streaming.live = true; renderLiveSoon(); }  // Codex 真的在逐字串流：不用提示「寫完才會一次顯示」
-          if (ev.status) PR.waitStatus.set("chat", ev.status);  // 還沒出字：重新連線、太擠自動再問、開始思考
-          if (ev.t) { if (!msg.content) PR.waitStatus.stop("chat"); msg.content += ev.t; renderLiveSoon(); }
-          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
+          if (ev.status) { PR.waitStatus.set("chat", ev.status); if (msg.content) webLive(PR.webStatusText(ev.status)); }  // 還沒出字：重新連線、太擠、思考、上網查；寫到一半又去查：最後一行說一聲
+          if (ev.source) { (msg.sources = msg.sources || []).push(ev.source); paintSources(msg); }
+          if (ev.sources) { msg.sources = ev.sources; const slot = PR.$("#chatList .cm.ai:last-child .src-slot"); if (slot && st.streaming && st.streaming.msg === msg) slot.innerHTML = PR.sourcesHtml(msg.sources); }  // 最後的清單：引用的照文中順序
+          if (ev.t) { if (!msg.content) PR.waitStatus.stop("chat"); webLive(""); msg.content += ev.t; renderLiveSoon(); }
+          if (ev.done) { msg.id = ev.id; if (typeof ev.text === "string") msg.content = ev.text; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
         }
       }
@@ -464,6 +492,13 @@
     if (c === "unsel") { st.sel = null; PR.chatLink && PR.chatLink.cleared(); return paintChips(); }
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
+    if (c === "web") {
+      if (st.streaming) return;
+      PR.web.set(!PR.web.on());
+      render();
+      warm();
+      return;
+    }
     if (c === "style") {
       if (st.streaming) return;
       st.answerStyle = st.answerStyle === "ste100" ? "standard" : "ste100";

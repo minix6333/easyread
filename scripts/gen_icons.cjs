@@ -19,6 +19,7 @@ const UI = {
   focus: "square-dashed", box: "square", eye: "eye", filter: "list-filter", undo2: "undo-2", restore: "archive-restore", inbox: "inbox",
   folderopen: "folder-open", folderplus: "folder-plus", notes: "notebook-text", doc: "file-text", insert: "between-horizontal-start", textsize: "a-large-small",
   emphasis: "baseline", caption: "subscript", check2: "circle-check", circle: "circle", history: "history", words: "whole-word", map: "map-pin",
+  globe: "globe", linkout: "external-link", websearch: "search-check",
 };
 
 const PICK = [

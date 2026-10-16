@@ -222,13 +222,17 @@ def _sleep(seconds: float, cancel) -> None:
 
 
 # ---------- 逐字输出（问 AI 用） ----------
-def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = None) -> Iterator[str]:
-    """images：讀者這次附的圖片（框選的區域、貼進來的圖）。附了圖就當這個模型能看圖，照樣送；不能看的接口會自己報錯。"""
+def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = None, web: bool = False, on_status=None,
+           on_source=None) -> Iterator[str]:
+    """images：讀者這次附的圖片（框選的區域、貼進來的圖）。附了圖就當這個模型能看圖，照樣送；不能看的接口會自己報錯。
+    web：可以上網查（只有 OpenAI 官方的 Responses 接口有，webtools.supported 判斷）；搜尋的動作、引用的網頁交給 on_status／on_source。"""
     if cancel.is_set():
         raise Cancelled()
     if images:
         o = {**o, "vision": True}
     body = _body(o, text, list(images or []), True, None if kind(o) == "responses" else 0.4)
+    if web and kind(o) == "responses":
+        body["tools"] = [{"type": "web_search"}]
     try:
         r = _open(o, body, True)
     except urllib.error.HTTPError as e:
@@ -238,7 +242,7 @@ def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = N
     with r:
         if cancel.is_set():
             raise Cancelled()
-        pieces = _responses_pieces(r, cancel, meter) if kind(o) == "responses" else _chat_pieces(r, cancel, meter)
+        pieces = _responses_pieces(r, cancel, meter, on_status, on_source) if kind(o) == "responses" else _chat_pieces(r, cancel, meter)
         yield from _strip_think(pieces)
 
 
@@ -312,11 +316,19 @@ def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
         raise EngineError(tr("接口连接提前结束，回答未完成，请重试。"))
 
 
-def _responses_pieces(r, cancel, meter=None) -> Iterator[str]:
+def _responses_pieces(r, cancel, meter=None, on_status=None, on_source=None) -> Iterator[str]:
+    from . import webtools
     for ev in _events(r, cancel):
         t = (ev or {}).get("type", "")
         if ev is None:
             return
+        if "web_search" in t or t == "response.output_item.done":
+            st, found = webtools.openai_event(ev)
+            if st and on_status:
+                on_status(st)
+            for f in found:
+                if on_source:
+                    on_source(f["url"], f.get("title"), f.get("domain"), f.get("kind", "result"))
         if t in ("response.completed", "response.incomplete", "response.failed"):
             res = ev.get("response") or {}
             _check_response_status({**res, "status": res.get("status") or t.split(".")[1]})

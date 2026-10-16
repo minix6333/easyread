@@ -22,7 +22,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import codex_lean, engines, usage
+from . import codex_lean, engines, usage, webtools
 from .i18n import tr
 from .log import log
 
@@ -121,7 +121,7 @@ class Client:
         exe = engines.codex_path(c)
         if not exe:
             raise Unavailable(tr("找不到 Codex 命令：{cmd}（先装好并登录 Codex CLI）", cmd=c.get("command") or "codex"))
-        args = [exe, "app-server", *codex_lean.args(), *list(c.get("extra_args") or [])]
+        args = [exe, "app-server", *codex_lean.args(tools=True), *list(c.get("extra_args") or [])]  # 工具給不給由每個對話的設定決定（thread_config）
         self.proc = engines._popen(args, Path(tempfile.gettempdir()))
         self.lock = threading.Lock()
         self.next_id = 1
@@ -203,8 +203,9 @@ class Client:
             self.replies.pop(rid, None)
 
     # ---- 對話 ----
-    def thread_start(self, cwd: Path, model: str, tier: str | None = None) -> str:
-        params: dict = {"cwd": str(cwd), "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True}
+    def thread_start(self, cwd: Path, model: str, tier: str | None = None, web: bool = False) -> str:
+        params: dict = {"cwd": str(cwd), "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True,
+                        "config": codex_lean.thread_config(web)}  # 不載入使用者的外掛、不能執行指令；web 才開上網搜尋
         if model:
             params["model"] = model
         if tier:
@@ -217,13 +218,17 @@ class Client:
         return tid
 
     def turn(self, tid: str, inputs: list[dict], effort: str, cancel: threading.Event | None, meter: usage.Meter | None,
-             timeout: float = 1200, tier: str | None = None, on_status=None) -> Iterator[str]:
+             timeout: float = 1200, tier: str | None = None, on_status=None, on_source=None) -> Iterator[str]:
         """送一輪、逐段吐文字；turn/completed 時記 token 和額度。取消就 turn/interrupt。
-        on_status(dict)：還沒出字時發生了什麼（{"kind": "reconnect"|"thinking", …}），頁面拿去顯示在等待的地方。"""
+        on_status(dict)：還沒出字時發生了什麼（{"kind": "reconnect"|"thinking", …}），頁面拿去顯示在等待的地方；
+        上網查的動作（{"kind": "search"|"open"|"find", …}）什麼時候發生都報。on_source(url, title, domain)：查到、打開的網頁。"""
         q = self.events.get(tid)
         if q is None:
             raise Unavailable(tr("Codex app-server 没有给出对话 id"))
         params: dict = {"threadId": tid, "input": inputs}
+        ids = codex_lean.plugin_ids()
+        if ids:
+            params["disabledPluginIds"] = ids  # 外掛一律不載入（只寫在 thread/start 的設定裡擋不住，要兩邊都寫）
         if effort:
             params["effort"] = effort
         if tier:
@@ -240,13 +245,18 @@ class Client:
         used = None
         got = False
 
-        def tell(**st):
-            if on_status and not got:
+        def tell(always=False, **st):
+            if on_status and (always or not got):
                 try:
                     on_status(st)
                 except Exception:  # noqa: BLE001 —— 狀態只是給人看的，送不出去不能影響回答
                     pass
         finished = False  # 這一輪在 Codex 那邊結束了沒有（完成或失敗）；沒結束就離開（按了停止、逾時）要叫它停，不然它會寫到完、額度照扣
+        searched = False  # 這一輪上網查過了沒有
+        # 模型動手之前常先說一句「我會去查…」（agentMessage 的 phase 是 commentary）：那是進度，不是回答——拿去當等待時的狀態，不接進回答裡
+        phases: dict[str, str] = {}
+        notes: dict[str, str] = {}
+        last_note = ""
         try:
             while True:
                 try:
@@ -266,13 +276,36 @@ class Client:
                     turn_id = (p.get("turn") or {}).get("id") or p.get("turnId")
                 elif m == "item/agentMessage/delta":
                     d = p.get("delta") or p.get("text") or ""
-                    if d:
+                    if d and phases.get(p.get("itemId") or "") == "commentary":
+                        notes[p.get("itemId")] = notes.get(p.get("itemId"), "") + d
+                    elif d:
                         got = True
                         yield d
+                elif m == "item/started" and (p.get("item") or {}).get("type") == "agentMessage":
+                    it = p.get("item") or {}
+                    if it.get("id"):
+                        phases[it["id"]] = it.get("phase") or ""
+                elif m == "item/completed" and (p.get("item") or {}).get("type") == "agentMessage" and (p.get("item") or {}).get("phase") == "commentary":
+                    it = p.get("item") or {}
+                    note = str(it.get("text") or notes.get(it.get("id") or "", "")).strip()
+                    if note:
+                        last_note = note
+                        tell(always=True, kind="note", text=note[:200])
                 elif m == "thread/tokenUsage/updated":
                     used = (p.get("tokenUsage") or {}).get("last")
                 elif m == "item/started" and (p.get("item") or {}).get("type") == "reasoning":
                     tell(kind="thinking")
+                elif m == "item/started" and (p.get("item") or {}).get("type") == "webSearch":
+                    if not searched:  # 第一次：「上網搜尋」；之後開始的那一下還不知道要查什麼，畫面留著上一個（搜尋「…」、讀某網站）
+                        tell(always=True, kind="search", query="")
+                    searched = True
+                elif m == "item/completed" and (p.get("item") or {}).get("type") == "webSearch":
+                    st, found = webtools.codex_item(p.get("item") or {})
+                    if st:
+                        tell(always=True, **st)
+                    for f in found:
+                        if on_source:
+                            on_source(f["url"], f.get("title"), f.get("domain"), f.get("kind", "result"))
                 elif m == "error":
                     err = p.get("error") or {}
                     msg = str((err.get("message") if isinstance(err, dict) else err) or p)[:600]
@@ -293,7 +326,7 @@ class Client:
                         msg = str((err.get("message") if isinstance(err, dict) else err) or tr("Codex 没有给出结果：{msg}", msg=""))[:600]
                         raise (Busy if not got and _is_busy(err or msg) else engines.EngineError)(msg)
                     if not got:
-                        final = turn.get("finalMessage") or p.get("finalMessage")
+                        final = turn.get("finalMessage") or p.get("finalMessage") or last_note  # 只說了進度就結束（很少）：至少把那句給讀者
                         if final:
                             yield str(final)
                     return
@@ -340,23 +373,24 @@ def warm(c: dict) -> None:
     threading.Thread(target=go, daemon=True).start()
 
 
-def bound_turns(ws_id: str, thread: str | None, model: str, cwd: Path) -> int | None:
-    """這個對話在 app-server 裡已經有幾輪（模型沒換、行程還活著）；沒有回 None。"""
+def bound_turns(ws_id: str, thread: str | None, model: str, cwd: Path, web: bool = False) -> int | None:
+    """這個對話在 app-server 裡已經有幾輪（模型沒換、上網的開關沒換、行程還活著）；沒有回 None。"""
     if not thread or not enabled():
         return None
     with _lock:
         t = _threads.get((ws_id, thread))
-        if not t or t["key"] != (model or "", str(cwd)) or not (_client and _client.alive()):
+        if not t or t["key"] != (model or "", str(cwd), bool(web)) or not (_client and _client.alive()):
             return None
         return t["turns"]
 
 
 def stream(c: dict, text: str, cwd: Path, cancel, meter=None, images=None, thread: str | None = None,
-           expect_turns: int | None = None, followup_text: str | None = None, on_live=None, on_status=None) -> Iterator[str]:
+           expect_turns: int | None = None, followup_text: str | None = None, on_live=None, on_status=None,
+           web: bool = False, on_source=None) -> Iterator[str]:
     """問一輪。thread 給了就接著同一個 app-server 對話（輪數對得上時只送 followup_text）。
     OpenAI 那邊太擠（滿載、429、重連用完）而且還沒出字：隔幾秒自動再問，最多 len(RETRY_WAITS) 次；on_status 會收到 {"kind": "busy", …}。"""
     model = c.get("model") or ""
-    key = (model, str(cwd))
+    key = (model, str(cwd), bool(web))  # 上網的開關換了：Codex 對話的工具不一樣，開新的
     ws_id = Path(cwd).name
     tier = tier_of(c)
     attempt = 0
@@ -368,7 +402,7 @@ def stream(c: dict, text: str, cwd: Path, cancel, meter=None, images=None, threa
                 t = None
         use_follow = bool(t) and bool(followup_text)
         if not t:
-            tid = cli.thread_start(Path(cwd), model, tier)
+            tid = cli.thread_start(Path(cwd), model, tier, web)
             t = {"id": tid, "turns": 0, "key": key}
             if thread:
                 with _lock:
@@ -378,7 +412,7 @@ def stream(c: dict, text: str, cwd: Path, cancel, meter=None, images=None, threa
         ok = False
         try:
             for piece in cli.turn(t["id"], items(followup_text if use_follow else text, images), c.get("reasoning_effort") or "", cancel, meter,
-                                  int(c.get("timeout") or 1200), tier, on_status):
+                                  int(c.get("timeout") or 1200), tier, on_status, on_source):
                 yield piece
             t["turns"] += 1
             ok = True

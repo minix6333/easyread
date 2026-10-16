@@ -179,8 +179,22 @@
     const last = fences[fences.length - 1];
     return /^(viz|flow|flowchart|mermaid|graph|pic|picture|image|img)$/i.test(last[1]) ? last.index : null;
   }
+  /* ChatGPT 系的模型偶爾留下自己的引用記號（私用區字元包起來的 cite…turn0search0）：頁面上看不懂，拿掉（後端存之前也會拿，見 webtools.clean） */
+  const CITE = new RegExp(String.fromCharCode(0xe200) + "[^" + String.fromCharCode(0xe201) + "]{0,200}" + String.fromCharCode(0xe201) + "|\u3010\\d+\u2020[^\u3011]{0,80}\u3011", "g");
+  /* 上網查到的網頁（回答底下一排）：網域＋標題，點了用系統瀏覽器開（桌面版的 setWindowOpenHandler）。不去拿網站的小圖示——不想每看一則回答就連到那些網站。
+     多的收在「還有 n 個」裡；live：還在寫的回答（一個個加進來，不收） */
+  PR.sourceChip = (x) => '<a class="src" href="' + PR.esc(x.url) + '" target="_blank" rel="noopener" title="' + PR.esc((x.title && x.title !== x.domain ? x.title + "\n" : "") + x.url) + '">' +
+    "<b>" + PR.esc(x.domain || "") + "</b>" + (x.title && x.title !== x.domain ? "<span>" + PR.esc(x.title) + "</span>" : "") + "</a>";
+  PR.sourcesHtml = function (list, opts) {
+    const items = (list || []).filter((x) => x && /^https?:\/\//.test(x.url || ""));
+    if (!items.length) return "";
+    const one = PR.sourceChip;
+    const SHOW = opts && opts.live ? 99 : 4;
+    return '<div class="cm-sources' + (opts && opts.live ? " live" : "") + '">' + '<span class="src-h">' + PR.icon("globe", "sm") + PR.t("參考了 {n} 個網頁", { n: items.length }) + "</span>" +
+      items.slice(0, SHOW).map(one).join("") + (items.length > SHOW ? '<details class="src-more"><summary>' + PR.t("還有 {n} 個", { n: items.length - SHOW }) + "</summary>" + items.slice(SHOW).map(one).join("") + "</details>" : "") + "</div>";
+  };
   PR.mdBlocks = function (text, opts) {
-    text = String(text || "").trim();
+    text = String(text || "").replace(CITE, "").trim();
     const cut = pendingFigure(text);
     if (cut != null) {
       // 佔位只在回答還在流的時候放（呼叫的地方傳 { live: true }）。已經結束的回答——畫到一半被停止、模型忘了收尾——

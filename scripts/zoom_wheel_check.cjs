@@ -60,8 +60,13 @@ app.whenReady().then(async () => {
   const fromCap = await zoom();
   check("最多 400%；在最大時往回轉一格馬上縮小（沒有卡著要先「還」回去）", cap === 4 && fromCap < 4, { cap, fromCap });
   check("函式：一格 100（Windows）→ ×1.1；一格三行（deltaMode 1）→ ×1.1；捏合的小事件 → 照比例", Math.abs(await js("PR.pinchFactor(-100, 0)") - 1.1) < 1e-9 && Math.abs(await js("PR.pinchFactor(-3, 1)") - 1.1) < 1e-9 && Math.abs(await js("PR.pinchFactor(-2, 0)") - Math.exp(0.024)) < 1e-9, {});
+  // 改回原本的縮放，等伺服器那份偏好真的存好（縮放是停 220 毫秒才存）再關
   await js("PR.setPdfZoom(" + JSON.stringify(before) + "); 1");
-  await sleep(600);
+  for (let i = 0; i < 30; i++) {
+    await sleep(200);
+    const saved = await js('fetch("/api/prefs").then(function (r) { return r.json(); }).then(function (p) { return ((p && p.reader) || {}).pdfZoom; })').catch(() => null);
+    if (saved === before) break;
+  }
   console.log(bad ? bad + " 項沒過" : "全部通過");
   win.destroy(); app.exit(bad ? 1 : 0);
 });
