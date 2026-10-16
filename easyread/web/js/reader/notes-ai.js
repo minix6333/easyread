@@ -8,6 +8,7 @@
   const st = { key: null, ed: null, range: null, streaming: null, draft: "" };
   const QUICK = () => [[PR.t("整理成條列"), PR.t("把這段整理成條列，每點一句，保留所有重點。")], [PR.t("補充說明"), PR.t("照文件的內容把這段補充完整：定義、原因、例子，標出頁碼。")],
     [PR.t("改短"), PR.t("把這段改短一半，只留關鍵。")], [PR.t("改成表格"), PR.t("把這段的內容整理成一個 Markdown 表格。")], [PR.t("查核"), PR.t("對照文件檢查這段有沒有和原文不符的地方，直接改正，並在改動處用粗體標出。")]];
+  const QICON = [PR.hasIcon && PR.hasIcon("bullets") ? "bullets" : "list", "plus", "type", PR.hasIcon && PR.hasIcon("table") ? "table" : "grid", "check"];  // 快速改寫的小圖示：條列、補充、改短、表格、查核
   const panel = () => PR.$("#notespanel");
   const on = () => !!(PR.noteHelpOn && PR.noteHelpOn());
 
@@ -16,7 +17,7 @@
     bar(key) {
       if (!on()) return "";
       const busy = !!st.streaming;
-      return '<div class="nai" data-nai-key="' + key + '"><div class="nai-quick">' + QUICK().map(([l, q], i) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.esc(l) + "</button>").join("") + "</div>" +
+      return '<div class="nai" data-nai-key="' + key + '"><div class="nai-quick">' + QUICK().map(([l, q], i) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(QICON[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
         '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
         '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
         (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";

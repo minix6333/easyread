@@ -278,7 +278,9 @@
     const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + (t.aside ? " sub" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
       '<div class="tm">' + PR.t("{n} 问", { n: Math.round((t.messages || []).length / 2) }) + " · " + PR.esc(when(t.updated)) + "</div>" +
       '<button class="tx" data-c="rename" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("改名")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("edit", "sm") + '</button><button class="tx" data-c="del" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("删除")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("trash", "sm") + "</button></div>").join("");
-    return '<div class="ch-list"><button class="ch-thread newt" data-c="new">' + PR.icon("plus", "sm") + PR.t("新对话") + "</button>" + (rows || '<div class="hint" style="padding:10px 12px">' + PR.t("还没有对话。") + "</div>") + "</div>";
+    // 對話多了（超過六串）：最上面一格搜尋，打字就只留標題對得上的（不重畫，只藏起來）
+    const find = st.threads.length > 6 ? '<label class="ch-find">' + PR.icon("search", "sm") + '<input type="search" data-c="find" placeholder="' + PR.t("找對話") + '" autocomplete="off"></label>' : "";
+    return '<div class="ch-list"><button class="ch-thread newt" data-c="new">' + PR.icon("plus", "sm") + PR.t("新对话") + "</button>" + find + (rows || '<div class="hint" style="padding:10px 12px">' + PR.t("还没有对话。") + "</div>") + "</div>";
   }
   function msgHtml(m) {
     if (m.role === "user") {
@@ -334,6 +336,12 @@
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
   }
+  /* 對話很長、往上捲去看前面時：輸入框上方出現一顆「↓」，點了回到最新的地方（寫到一半的回答也是） */
+  function syncJump() {
+    const el = panel(), box = PR.$("#chatList"), j = el && el.querySelector(".ch-jump");
+    if (!box || !j) return;
+    j.classList.toggle("on", box.scrollHeight - box.scrollTop - box.clientHeight > 240);
+  }
   function render() {
     const el = panel();
     if (!el) return;
@@ -343,6 +351,10 @@
     const msgs = t ? t.messages || [] : [];
     el.innerHTML = headHtml() + '<div class="ch-scroll" id="chatList">' + (msgs.length ? msgs.map(msgHtml).join("") : st.loaded ? emptyHtml() : '<p class="hint" style="padding:20px">' + PR.t("加载中…") + "</p>") + "</div>" + composerHtml();
     const box = PR.$("#chatList");
+    if (box && box.insertAdjacentHTML) {
+      box.insertAdjacentHTML("afterend", '<button class="ch-jump" data-c="jump" title="' + PR.t("回到最新") + '">' + PR.icon("arrowUp", "sm") + "</button>");
+      if (box.addEventListener) box.addEventListener("scroll", syncJump, { passive: true });
+    }
     // 剛送出的那一問、和接著要寫的回答：從底下浮上來（只有新加的這兩則；整串重畫時其他的不動）
     if (st.fresh && box.querySelectorAll) Array.from(box.querySelectorAll(":scope > .cm")).slice(-st.fresh).forEach((m) => m.classList.add("cm-new"));
     st.fresh = 0;
@@ -494,7 +506,9 @@
     if (c === "popout") return PR.chatPopout && PR.chatPopout();
     if (c === "dock") return PR.chatDock && PR.chatDock();
     if (c === "unsel") { st.sel = null; PR.chatLink && PR.chatLink.cleared(); return paintChips(); }
-    if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
+    if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; render(); if (st.listOpen) { const f = PR.$("#chatpanel .ch-find input"); if (f) f.focus(); } return; }
+    if (c === "jump") { const box = PR.$("#chatList"); if (box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); return; }
+    if (c === "find") return;
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "web") {
       if (st.streaming) return;
@@ -584,7 +598,13 @@
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(e.target.value); }
     if (e.key === "Escape") e.target.blur();
   });
-  document.addEventListener("input", (e) => { if (e.target.id === "chatInput") PR.autosize(e.target); });
+  document.addEventListener("input", (e) => {
+    if (e.target.id === "chatInput") PR.autosize(e.target);
+    if (e.target.dataset && e.target.dataset.c === "find") {  // 找對話：只藏起來，不重畫（輸入框才不會失焦）
+      const q = e.target.value.trim().toLowerCase();
+      PR.$$("#chatpanel .ch-thread[data-t]").forEach((r) => { r.hidden = !!q && !r.textContent.toLowerCase().includes(q); });
+    }
+  });
   /* 貼上圖片（截圖、從別處複製的圖）：變成附圖，不是貼成一堆字 */
   document.addEventListener("paste", (e) => {
     if (!e.target || e.target.id !== "chatInput" || !PR.canChat()) return;

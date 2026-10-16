@@ -1230,3 +1230,33 @@ body.rd-loading::after { content: ""; position: fixed; left: 50%; top: 46%; z-in
 .card .reply.err { background: color-mix(in srgb, var(--danger) 7%, var(--fill)); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--danger) 20%, transparent); }
 /* 頁邊（PDF 旁）的小卡片：左邊一道細細的顏色，一眼看出是哪個顏色畫的（那一欄不顯示原話） */
 .pv-margin .card.mine::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 0 3px 3px 0; background: var(--nc); opacity: .9; }
+
+/* ---- 問 AI 面板 ---- */
+/* 自己問的：一個淡淡的強調色泡泡（以前是整塊黑的，在淺色主題裡很重） */
+.cm.user .bubble, :root[data-theme="dark"] .cm.user .bubble { background: color-mix(in srgb, var(--accent) 13%, var(--note-bg)); color: var(--ink); border-radius: 17px 17px 5px 17px; padding: 9px 14px; box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--accent) 20%, transparent); }
+.cm.user .bubble a, .cm.user .bubble code { color: inherit; }
+/* 找對話 */
+.ch-find { display: flex; align-items: center; gap: 7px; height: 32px; margin: 4px 4px 6px; padding: 0 10px; border-radius: 9px; background: var(--fill); color: var(--ink-3); }
+.ch-find input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--ink); font: 13px var(--ui); }
+.ch-find input::-webkit-search-cancel-button { display: none; }
+.ch-thread[hidden] { display: none; }
+/* 回到最新：輸入框上方正中間一顆小圓鈕，往上捲了才出現（面板本身是 position: fixed，就是它的定位框；別在這裡把面板改成 relative） */
+.ch-jump { position: absolute; left: 50%; bottom: 150px; z-index: 4; width: 34px; height: 34px; margin-left: -17px; border-radius: 50%; display: grid; place-items: center; color: var(--ink);
+  background: var(--ctl-bg, var(--surface)); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); box-shadow: inset 0 0 0 .5px var(--ctl-line, var(--line)), 0 8px 20px -10px rgba(0, 0, 0, .4);
+  opacity: 0; scale: .85; pointer-events: none; transition: opacity .16s ease-out, scale .2s cubic-bezier(.23, 1, .32, 1); }
+.ch-jump svg.i { rotate: 180deg; width: 16px; height: 16px; }
+.ch-jump.on { opacity: 1; scale: 1; pointer-events: auto; }
+.ch-jump:active { scale: .92; }
+/* 筆記 AI 的快速改寫（閱讀頁筆記面板、筆記頁）：小圖示＋字 */
+.nai-quick button { display: inline-flex; align-items: center; gap: 5px; padding: 0 11px 0 9px; }
+.nai-quick button svg.i { width: 13px; height: 13px; color: var(--accent); }
+/* 段落操作條（文章優先時點一段）：和選字工具列同一個樣子 */
+#blockbar { gap: 2px; padding: 5px; border-radius: 15px; }
+#blockbar button { height: 30px; padding: 0 10px 0 8px; border-radius: 9px; color: var(--ink-2); font: 500 12.5px var(--ui); }
+#blockbar button svg.i { width: 15px; height: 15px; color: var(--ink-2); }
+@media (hover: hover) and (pointer: fine) { #blockbar button:hover { background: var(--row-hover, var(--fill)); color: var(--ink); } #blockbar button:hover svg.i { color: var(--ink); } }
+#blockbar button:active { transform: scale(.95); }
+#blockbar button[data-i="more"] { width: 30px; padding: 0; justify-content: center; }
+/* 第一次畫出來的那一刻（程式還沒跑完，reader.html 的 <body class="rd-loading">）：頂欄的鈕還沒有圖示，先不露出來，和內容一起淡進來 */
+body.rd-loading #bar, body.rd-loading .pv-ai { opacity: 0; }
+#bar { transition: opacity .2s ease-out; }
