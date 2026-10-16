@@ -285,7 +285,7 @@ class Workspace:
         return self.reader_path if name == "reader" else self.root / f"{name}.json"
 
     def load(self, name: str):
-        defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}}
+        defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}, "cards": {"cards": []}}
         return read_json(self.part_path(name), defaults.get(name))
 
     def versions(self) -> dict:

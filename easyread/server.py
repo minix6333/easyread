@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, matrix, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cards, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, matrix, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -434,6 +434,11 @@ class Handler(BaseHTTPRequestHandler):
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg), "auto_translate": bool(cfg.get("auto_translate")),
                                     "first_run": config.is_first_run(), "version": VERSION, "trash": len(trash.items(lib.root))})
+        if path == "/api/cards":  # 整個文獻庫的複習卡：每份幾張、幾張到期（cards.py）
+            return self._json(200, cards.overview(lib))
+        if path == "/api/cards/queue":  # 現在要複習的卡（到期的），ids=只看那幾份
+            ids = [x for x in (parse_qs(url.query).get("ids", [""])[0]).split(",") if x]
+            return self._json(200, {"cards": cards.queue(lib, set(ids) or None)})
         if path == "/api/search":  # 全文搜尋：文件的內文、文件上自己寫的筆記、獨立筆記（search.py；外殼的 ⌘K 用）
             qs = parse_qs(url.query)
             try:
@@ -498,6 +503,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "brief":  # AI 讀過這份了沒（預讀的狀態、補充資料清單；preread.py）
                 return self._json(200, preread.status(ws))
+            if action == "cards":  # 複習卡（cards.py）
+                return self._json(200, {"cards": cards.items(ws)})
             if action == "links":  # PDF 自己帶的連結：引用、圖表、公式的跳轉和外部網址（peek.py），閱讀頁的預覽用
                 if app.location.status == "idle":
                     derive.extract(ws.root)
@@ -706,6 +713,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif sub == "delete":
                     chat_store.delete(ws, tid)
                 return self._json(200, {"threads": chat_store.threads(ws)})
+            if action == "cards" and len(parts) > 5 and parts[5] == "draft":  # 請 AI 出卡（回給讀者挑，不存）
+                return self._json(200, {"cards": cards.draft(self, ws, body)})
+            if action == "cards":  # 加卡、改卡、刪卡、記下這次複習（排程在前端算）
+                return self._json(200, {"cards": cards.change(ws, body)})
             if action == "chat":
                 return self._chat(ws, body)
             if action == "notehelp":

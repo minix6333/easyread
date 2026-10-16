@@ -503,6 +503,7 @@
       text ? { label: PR.t("複製文字"), icon: "copy", fn: () => navigator.clipboard.writeText(text).then(() => PR.toast(PR.t("已复制"), null, 1200)) } : null,
       n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "help", fn: () => { PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,
       PR.noteRefMenu ? { label: PR.t("加進總結…"), icon: "notebook", fn: () => setTimeout(() => PR.noteRefMenu(at, nid), 0) } : null,
+      PR.cardsFromNote && PR.canChat && PR.canChat() ? { label: PR.t("做成複習卡"), icon: "l-brain", fn: () => PR.cardsFromNote(n) } : null,
       PR.linkFrom ? { label: PR.t("建立關聯"), icon: "link", fn: () => PR.linkFrom(nid) } : null,
       "-",
       { label: PR.t("删除"), icon: "trash", danger: true, fn: () => deleteNote(n, inSticky) },

@@ -312,7 +312,9 @@
     const sug = [PR.t("这段在说什么？用大白话讲一遍"), PR.t("这个公式每一项是什么意思？怎么推出来的？"), PR.t("这里的结论靠得住吗？有什么前提？")];
     if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
     const ICONS = ["bulb", "question", "list", "sparkle", "book"];
-    const overview = PR.canChat() ? '<button data-c="overview" class="ov"><span class="ic">' + PR.icon("book", "sm") + '</span><span class="tx">' + PR.esc(PR.t("整份在講什麼？各部分的主題、要懂的觀念、先備知識和數學——上課前先看")) + "</span></button>" : "";
+    const overview = PR.canChat() ? '<button data-c="overview" class="ov"><span class="ic">' + PR.icon("book", "sm") + '</span><span class="tx">' + PR.esc(PR.t("整份在講什麼？各部分的主題、要懂的觀念、先備知識和數學——上課前先看")) + "</span></button>" +
+      // 考我：AI 一題一題出、讀者答完批改（chat.py 的 MODES.quiz）
+      '<button data-c="quiz"><span class="ic">' + PR.icon("l-brain", "sm") + '</span><span class="tx">' + PR.esc(PR.t("考考我：一題一題問我，答完幫我批改")) + "</span></button>" : "";
     return '<div class="ch-empty"><h3>' + PR.t("理解、質疑、延伸這份文件") + "</h3>" +
       '<div class="chips">' + overview + sug.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(ICONS[i % ICONS.length], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
   }
@@ -562,6 +564,7 @@
     if (c === "send") return send(PR.$("#chatInput").value);
     if (c === "stop" && st.streaming) return st.streaming.ctrl.abort();
     if (c === "suggest") return send(b.textContent);
+    if (c === "quiz") { if (st.streaming) return; return send(PR.t("考考我：一題一題問我，答完幫我批改"), null, null, { mode: "quiz" }); }
     if (c === "overview") { if (st.streaming) return; return send(PR.t("整份在講什麼？每個部分的主題、要懂的觀念、需要的先備知識和數學。"), null, null, { mode: "overview" }); }
     if (c === "unref") { st.refs.splice(+b.dataset.i, 1); return render(); }
     if (c === "noauto") { st.noAuto = true; return render(); }

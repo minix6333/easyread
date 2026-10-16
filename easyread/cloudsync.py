@@ -375,6 +375,7 @@ def merge_paper(src: Path, dst: Path) -> None:
                     shutil.copy2(f, dst / name / f.name)
     _merge_list(src / "chat.json", dst / "chat.json", "threads")
     _merge_list(src / "discussion.json", dst / "discussion.json", "entries")
+    _merge_list(src / "cards.json", dst / "cards.json", "cards")  # 複習卡（cards.py）
 
 
 def absorb(current: Path, stray: Path) -> dict:

@@ -1447,3 +1447,76 @@ table.mx td.none .mx-t { color: var(--ink-3); }
 .mx-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px 20px; font: 12.5px var(--ui); color: var(--ink-3); }
 .mx-foot .mx-state { display: inline-flex; align-items: center; gap: 8px; }
 .mx-foot .btn svg.i { width: 14px; height: 14px; margin-right: 4px; }
+
+/* ---------- 複習卡（reader/cards.js）：筆記面板的「複習卡」分頁 ---------- */
+.np-cards { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 16px; overflow-y: auto; min-height: 0; flex: 1; }
+.np-cards .cd-tools { display: flex; align-items: center; gap: 6px; }
+.np-cards .cd-tools .grow, .np-cards .grow { flex: 1; }
+.np-cards .cd-tools .btn.accent svg.i { width: 14px; height: 14px; margin-right: 5px; }
+.np-cards .cd-none { font: 12px var(--ui); color: var(--ink-3); }
+.cd-card, .cd-drafts, .cd-form { border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+.cd-card { padding: 10px 12px 6px; }
+.cd-card.due { box-shadow: 0 0 0 .5px var(--line), inset 3px 0 0 var(--accent); }
+.cd-q { font: 600 13.5px/1.5 var(--ui); color: var(--ink); }
+.cd-a { margin-top: 4px; font: 13px/1.55 var(--ui); color: var(--ink-2); }
+.cd-q p, .cd-a p { margin: 0; }
+.cd-card .cd-a { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cd-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 26px; }
+.cd-pg { padding: 0 6px; border-radius: 6px; font: 500 11px/1.8 var(--ui); color: var(--accent); background: var(--accent-soft); }
+.cd-when, .cd-meta { font: 11.5px var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cd-card.due .cd-when { color: var(--accent); }
+.cd-ib { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-fast); }
+.cd-card:hover .cd-ib, .cd-ib:focus-visible { opacity: 1; }
+.cd-ib:hover { background: var(--fill); color: var(--ink); }
+@media (hover: none) { .cd-ib { opacity: 1; } }
+.cd-drafts { padding: 8px 10px; }
+.cd-dh { display: flex; align-items: center; gap: 8px; padding: 2px 2px 6px; font: 12.5px var(--ui); color: var(--ink-2); }
+.cd-dh svg.i { color: var(--accent); }
+.cd-dh b { font-weight: 600; }
+.cd-draft { display: flex; gap: 9px; padding: 8px 4px; border-top: .5px solid var(--line); cursor: pointer; }
+.cd-draft input { margin-top: 3px; accent-color: var(--accent); flex: none; }
+.cd-qa { display: flex; flex-direction: column; min-width: 0; }
+.cd-df, .cd-ff { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
+.cd-form { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.cd-form textarea { width: 100%; box-sizing: border-box; resize: none; border: 0; border-radius: 8px; padding: 7px 9px; font: 13px/1.5 var(--ui); color: var(--ink); background: var(--fill); outline: 0; }
+.cd-form textarea[data-cdq] { font-weight: 600; }
+.cd-form textarea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.cd-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 20px; text-align: center; color: var(--ink-3); font: 12.5px/1.6 var(--ui); }
+.cd-empty svg.i { width: 22px; height: 22px; color: var(--ink-3); }
+.cd-empty p { margin: 0; max-width: 240px; }
+.side-review .n.due { color: var(--accent); font-weight: 600; }
+
+/* ---------- 複習一輪（common/review.js） ---------- */
+.rv-wrap { position: fixed; inset: 0; z-index: 96; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, .3); }
+:root[data-theme="dark"] .rv-wrap { background: rgba(0, 0, 0, .5); }
+.rv-wrap.open { display: flex; }
+.rv-card { display: flex; flex-direction: column; width: min(620px, 100%); max-height: min(680px, 100%); border-radius: 20px; background: var(--surface); box-shadow: 0 0 0 .5px var(--line), 0 24px 70px rgba(0, 0, 0, .3); overflow: hidden; }
+.rv-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 4px 20px; font: 12px var(--ui); color: var(--ink-3); }
+.rv-head .grow { flex: 1; }
+.rv-n { font-variant-numeric: tabular-nums; }
+.rv-doc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.rv-x { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; color: var(--ink-3); }
+.rv-x:hover { background: var(--fill); color: var(--ink); }
+.rv-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 28px 22px; }
+.rv-q { font: 600 19px/1.55 var(--ui); color: var(--ink); }
+.rv-q p, .rv-a p { margin: 0 0 .5em; }
+.rv-a { margin-top: 18px; padding-top: 16px; border-top: .5px solid var(--line); font: 15.5px/1.7 var(--ui); color: var(--ink); animation: rvA .16s ease-out; }
+@keyframes rvA { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rv-a { animation: none; } }
+.rv-src { display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; padding: 7px 10px; border-radius: 10px; text-align: left; font: 12.5px/1.5 var(--ui); color: var(--ink-3); background: var(--fill); }
+.rv-src:hover { color: var(--ink-2); }
+.rv-src svg.i { flex: none; margin-top: 2px; color: var(--accent); }
+.rv-foot { display: flex; gap: 8px; padding: 12px 16px 16px; justify-content: center; }
+.rv-show { min-width: 200px; height: 40px; border-radius: 12px; font-size: 14px; }
+.rv-foot kbd { margin-left: 8px; padding: 1px 6px; border-radius: 5px; font: 11px var(--ui); background: rgba(255, 255, 255, .18); }
+.rv-g { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px 7px; border-radius: 12px; background: var(--fill); color: var(--ink); }
+.rv-g b { font: 600 13.5px var(--ui); }
+.rv-g small { font: 11.5px var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.rv-g kbd { margin: 2px 0 0; background: var(--fill); color: var(--ink-3); }
+.rv-g:hover, .rv-g:focus-visible { background: var(--fill-2, var(--accent-soft)); }
+.rv-g.g1 b { color: var(--danger); }
+.rv-g.g3 { box-shadow: inset 0 0 0 1.5px var(--accent-soft-2); }
+.rv-end { align-items: center; gap: 8px; padding: 36px 28px 28px; text-align: center; font: 13px/1.6 var(--ui); color: var(--ink-3); }
+.rv-end b { font: 600 17px var(--ui); color: var(--ink); }
+.rv-end p { margin: 0 0 10px; }
+.rv-end .rv-ic { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--accent); background: var(--accent-soft); }

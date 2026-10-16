@@ -8,7 +8,7 @@
   "use strict";
   const S = PR.state;
   let tab = PR.ls.get("easyread-np-tab", "page");
-  if (!["page", "notes", "paper"].includes(tab)) tab = "page";
+  if (!["page", "notes", "paper", "cards"].includes(tab)) tab = "page";
   let filter = "all", color = "", query = "";
   let sortBy = PR.ls.get("easyread-np-sort", "page") === "recent" ? "recent" : "page";  // 全部分頁的排法：照頁（預設）／照時間
   const folded = new Set();  // 收起來的頁（只記在這次開著的期間）
@@ -25,6 +25,7 @@
   const canAsk = () => !!(PR.canChat && PR.canChat() && PR.feature("chat"));
 
   PR.notesPanelOpen = () => PR.side === "notes";
+  PR.notesTab = () => tab;
   PR.toggleNotesPanel = function (force, which) {
     const open = force != null ? force : PR.side !== "notes";
     if (which) { tab = which; PR.ls.set("easyread-np-tab", tab); }
@@ -194,14 +195,16 @@
     if (tab === "page" && !detached) panelPage = Math.max(1, Math.min(pageCount() || 1, curPage()));
     const count = allItems().length;
     // 本頁／全部／總結：三顆圖示（頁、一疊、捲軸），字在滑鼠提示裡；全部的旁邊是條數
-    const seg = [["page", PR.t("本頁"), "page"], ["notes", PR.t("全部"), "layers", count], ["paper", PR.t("總結"), "summary"]]
+    // 卡片（複習卡，cards.js）：旁邊的數字是今天到期幾張
+    const seg = [["page", PR.t("本頁"), "page"], ["notes", PR.t("全部"), "layers", count], ["paper", PR.t("總結"), "summary"]].concat(PR.cardsPanel ? [["cards", PR.t("複習卡"), "l-brain", PR.cardsPanel.count()]] : [])
       .map(([k, l, ic, n]) => '<button data-np="' + k + '" class="' + (tab === k ? "on" : "") + '" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '">' + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + (n ? '<i class="n">' + n + "</i>" : "") + "</button>").join("");
     const keep = el.querySelector(".np-list") ? el.querySelector(".np-list").scrollTop : 0;
     el.innerHTML = '<div class="np-head"><div class="seg">' + seg + '</div><span class="grow"></span><button class="btn icon" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.icon("download", "sm") + "</button>" +
       (PR.notesOnly ? "" : '<button class="btn icon" data-np-act="popout" title="' + PR.t("拉成獨立視窗") + '">' + PR.icon("popout", "sm") + "</button>" +
       '<button class="btn icon" data-np-act="close" title="' + PR.t("关闭") + '">' + PR.icon("x", "sm") + "</button>") + "</div>" +
-      (tab === "paper" ? paperHtml() : tab === "notes" ? notesHtml() : pageHtml());
+      (tab === "paper" ? paperHtml() : tab === "notes" ? notesHtml() : tab === "cards" && PR.cardsPanel ? PR.cardsPanel.html() : pageHtml());
     mountEditors();
+    if (tab === "cards" && PR.cardsPanel) PR.cardsPanel.mounted(el);
     PR.$$(".card", el).forEach((c) => PR.prepCard && PR.prepCard(c));
     PR.$$(".np-list .card.mine[data-note]:not(.editing)", el).forEach((c) => { c.draggable = true; });  // 拖排順序、拖到另一張上建立關聯
     PR.$$("textarea", el).forEach(PR.autosize);

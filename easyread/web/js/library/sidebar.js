@@ -154,6 +154,7 @@
       h += '<h3>' + PR.t("最近阅读") + '</h3><div class="sgroup">' + shown.map((i) => paperRow(i)).join("") +
         (recent.length > RECENT_SHORT ? '<button class="srow toggle-more" data-recent>' + (ui.recentOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: Math.min(recent.length, RECENT_MAX) - RECENT_SHORT })) + "</button>" : "") + "</div>";
     }
+    h += L.sideReviewHtml ? L.sideReviewHtml() : "";  // 複習卡（library/review-entry.js）：有卡才出現
     h += L.sideNotesHtml();  // 獨立筆記那一段（library/notes.js）
     if (L.trashCount) h += '<div class="sgroup side-trash"><button class="srow" data-trash>' + PR.icon("trash", "sm") + '<span class="t">' + PR.t("回收站") + '</span><span class="n">' + L.trashCount + "</span></button></div>";
     box.innerHTML = h;
