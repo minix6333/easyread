@@ -24,10 +24,53 @@
     return '<div class="md-bar">' + BTNS.filter(([k]) => k !== "image" || server).map(([k, icon, title]) =>
       '<button type="button" data-md="' + k + '" title="' + PR.esc(title()) + '">' + PR.icon(icon, "sm") + "</button>").join("") + "</div>";
   };
-  /* 把一個 <textarea …> 包成編輯器：上面工具列（bar 為 false 時不放，例如提問），下面公式預覽 */
+  /* 把一個 <textarea …> 包成編輯器：上面工具列（bar 為 false 時不放，例如提問），下面公式預覽。
+     筆記（不是提問）用筆記頁那一套編輯器（common/blocks.js 的小尺寸＋所見即所得）：直接在排好的樣子上改、不用打語法，
+     快捷鍵、開頭的全形記號、貼上的整理都一樣。原本的 <textarea> 還在（看不見）——它一直拿著最新的 Markdown，
+     卡片、便利貼那邊讀它的值、聽它的 input／keydown／focusout 的程式都不用改（PR.mountCardEditor 在 prepCard 時掛上去）。 */
   PR.mdEd = function (textareaHtml, opts) {
+    const rich = !(opts && opts.bar === false) && PR.blockEditor && PR.rich && !(opts && opts.rich === false);
+    if (rich) return '<div class="md-ed rich">' + textareaHtml.replace("<textarea", '<textarea class="md-src" data-rich="1" tabindex="-1" aria-hidden="true"') + '<div class="md-rich-host"></div></div>';
     return '<div class="md-ed">' + (opts && opts.bar === false ? "" : PR.mdBar()) + textareaHtml + '<div class="md-prev" hidden></div></div>';
   };
+  async function uploadClip(file) {
+    const r = await fetch("/api/p/" + PR.pid + "/clip", { method: "POST", headers: { "Content-Type": file.type || "image/png", "X-Token": PR.token || "" }, body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+    return d.src;
+  }
+  PR.mountCardEditor = function (ta) {
+    if (!ta || ta._ed || !ta.isConnected) return ta && ta._ed;
+    const host = ta.parentElement && ta.parentElement.querySelector(".md-rich-host");
+    if (!host || !PR.blockEditor) return null;
+    const sync = (md) => {
+      const v = md == null ? ed.getValue() : md;
+      if (ta.value !== v) { ta.value = v; ta.dispatchEvent(new Event("input", { bubbles: true })); }
+    };
+    const ed = PR.blockEditor(host, { value: ta.value, compact: true, placeholder: ta.getAttribute("placeholder") || "", upload: PR.store && PR.store.mode === "server" ? uploadClip : null,
+      noAi: true, immediate: true, strip: "always", onChange: (md) => sync(md) });
+    ta._ed = ed;
+    ed.on("blur", () => { sync(); ta.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });  // 卡片那邊靠 focusout 判斷「寫完了」
+    ed.on("render", () => PR.emit("md-preview", ta));  // 高度變了：便利貼、頁邊卡重新排位置
+    // Esc、⌘↩：交給卡片原本的處理（存好、收起）；選單、公式小框開著時 Esc 先收它們
+    host.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      const finish = (e.key === "Enter" && (e.metaKey || e.ctrlKey)) || (e.key === "Escape" && !host.querySelector(".bk-menu.open, .bk-pop"));
+      if (!finish) return;
+      e.preventDefault(); e.stopPropagation();
+      sync();
+      ta.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, code: e.code, metaKey: e.metaKey, ctrlKey: e.ctrlKey, bubbles: true, cancelable: true }));
+    }, true);
+    return ed;
+  };
+  /* 程式要「開始寫」時是去 focus 那個看不見的 <textarea>：轉給編輯器，游標放最後 */
+  document.addEventListener("focusin", (e) => {
+    const ta = e.target;
+    if (!ta || !ta.matches || !ta.matches("textarea[data-rich]")) return;
+    const ed = PR.mountCardEditor(ta);
+    if (ed) setTimeout(() => { if (ta.isConnected) ed.focus("end"); }, 0);
+  });
+
 
   /* ---------- 改字：一律走 insertText，原生的復原（⌘Z）才接得上 ---------- */
   function insert(ta, text) {

@@ -15,7 +15,9 @@
   const $ = PR.$;
   const subs = {};
   const fire = (ev, d) => (subs[ev] || []).forEach((fn) => { try { fn(d); } catch (e) { console.error(e); } });
-  const QUICK = () => [[PR.t("整理成條列"), PR.t("把這段整理成條列，每點一句，保留所有重點。")], [PR.t("補充說明"), PR.t("把這段補充完整：定義、原因、例子。")],
+  /* 「整理」：只動排版、不動字句（和閱讀頁筆記面板的同一句）。沒選幾塊就整份 */
+  const TIDY = () => PR.t("把這段筆記重新排版成好讀的結構：該分段的分段，需要的話加簡短的小標題（用筆記裡原本的用字）；並列的重點改成條列，有先後的步驟改成編號清單，要做的事改成待辦清單，適合對照的內容排成表格，公式寫成 $…$ 或 $$…$$。原本的字句、數字、公式、引用、連結和頁碼一個都不能改、不能刪；除了小標題，不要加任何新的內容或說明。只動排版。");
+  const QUICK = () => [[PR.t("整理"), TIDY(), "tidy"], [PR.t("補充說明"), PR.t("把這段補充完整：定義、原因、例子。")],
     [PR.t("改短"), PR.t("把這段改短一半，只留關鍵。")], [PR.t("改成表格"), PR.t("把這段的內容整理成一個 Markdown 表格。")], [PR.t("潤飾"), PR.t("把這段的語句理順，意思不變。")]];
 
   $("#backBtn").innerHTML = PR.icon("back");
@@ -173,8 +175,8 @@
       $("#noteAi").innerHTML = '<button type="button" class="nai-pill" data-nai="open" title="' + PR.kbd(PR.t("問 AI 寫或改（⌘↩）")) + '">' + PR.icon("sparkle", "sm") + "<span>" + PR.t("問 AI") + "</span></button>";
       return;
     }
-    const qi = [PR.hasIcon("bullets") ? "bullets" : "list", "plus", "type", PR.hasIcon("table") ? "table" : "grid", "sparkle"];  // 條列、補充、改短、表格、潤飾
-    $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q], i) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(qi[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
+    const qi = [PR.hasIcon("wand") ? "wand" : "sparkle", "plus", "type", PR.hasIcon("table") ? "table" : "grid", "sparkle"];  // 整理、補充、改短、表格、潤飾
+    $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q, k], i) => '<button data-nai="' + (k || "quick") + '" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(qi[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
       '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
       '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc(modelLabel()) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
       (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
@@ -200,9 +202,15 @@
     const m = /^\s*\x60\x60\x60(?:markdown|md)?\s*\n([\s\S]*?)\n\x60\x60\x60\s*$/.exec(s);
     return m ? m[1] : s;
   }
-  async function send(text) {
+  async function send(text, o) {
+    o = o || {};
     text = (text || "").trim();
     if (st.streaming || !st.ed) return;
+    if (o.tidy) {  // 整理：自己點選了幾塊就整理那幾塊，不然整份
+      if (!st.ed.getValue().trim()) return PR.toast(PR.t("還沒有筆記可以整理"));
+      const c = st.ed.current();
+      if (c.editing || !c.ids.length) st.ed.selectAll();
+    }
     const sel = st.ed.selection();
     const mode = sel && sel.md.trim() ? "edit" : "write";
     const from = sel ? sel.from : st.ed.count(), to = sel ? sel.to : st.ed.count() - 1;
@@ -212,12 +220,13 @@
     if (ta0) ta0.value = "";
     const ctrl = new AbortController();
     st.streaming = { ctrl };
-    st.ed.preview(from, mode === "edit" ? to : from - 1, "", { streaming: true, label: mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段"), stop: () => ctrl.abort() });
+    const what = o.tidy ? PR.t("AI 整理的版本") : mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段");
+    st.ed.preview(from, mode === "edit" ? to : from - 1, "", { streaming: true, label: what, stop: () => ctrl.abort() });
     paintAi();
     let out = "", label = "";
     try {
       const res = await fetch(url + "/ai", { method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ mode, note: st.ed.getValue(), selection: sel ? sel.md : "", ask: text, model: st.model, ...PR.web.body(st.models.find((m) => m.id === st.model)) }) });
+        body: JSON.stringify({ mode, note: st.ed.getValue(), selection: sel ? sel.md : "", ask: text, model: st.model, ...PR.web.body(st.models.find((m) => m.id === st.model)), ...(o.tidy ? { web: false } : {}) }) });  // 整理只動排版：不用上網
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
       let buf = "";
@@ -238,7 +247,7 @@
       }
       st.streaming = null;
       if (!clean(out).trim()) { st.ed.rejectPreview(); PR.toast(PR.t("AI 沒有回任何內容")); }
-      else st.ed.updatePreview(clean(out), { streaming: false, label: (mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段")) + (label ? " · " + label : "") });
+      else st.ed.updatePreview(clean(out), { streaming: false, label: what + (label ? " · " + label : "") });
     } catch (e) {
       st.streaming = null;
       st.ed.rejectPreview();
@@ -253,6 +262,7 @@
     if (a === "open") return openAi();
     if (a === "send") return send(ta.value);
     if (a === "quick") return send(b.dataset.q);
+    if (a === "tidy") return send(b.dataset.q, { tidy: true });
     if (a === "stop") { if (st.streaming) st.streaming.ctrl.abort(); return; }
     if (a === "model") PR.menu(b, st.models.map((m) => ({ label: m.label, checked: m.id === st.model, disabled: m.ready === false, fn: () => { st.model = m.id; PR.ls.set("easyread-chat-model", m.id); paintAi(); } })));
   });

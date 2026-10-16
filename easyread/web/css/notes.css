@@ -450,3 +450,9 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .web-live { display: flex; align-items: center; gap: 8px; margin: 6px 0 0 29px; font: 12px var(--ui); color: var(--ink-3); }
 .web-live[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .cm-sources.live .src { animation: none; } }
+/* 卡片、便利貼裡寫筆記：所見即所得的小編輯器（mded.js 的 PR.mountCardEditor）。原本的輸入框還在、看不見（拿著最新的 Markdown） */
+.md-ed.rich { position: relative; }
+.md-ed.rich > .md-src { position: absolute; left: 0; top: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; resize: none; overflow: hidden; }
+.md-ed.rich > .md-rich-host.bk { --bk-gutter: 0px; font-size: inherit; line-height: 1.6; min-height: 1.6em; }
+.md-ed.rich > .md-rich-host .bk-gut { display: none; }
+.md-ed.rich > .md-rich-host .bk-b { padding-left: 0; padding-right: 0; }

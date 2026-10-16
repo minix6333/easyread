@@ -234,15 +234,42 @@
     opts = opts || {};
     const root = typeof host === "string" ? document.querySelector(host) : host;
     const useRich = !!(PR.rich && document.execCommand) && opts.rich !== false;  // 沒載 richtext.js（或明說不要）：退回輸入框
-    const state = { blocks: parse(opts.value || ""), editing: null, selected: new Set(), anchor: null, head: null, preview: null, menu: null, drag: null, history: [], future: [], compact: !!opts.compact };
+    const state = { blocks: parse(opts.value || ""), editing: null, selected: new Set(), anchor: null, head: null, preview: null, menu: null, drag: null, history: [], future: [], compact: !!opts.compact, saved: opts.value || "" };  // saved：外面最後知道的內容（交出去的、外面放進來的）
     const listeners = {};
     if (!state.blocks.length) state.blocks = [{ id: bid(), type: "p", text: "" }];  // 空的也要有一塊可以點進去
     root.classList.add("bk");
     if (state.compact) root.classList.add("compact");
     root.innerHTML = '<div class="bk-list"></div>';
     const list = root.firstElementChild;
-    const changeSoon = debounce(() => emit("change", getValue()), 400);
-    function emit(ev, data) { (listeners[ev] || []).forEach((fn) => fn(data)); if (ev === "change" && opts.onChange) opts.onChange(data); }
+    /* 小的編輯器（筆記面板的本頁、總結，卡片、便利貼）：寫的時候底下一排，不用打語法——標題、項目、編號、待辦、公式、表格、圖片。
+       筆記面板的在寫的時候才出現（.writing）；卡片、便利貼只有在寫的時候才有編輯器，一直出現（strip: "always"） */
+    let writingTimer = 0;
+    const writing = (on) => {  // 底下那排只在寫的時候出現；從一塊點到另一塊中間會先收起再開始編，晚一點才收，免得它閃一下、下面的東西跳一下
+      clearTimeout(writingTimer);
+      if (on) root.classList.add("writing");
+      else writingTimer = setTimeout(() => { if (!state.editing) root.classList.remove("writing"); }, 300);
+    };
+    if (opts.strip === "always") root.classList.add("strip-always");
+    if (opts.strip != null ? opts.strip : state.compact) {
+      const SB = [["h3", "h3", "bigger", t("標題")], ["bullet", "bullets", "log", t("項目清單")], ["number", "numbers", "list", t("編號清單")], ["todo", "todo", "check", t("待辦")],
+        ["math", "formula", "sigma", t("公式")], ["table", "table", "panel", t("表格")]].concat(opts.upload ? [["image", "image", "image", t("圖片")]] : []);
+      const strip = document.createElement("div");
+      strip.className = "bk-strip";
+      strip.innerHTML = SB.map(([k, a, b2, label]) => '<button type="button" data-sb="' + k + '" title="' + esc(label) + '" aria-label="' + esc(label) + '">' + ico(a, b2) + "</button>").join("");
+      root.append(strip);
+      strip.addEventListener("mousedown", (e) => e.preventDefault());  // 別讓正在寫的那一塊失焦
+      strip.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-sb]");
+        if (!b) return;
+        const k = b.dataset.sb;
+        if (!state.editing && !state.selected.size) { const last = state.blocks[state.blocks.length - 1]; if (last) startEdit(last.id, "end"); }
+        if (k === "math" || k === "table" || k === "image") api.insertBlock(k);
+        else api.convert(api.current().kind === k ? "p" : k);
+      });
+    }
+    // opts.immediate（卡片、便利貼裡的小編輯器）：每改一下就告訴外面——那邊按 Esc 是同一個按鍵事件裡就去讀值存檔，等不了
+    const changeSoon = opts.immediate ? Object.assign(() => emit("change", getValue()), { flush() {} }) : debounce(() => emit("change", getValue()), 400);
+    function emit(ev, data) { if (ev === "change") state.saved = data; (listeners[ev] || []).forEach((fn) => fn(data)); if (ev === "change" && opts.onChange) opts.onChange(data); }
     function debounce(fn, ms) { let h; return Object.assign((...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }, { flush: () => { clearTimeout(h); fn(); } }); }
     const getValue = () => serialize(state.blocks);
     const idx = (id) => state.blocks.findIndex((b) => b.id === id);
@@ -616,6 +643,7 @@
     }
     function load(md, keepFocus) {
       const focusAt = state.editing ? idx(state.editing) : -1;
+      state.saved = md;
       state.blocks = parse(md);
       if (!state.blocks.length) state.blocks = [{ id: bid(), type: "p", text: "" }];
       state.editing = keepFocus && focusAt >= 0 && state.blocks[Math.min(focusAt, state.blocks.length - 1)] ? state.blocks[Math.min(focusAt, state.blocks.length - 1)].id : null;
@@ -632,6 +660,7 @@
       const was = state.editing;
       if (was) pullText(was);
       state.editing = id;
+      writing(true);
       const hadSel = state.selected.size > 0;
       state.selected.clear(); state.anchor = state.head = null;
       closeMenu();
@@ -672,11 +701,13 @@
       const id = state.editing;
       pullText(id);
       state.editing = null;
+      writing(false);
       closeMenu();
       tools.classList.remove("open");
       repaint(id);
       changeSoon.flush();
-      if (state.pendingValue != null) { const md = state.pendingValue; state.pendingValue = null; if (md !== getValue()) load(md, false); }  // 打字時外面改了內容：現在才換上
+      // 打字時外面改了內容：停下來才換上。但那之後自己又打了字，就留自己的（剛剛已經存了），不然剛打的字會被蓋掉、不見
+      if (state.pendingValue != null) { const md = state.pendingValue, base = state.pendingBase; state.pendingValue = state.pendingBase = null; if (md !== getValue() && getValue() === base) load(md, false); }
       emit("blur");
     }
     /* 把輸入框裡的字收回區塊 */
@@ -1691,7 +1722,15 @@
     const plain = (s) => (PR.plain ? PR.plain(s) : String(s || "").replace(/[*_\x60~=$#>\[\]]/g, ""));
     const api = {
       getValue() { if (state.editing) pullText(state.editing); return getValue(); },
-      setValue(md) { if (md === getValue()) { state.pendingValue = null; return; } if (state.editing) { state.pendingValue = md; return; } load(md, false); },
+      setValue(md) {
+        if (state.editing) pullText(state.editing);
+        const cur = getValue();
+        if (md === cur) { state.pendingValue = null; return; }
+        // 外面拿來的是自己上一次交出去的內容（存檔還在去抖、還沒跟上後來打的字）：不是外面改了，不理它——不然剛打的字會被舊的蓋回去
+        if (state.saved != null && md === state.saved) return;
+        if (state.editing) { state.pendingValue = md; state.pendingBase = cur; return; }  // 正在打字：等停下來再換（見 stopEdit）
+        load(md, false);
+      },
       root,
       rebind(fn) { opts.onChange = fn; },
       focus(at) { const b = at === "start" ? state.blocks[0] : state.blocks[state.blocks.length - 1]; if (b) { if (b.type === "divider" || b.type === "image") insertAfter(at === "start" ? -1 : state.blocks.length - 1, { type: "p", text: "" }, true); else startEdit(b.id, at === "start" ? "start" : "end"); } },
@@ -1734,6 +1773,7 @@
       askAi(i) { emit("ai", { from: i, to: i }); },
       on(ev, fn) { (listeners[ev] = listeners[ev] || []).push(fn); return api; },
       select(i) { const b = state.blocks[i]; if (b) select(b.id); },
+      selectAll() { if (state.blocks.length) selectRange(0, state.blocks.length - 1); },
       count: () => state.blocks.length,
       /* ---- 給外面的面板用（目錄、格式、插入、資訊） ---- */
       outline() { return state.blocks.map((b, i) => (b.type === "heading" ? { id: b.id, i, level: b.level, text: plain(state.editing === b.id && fieldOf(b.id) ? fieldOf(b.id).value() : b.text) } : null)).filter(Boolean); },

@@ -248,6 +248,35 @@ app.whenReady().then(async () => {
     const s2 = await st();
     check(name, !!item && s1.md.includes("| 甲 |  | 乙 |") && s1.md.includes("| 1 |  | 2 |") && /\| x \| y \|  \|\n\| z \| w \|  \|$/.test(s2.md), { item: !!item, s1: s1.md, s2: s2.md });
   });
+  await run("打字時外面送來內容：剛打的字不會被蓋掉；存檔還沒跟上時拿到自己舊的內容也不理", async (name) => {
+    await click(await pt("最後一段"));
+    await key("End");
+    await type("甲");
+    // 外面真的改了（別台電腦同步過來）：正在打字先不換；之後又打了字 → 停下來時留自己的
+    await js("PR.noteEd.setValue('外面改的內容'); 1");
+    await type("乙");
+    await key("Escape"); await sleep(600);
+    const s1 = await st();
+    const stored1 = await js("fetch('/api/notes/' + PR.note.id).then((r) => r.json()).then((n) => n.body)");
+    // 存檔還在去抖的那 0.4 秒裡，外面拿自己上一次交出去的（舊的）內容來 setValue：不是外面改了，不理
+    const p2 = await pt("甲乙");
+    if (!p2) { check(name, false, { s1: s1.md.slice(-20), stored1: String(stored1).slice(-20) }); return; }  // 剛打的字已經被蓋掉了
+    await click(p2);
+    await key("End");
+    await type("丙");
+    const old = s1.md;
+    await js("PR.noteEd.setValue(" + JSON.stringify(old) + "); 1");
+    await key("Escape"); await sleep(600);
+    const s2 = await st();
+    // 外面真的改了、之後沒再打字：停下來就換上外面的
+    const p3 = await pt("甲乙丙");
+    if (!p3) { check(name, false, { s2: s2.md.slice(-20) }); return; }
+    await click(p3);
+    await js("PR.noteEd.setValue('外面改的內容'); 1");
+    await key("Escape"); await sleep(600);
+    const s3 = await st();
+    check(name, /最後一段。甲乙$/.test(s1.md) && stored1 === s1.md && /最後一段。甲乙丙$/.test(s2.md) && s3.md === "外面改的內容", { s1: s1.md.slice(-12), stored1: String(stored1).slice(-12), s2: s2.md.slice(-12), s3: s3.md });
+  });
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
   step = "cleanup";
   if (!keep) await cleanup();

@@ -6,9 +6,11 @@
 (function (PR) {
   "use strict";
   const st = { key: null, ed: null, range: null, streaming: null, draft: "" };
-  const QUICK = () => [[PR.t("整理成條列"), PR.t("把這段整理成條列，每點一句，保留所有重點。")], [PR.t("補充說明"), PR.t("照文件的內容把這段補充完整：定義、原因、例子，標出頁碼。")],
+  /* 「整理」：只動排版、不動字句——寫得很亂的筆記排成小標題、條列、表格。沒選幾塊就整份 */
+  const TIDY = () => PR.t("把這段筆記重新排版成好讀的結構：該分段的分段，需要的話加簡短的小標題（用筆記裡原本的用字）；並列的重點改成條列，有先後的步驟改成編號清單，要做的事改成待辦清單，適合對照的內容排成表格，公式寫成 $…$ 或 $$…$$。原本的字句、數字、公式、引用、連結和頁碼一個都不能改、不能刪；除了小標題，不要加任何新的內容或說明。只動排版。");
+  const QUICK = () => [[PR.t("整理"), TIDY(), "tidy"], [PR.t("補充說明"), PR.t("照文件的內容把這段補充完整：定義、原因、例子，標出頁碼。")],
     [PR.t("改短"), PR.t("把這段改短一半，只留關鍵。")], [PR.t("改成表格"), PR.t("把這段的內容整理成一個 Markdown 表格。")], [PR.t("查核"), PR.t("對照文件檢查這段有沒有和原文不符的地方，直接改正，並在改動處用粗體標出。")]];
-  const QICON = [PR.hasIcon && PR.hasIcon("bullets") ? "bullets" : "list", "plus", "type", PR.hasIcon && PR.hasIcon("table") ? "table" : "grid", "check"];  // 快速改寫的小圖示：條列、補充、改短、表格、查核
+  const QICON = [PR.hasIcon && PR.hasIcon("wand") ? "wand" : "sparkle", "plus", "type", PR.hasIcon && PR.hasIcon("table") ? "table" : "grid", "check"];  // 快速改寫的小圖示：整理、補充、改短、表格、查核
   const panel = () => PR.$("#notespanel");
   const on = () => !!(PR.noteHelpOn && PR.noteHelpOn());
 
@@ -17,7 +19,7 @@
     bar(key) {
       if (!on()) return "";
       const busy = !!st.streaming;
-      return '<div class="nai" data-nai-key="' + key + '"><div class="nai-quick">' + QUICK().map(([l, q], i) => '<button data-nai="quick" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(QICON[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
+      return '<div class="nai" data-nai-key="' + key + '"><div class="nai-quick">' + QUICK().map(([l, q, k], i) => '<button data-nai="' + (k || "quick") + '" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(QICON[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
         '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
         '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
         (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
@@ -31,11 +33,17 @@
     busy: () => !!st.streaming,
   };
 
-  async function send(key, text) {
+  async function send(key, text, o) {
+    o = o || {};
     text = (text || "").trim();
     if (st.streaming || !on()) return;
     const ed = PR.notesEditor && PR.notesEditor(key);
     if (!ed) return;
+    if (o.tidy) {  // 整理：自己點選了幾塊就整理那幾塊，不然整份
+      if (!ed.getValue().trim()) return PR.toast(PR.t("還沒有筆記可以整理"));
+      const c = ed.current();
+      if (c.editing || !c.ids.length) ed.selectAll();
+    }
     const sel = ed.selection();  // 選了幾塊（或正在編的那一塊）
     const mode = sel && sel.md.trim() ? "edit" : "write";
     const from = sel ? sel.from : ed.count(), to = sel ? sel.to : ed.count() - 1;
@@ -47,13 +55,14 @@
     const ctrl = new AbortController();
     st.streaming = { ctrl, key };
     let out = "";
-    ed.preview(from, mode === "edit" ? to : from - 1, "", { streaming: true, label: mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段"), stop: () => ctrl.abort() });
+    const what = o.tidy ? PR.t("AI 整理的版本") : mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段");
+    ed.preview(from, mode === "edit" ? to : from - 1, "", { streaming: true, label: what, stop: () => ctrl.abort() });
     paintBar(key);
     try {
       if (PR.chatModel) await PR.chatModel.load();
       const res = await fetch("/api/p/" + PR.pid + "/notehelp", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ mode, note: ed.getValue(), selection: sel ? sel.md : "", ask: text, page, model: PR.chatModel ? PR.chatModel.id() : "", ...(PR.chatModel && PR.chatModel.web ? PR.chatModel.web() : PR.web.body()) }),
+        body: JSON.stringify({ mode, note: ed.getValue(), selection: sel ? sel.md : "", ask: text, page, model: PR.chatModel ? PR.chatModel.id() : "", ...(PR.chatModel && PR.chatModel.web ? PR.chatModel.web() : PR.web.body()), ...(o.tidy ? { web: false } : {}) }),  // 整理只動排版：不用上網
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -75,7 +84,7 @@
       }
       st.streaming = null;
       if (!clean(out).trim()) { ed.rejectPreview(); PR.toast(PR.t("AI 沒有回任何內容")); }
-      else ed.updatePreview(clean(out), { streaming: false, label: (mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段")) + (label ? " · " + label : "") });
+      else ed.updatePreview(clean(out), { streaming: false, label: what + (label ? " · " + label : "") });
     } catch (e) {
       st.streaming = null;
       ed.rejectPreview();
@@ -105,6 +114,7 @@
     const a = b.dataset.nai;
     if (a === "send") return send(key, ta.value);
     if (a === "quick") return send(key, b.dataset.q);
+    if (a === "tidy") return send(key, b.dataset.q, { tidy: true });
     if (a === "stop") { if (st.streaming) st.streaming.ctrl.abort(); return; }
     if (a === "model" && PR.chatModel) return PR.chatModel.menu(b);
   });

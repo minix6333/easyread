@@ -217,6 +217,7 @@
     PR.layoutPvMargin && PR.layoutPvMargin();
   });
   function prepCard(card) {
+    if (PR.mountCardEditor) card.querySelectorAll("textarea[data-rich]").forEach((ta) => PR.mountCardEditor(ta));  // 筆記用所見即所得的編輯器（mded.js）
     // 长的先收起；展开过的也留一个“收起全文”（#31）。筆記本身和每一則回答各自收
     PR.$$(".body", card).forEach((body) => {
       const host = body.closest(".reply") || card;

@@ -238,7 +238,7 @@
       ed.setValue(value);
       return;
     }
-    ed = editors[key] = PR.blockEditor(host, { value, placeholder, compact: key === "page", onChange: save, upload: uploadClip, refs });
+    ed = editors[key] = PR.blockEditor(host, { value, placeholder, compact: key === "page", strip: true, onChange: save, upload: uploadClip, refs });
     ed.on("blur", () => { if (pendingRender) { pendingRender = false; PR.renderNotesPanel(); } });
     ed.on("ai", (r) => { if (PR.notesAi) PR.notesAi.start(ed, r, key); });
   }
