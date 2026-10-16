@@ -1781,5 +1781,22 @@
  "蜂蜜": "Honey",
  "跟著主題": "Follow the theme",
  "霧藍": "Mist blue",
- "鼠尾草": "Sage"
+ "鼠尾草": "Sage",
+ "加上封面": "Add cover",
+ "封面": "Cover",
+ "封面沒換成：{msg}": "Couldn't change the cover: {msg}",
+ "專注模式": "Focus mode",
+ "拿掉封面": "Remove cover",
+ "換封面": "Change cover",
+ "換封面…": "Change cover…",
+ "方格": "Grid",
+ "晨光": "Dawn",
+ "暮色": "Dusk",
+ "森林": "Forest",
+ "極光": "Aurora",
+ "沒有封面": "No cover",
+ "沙丘": "Dunes",
+ "用自己的圖…": "Use my own image…",
+ "空白": "Plain",
+ "點陣": "Dots"
 }

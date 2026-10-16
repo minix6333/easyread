@@ -4,7 +4,8 @@
 - paper_ids／Library.all 只認有 paper.json／item.json 的資料夾，_notes 不會被當成論文。
 - 內容是 Markdown（區塊編輯器 web/js/common/blocks.js 寫的），貼進去的圖放 clips/。
 - note.json 除了標題、時間、關聯的論文，還有外觀和整理用的幾個欄位（STYLE_KEYS）：
-  圖示和顏色（側欄、筆記清單上那顆）、放在哪個分類、收藏、寬頁、字型、寫字那一欄的寬度（width：0＝預設，-1＝滿版，其他是像素）。
+  圖示和顏色（側欄、筆記清單上那顆）、放在哪個分類、收藏、寬頁、字型、寫字那一欄的寬度（width：0＝預設，-1＝滿版，其他是像素）、
+  封面（banner：一組漸層的名字，或貼上去的圖 clips/檔名）、紙張（paper：空白、方格 grid、點陣 dots）。
 - 刪除是挪到文獻庫的 .trash/note-<id>-<時間>（和論文同一個回收站，見 trash.py），可以復原。
 """
 from __future__ import annotations
@@ -26,8 +27,11 @@ _ID = re.compile(r"[a-z0-9]{6,24}")
 _CLIP = re.compile(r"[A-Za-z0-9._-]{1,80}")
 _SLUG = re.compile(r"[a-z0-9-]{1,32}")
 FONTS = ("", "serif", "mono", "round")
+# 封面的漸層（前端 notepage.css 的 .nb-<名字>）；也可以是貼上去的圖（clips/檔名）
+BANNERS = ("mist", "dawn", "sea", "forest", "dusk", "sand", "rose", "aurora", "ink", "night")
+PAPERS = ("", "grid", "dots")
 # 外觀和整理用的欄位：前端傳什麼都先過這裡（別的鍵不收，值不對就當沒設）
-STYLE_KEYS = ("icon", "color", "folder", "star", "wide", "font", "width")
+STYLE_KEYS = ("icon", "color", "folder", "star", "wide", "font", "width", "banner", "paper")
 WIDTH_MIN, WIDTH_MAX = 440, 2400
 
 
@@ -42,6 +46,15 @@ def _style(key: str, value):
     if key == "font":
         v = str(value or "").strip().lower()
         return v if v in FONTS else ""
+    if key == "banner":  # 封面：漸層的名字，或 clips/ 裡的一張圖（只認檔名，不能往上跳）
+        v = str(value or "").strip()
+        if v in BANNERS:
+            return v
+        name = v[6:] if v.startswith("clips/") else ""
+        return v if name and _CLIP.fullmatch(name) and ".." not in name else ""
+    if key == "paper":
+        v = str(value or "").strip().lower()
+        return v if v in PAPERS else ""
     if key == "width":  # 寫字那一欄多寬（拖兩邊、或檢閱器裡選）：0 預設、-1 滿版、其餘夾在 WIDTH_MIN～WIDTH_MAX
         try:
             v = int(round(float(value or 0)))

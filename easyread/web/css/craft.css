@@ -1096,3 +1096,30 @@ html[data-vt] .note-shell, html[data-vt] .note-main, html[data-vt] .note-outline
    以前抽屜的 transform 從欄的位置滑到抽屜收起來的位置，那一下整塊玻璃在左邊閃過去 */
 #drawer { visibility: hidden; transition: transform var(--dur) var(--spring), visibility 0s var(--dur); }
 body.drawer-open #drawer { visibility: visible; transition: transform var(--dur) var(--spring), visibility 0s; }
+
+/* ---------- 筆記的封面（pick.js 的 PR.BANNERS；筆記頁頂上那一張、文獻庫的筆記卡片、挑封面的小色塊都用這一組）----------
+   每一組是幾團柔和的光暈疊在一層斜的漸層上，再鋪一層細細的顆粒（和視窗背景同一種，見 --grain）；深色時整張壓暗一點，不刺眼 */
+.nb-mist { background: var(--grain), radial-gradient(120% 140% at 12% 0%, #e8f0fa 0%, transparent 55%), radial-gradient(90% 120% at 90% 20%, #c8d7ee 0%, transparent 60%), linear-gradient(135deg, #dce5f1, #bccbe1); }
+.nb-dawn { background: var(--grain), radial-gradient(110% 140% at 8% 8%, #ffe3cf 0%, transparent 55%), radial-gradient(90% 120% at 86% 0%, #f1cde8 0%, transparent 60%), linear-gradient(135deg, #fde2d1, #e5c8e4); }
+.nb-sea { background: var(--grain), radial-gradient(110% 140% at 14% 8%, #d2edf9 0%, transparent 55%), radial-gradient(90% 120% at 88% 30%, #b3ebe0 0%, transparent 60%), linear-gradient(135deg, #cbe3f1, #a2d2d6); }
+.nb-forest { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #def0da 0%, transparent 55%), radial-gradient(90% 120% at 86% 20%, #e9eec3 0%, transparent 60%), linear-gradient(135deg, #d0e5d0, #a9cbb0); }
+.nb-dusk { background: var(--grain), radial-gradient(110% 140% at 12% 0%, #ddd4fb 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #f7cfe2 0%, transparent 60%), linear-gradient(135deg, #d7cff2, #c2b5e0); }
+.nb-sand { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #f8ecd5 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #eed5b8 0%, transparent 60%), linear-gradient(135deg, #f0e2c9, #d8c09d); }
+.nb-rose { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #fcdbe1 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #f7dccb 0%, transparent 60%), linear-gradient(135deg, #f4d4db, #deb3c1); }
+.nb-aurora { background: var(--grain), radial-gradient(80% 150% at 0% 100%, #9fe6ca 0%, transparent 62%), radial-gradient(80% 150% at 50% 0%, #b8c3fb 0%, transparent 62%), radial-gradient(80% 150% at 100% 80%, #f5bfe1 0%, transparent 62%), linear-gradient(135deg, #cbe8e4, #d6cff5); }
+.nb-ink { background: var(--grain), radial-gradient(110% 140% at 12% 0%, #f3f3f1 0%, transparent 55%), linear-gradient(135deg, #e2e2df, #c2c2be); }
+.nb-night { background: var(--grain), radial-gradient(90% 140% at 15% 0%, #3d5189 0%, transparent 60%), radial-gradient(80% 120% at 90% 30%, #5c4180 0%, transparent 60%), linear-gradient(135deg, #1d2645, #2a2347); }
+/* 深色：同一組顏色調深、飽和一點（不是把淺色的壓暗——那樣會變成一片灰）；自己的圖只壓暗一點 */
+:root[data-theme="dark"] .nb-mist { background: var(--grain), radial-gradient(120% 140% at 12% 0%, #33476a 0%, transparent 55%), radial-gradient(90% 120% at 90% 20%, #26385a 0%, transparent 60%), linear-gradient(135deg, #1f2b3f, #2a3a55); }
+:root[data-theme="dark"] .nb-dawn { background: var(--grain), radial-gradient(110% 140% at 8% 8%, #6a4236 0%, transparent 55%), radial-gradient(90% 120% at 86% 0%, #5a3658 0%, transparent 60%), linear-gradient(135deg, #3f2a2b, #432f4b); }
+:root[data-theme="dark"] .nb-sea { background: var(--grain), radial-gradient(110% 140% at 14% 8%, #22566b 0%, transparent 55%), radial-gradient(90% 120% at 88% 30%, #1f5a52 0%, transparent 60%), linear-gradient(135deg, #173646, #1c454a); }
+:root[data-theme="dark"] .nb-forest { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #2f5a3a 0%, transparent 55%), radial-gradient(90% 120% at 86% 20%, #535a2e 0%, transparent 60%), linear-gradient(135deg, #1f3527, #2d4632); }
+:root[data-theme="dark"] .nb-dusk { background: var(--grain), radial-gradient(110% 140% at 12% 0%, #463d80 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #6a375e 0%, transparent 60%), linear-gradient(135deg, #2a2549, #3b2b4d); }
+:root[data-theme="dark"] .nb-sand { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #6a5634 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #5e432c 0%, transparent 60%), linear-gradient(135deg, #3b3124, #4c3c2b); }
+:root[data-theme="dark"] .nb-rose { background: var(--grain), radial-gradient(110% 140% at 12% 8%, #6e3446 0%, transparent 55%), radial-gradient(90% 120% at 88% 20%, #643f35 0%, transparent 60%), linear-gradient(135deg, #42242f, #4f2d3a); }
+:root[data-theme="dark"] .nb-aurora { background: var(--grain), radial-gradient(80% 150% at 0% 100%, #1f6a52 0%, transparent 62%), radial-gradient(80% 150% at 50% 0%, #3a479a 0%, transparent 62%), radial-gradient(80% 150% at 100% 80%, #7a3a6c 0%, transparent 62%), linear-gradient(135deg, #1c3a3d, #2b2a4f); }
+:root[data-theme="dark"] .nb-ink { background: var(--grain), radial-gradient(110% 140% at 12% 0%, #4a4a48 0%, transparent 55%), linear-gradient(135deg, #2b2b2a, #3b3b39); }
+:root[data-theme="dark"] :is(.note-banner, .nc-banner).nb-img { filter: brightness(.88); }
+/* 文獻庫的筆記卡片：有封面的，卡片最上面一條是那張封面（第一張貼的圖就不再當縮圖） */
+.nc-banner { flex: none; height: 30%; margin: -16px -15px 2px; background-position: center; background-size: cover; box-shadow: inset 0 -.5px 0 var(--line); }
+.nc-banner.nb-img { background-repeat: no-repeat; background-color: var(--fill); }

@@ -201,3 +201,51 @@ body.in-open .note-insp { opacity: 1; visibility: visible; transform: none; tran
 .note-insp .ni-width { display: flex; width: 100%; }
 .note-insp .ni-width > button { flex: 1; }
 .note-insp .ni-hint { margin: 6px 4px 0; font: 11.5px/1.5 var(--ui); color: var(--ink-3); }
+
+/* ---------- 封面（note/app.js 的 paintBanner；漸層的樣子在 craft.css 的 .nb-<名字>）----------
+   紙最上面的一張，貼齊紙的邊（上面兩個角跟著紙圓）。滑鼠移過去右下角才出現兩顆小鈕：換封面、拿掉 */
+.note-banner { position: relative; height: 210px; margin: -44px -56px 30px -12px; border-radius: var(--r-sheet, 14px) var(--r-sheet, 14px) 0 0; background-position: center; background-size: cover; }
+.note-banner.nb-img { background-repeat: no-repeat; background-color: var(--fill); }
+.note-banner[hidden] { display: none; }
+@media (max-width: 900px) { .note-banner { height: 150px; margin: -28px -22px 22px 0; } }
+.nb-acts { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease-out; }
+.note-banner:hover .nb-acts, .nb-acts:focus-within { opacity: 1; }
+@media (hover: none) { .nb-acts { opacity: 1; } }
+.nb-btn { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: rgba(20, 20, 24, .34); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .28); transition: background .15s ease, transform .12s ease-out; }
+@media (hover: hover) and (pointer: fine) { .nb-btn:hover { background: rgba(20, 20, 24, .5); } }
+.nb-btn:active { transform: scale(.94); }
+.nb-btn svg.i { width: 15px; height: 15px; }
+@media print { .nb-acts { display: none; } .note-banner { margin: 0 0 20px; border-radius: 10px; } }
+
+/* ---------- 紙張：方格、點陣（樣式 → 紙張；body[data-paper]）。線條很淡，只在紙上、不在封面上 ---------- */
+body.note-page { --paper-line: color-mix(in srgb, var(--ink) 6%, transparent); --paper-dot: color-mix(in srgb, var(--ink) 20%, transparent); }
+body.note-page[data-paper="grid"] .note-main { background-image: linear-gradient(var(--paper-line) 1px, transparent 1px), linear-gradient(90deg, var(--paper-line) 1px, transparent 1px); background-size: 24px 24px; background-position: -1px -1px; }
+body.note-page[data-paper="dots"] .note-main { background-image: radial-gradient(circle at 1.5px 1.5px, var(--paper-dot) 1.1px, transparent 1.6px); background-size: 22px 22px; }
+@media print { body.note-page[data-paper] .note-main { background-image: none; } }
+
+/* 檢閱器 → 樣式：封面一排小色塊、紙張 */
+.ni-banners { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.nb-sw { aspect-ratio: 16 / 10; border-radius: 8px; box-shadow: inset 0 0 0 .5px var(--line); transition: box-shadow var(--dur-fast), transform .12s ease-out; }
+.nb-sw:active { transform: scale(.95); }
+.nb-sw.on { box-shadow: inset 0 0 0 .5px var(--line), 0 0 0 2px var(--sheet, var(--bg)), 0 0 0 3.5px var(--accent); }
+.nb-sw.none { background: linear-gradient(to top right, transparent calc(50% - .75px), color-mix(in srgb, var(--ink) 30%, transparent) calc(50% - .75px), color-mix(in srgb, var(--ink) 30%, transparent) calc(50% + .75px), transparent calc(50% + .75px)), var(--fill); }
+.nb-sw.nb-up { display: grid; place-items: center; color: var(--ink-2); background: var(--ctl-bg); }
+.nb-sw.nb-up svg.i { width: 15px; height: 15px; }
+.ni-paper { display: flex; }
+.ni-paper > button { flex: 1; }
+
+/* 挑封面的小框（pick.js 的 PR.pickBanner） */
+.nb-pop { width: 352px; padding: 12px; box-sizing: border-box; }
+.nb-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.nb-pop .nb-sw { aspect-ratio: 16 / 10; }
+.nb-foot { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 0; }
+.nb-foot .grow { flex: 1; }
+.nb-foot .btn svg.i { width: 14px; height: 14px; margin-right: 4px; }
+
+/* ---------- 專注模式（note/panels.js 的 setFocus）：頂欄、「問 AI」藏起來，滑鼠移到最上面才出來；只有正在寫的那一塊是清楚的 ---------- */
+body.focus-mode .topbar { opacity: 0; transition: opacity .4s ease; }
+body.focus-mode .topbar:hover, body.focus-mode .topbar:focus-within { opacity: 1; transition-duration: .15s; }
+body.focus-mode .note-ai, body.focus-mode .nw-grip { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+body.focus-mode .note-main :is(.note-banner, .note-head, .note-meta, .bk-b) { transition: opacity .35s ease; }
+body.focus-mode .note-main:has(.bk-b.editing) :is(.note-banner, .note-head, .note-meta, .bk-b:not(.editing)) { opacity: .26; }
+@media (prefers-reduced-motion: reduce) { body.focus-mode .note-main :is(.note-banner, .note-head, .note-meta, .bk-b) { transition: none; } }

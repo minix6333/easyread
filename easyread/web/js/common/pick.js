@@ -58,4 +58,60 @@
     const on = pop.querySelector(".pick-grid .on");
     if (on) on.scrollIntoView({ block: "center" });
   };
+
+  /* ---------- 筆記的封面（像 Craft 文件頂上那一張）----------
+     一組漸層（樣子在 notepage.css 的 .nb-<名字>），或貼上去的圖（clips/檔名，存在那份筆記的資料夾裡）。
+     PR.BANNERS：[名字, 中文名]；PR.bannerAttrs(值, 圖的網址(src))：那一塊要加的 class 和 style；
+     PR.pickBanner(anchor, { value, onChange(值), upload(file) → "clips/…" })：挑封面的小框，點了就換（不用按確定）。 */
+  PR.BANNERS = [["mist", PR.t("霧藍")], ["dawn", PR.t("晨光")], ["sea", PR.t("海鹽")], ["forest", PR.t("森林")], ["dusk", PR.t("暮色")],
+    ["sand", PR.t("沙丘")], ["rose", PR.t("玫瑰")], ["aurora", PR.t("極光")], ["ink", PR.t("墨")], ["night", PR.t("夜空")]];
+  PR.bannerAttrs = function (v, urlOf) {
+    if (!v) return null;
+    if (/^clips\/[A-Za-z0-9._-]+$/.test(v) && urlOf) return { cls: "nb-img", style: "background-image:url(&quot;" + PR.esc(urlOf(v)) + "&quot;)" };
+    return PR.BANNERS.some(([k]) => k === v) ? { cls: "nb-" + v, style: "" } : null;
+  };
+  let bpop = null, bcur = null, bfile = null;
+  function closeBanner() { if (bpop) bpop.classList.remove("open"); bcur = null; }
+  function paintBanner() {
+    bpop.innerHTML = '<div class="nb-grid">' + PR.BANNERS.map(([k, name]) => '<button type="button" class="nb-sw nb-' + k + (bcur.value === k ? " on" : "") + '" data-b="' + k + '" title="' + PR.esc(name) + '"></button>').join("") + "</div>" +
+      '<div class="pick-foot nb-foot">' + (bcur.upload ? '<button type="button" class="btn sm" data-up>' + PR.icon("image", "sm") + PR.t("用自己的圖…") + "</button>" : "") +
+      '<span class="grow"></span><button type="button" class="btn sm" data-b=""' + (bcur.value ? "" : " disabled") + ">" + PR.t("拿掉封面") + "</button></div>";
+  }
+  PR.pickBanner = function (anchor, o) {
+    if (!bpop) {
+      bpop = PR.el("div", { id: "bannerPop", class: "popover nb-pop" });
+      document.body.appendChild(bpop);
+      bfile = PR.el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", hidden: "" });
+      document.body.appendChild(bfile);
+      bpop.addEventListener("mousedown", (e) => e.preventDefault());
+      bpop.addEventListener("click", (e) => {
+        if (!bcur) return;
+        if (e.target.closest("[data-up]")) { bfile.value = ""; bfile.click(); return; }
+        const b = e.target.closest("[data-b]");
+        if (!b) return;
+        bcur.value = b.dataset.b;
+        bcur.onChange(bcur.value);
+        if (!bcur.value) return closeBanner();
+        paintBanner();
+      });
+      bfile.addEventListener("change", async () => {
+        const f = bfile.files && bfile.files[0], cur = bcur;
+        if (!f || !cur || !cur.upload) return;
+        closeBanner();
+        try { cur.onChange(await cur.upload(f)); } catch (e) { PR.toast(PR.t("封面沒換成：{msg}", { msg: PR.esc(e.message) })); }
+      });
+      document.addEventListener("mousedown", (e) => { if (bcur && !e.target.closest("#bannerPop")) closeBanner(); });
+      document.addEventListener("keydown", (e) => { if (bcur && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeBanner(); } }, true);
+    }
+    bcur = { value: o.value || "", onChange: o.onChange || (() => {}), upload: o.upload || null };
+    paintBanner();
+    bpop.classList.add("open");
+    const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
+    const w = bpop.offsetWidth, h = bpop.offsetHeight;
+    let y = r.bottom + 6;
+    if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6);
+    bpop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + "px";
+    bpop.style.top = y + "px";
+    if (PR.growFrom) PR.growFrom(bpop, r);
+  };
 })(window.PR);

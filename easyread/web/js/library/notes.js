@@ -140,9 +140,12 @@
 
   /* ---------- 主畫面的筆記卡片 ---------- */
   function cardHtml(n) {
-    const cover = n.cover ? '<div class="nc-cover" style="background-image:url(&quot;/n/' + PR.esc(n.id) + "/" + PR.esc(n.cover) + '&quot;)"></div>' : "";
-    return '<a class="ncard' + (n.cover ? " has-cover" : "") + '" href="/note/' + PR.esc(n.id) + '" data-note="' + PR.esc(n.id) + '" draggable="true"' + (n.color ? ' data-c="' + PR.esc(n.color) + '"' : "") + ">" +
-      '<div class="nc-page"><div class="nc-t">' + PR.tintIcon(n.icon, n.color, has("notes") ? "notes" : "notebook", "nc-ic") + "<span>" + PR.esc(titleOf(n)) + "</span></div>" + cover +
+    // 有封面（筆記頁頂上那一張）：卡片最上面一條就是它；沒有的話，第一張貼進去的圖當縮圖
+    const b = PR.bannerAttrs ? PR.bannerAttrs(n.banner, (src) => "/n/" + n.id + "/" + src) : null;
+    const band = b ? '<div class="nc-banner ' + b.cls + '"' + (b.style ? ' style="' + b.style + '"' : "") + "></div>" : "";
+    const cover = !b && n.cover ? '<div class="nc-cover" style="background-image:url(&quot;/n/' + PR.esc(n.id) + "/" + PR.esc(n.cover) + '&quot;)"></div>' : "";
+    return '<a class="ncard' + (cover ? " has-cover" : "") + (b ? " has-banner" : "") + '" href="/note/' + PR.esc(n.id) + '" data-note="' + PR.esc(n.id) + '" draggable="true"' + (n.color ? ' data-c="' + PR.esc(n.color) + '"' : "") + ">" +
+      '<div class="nc-page">' + band + '<div class="nc-t">' + PR.tintIcon(n.icon, n.color, has("notes") ? "notes" : "notebook", "nc-ic") + "<span>" + PR.esc(titleOf(n)) + "</span></div>" + cover +
       (n.preview ? '<div class="nc-pv">' + PR.esc(n.preview) + "</div>" : cover ? "" : '<div class="nc-pv empty">' + PR.t("空白的筆記") + "</div>") + "</div>" +
       '<div class="nc-foot">' + (n.star ? '<span class="st">' + PR.icon("star", "sm") + "</span>" : "") + '<span class="nc-time" title="' + PR.esc(n.updated || "") + '">' + PR.esc(PR.relTime(n.updated)) + "</span>" +
       (n.folder && L.tag !== n.folder ? '<span class="chip cat">' + L.catIcon(n.folder) + PR.esc(n.folder) + "</span>" : "") + '<span class="grow"></span>' + more + "</div></a>";

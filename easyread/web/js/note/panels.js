@@ -107,8 +107,19 @@
     const n = note();
     return sec(PR.t("圖示")) + '<div class="ni-iconrow"><button type="button" class="ni-bigicon" data-style="icon" title="' + PR.t("圖示與顏色") + '">' + PR.tintIcon(n.icon, n.color, "notes") + "</button>" +
       '<div class="ni-dots">' + PR.TINTS.map(([c, name]) => '<button type="button" data-tint="' + c + '" class="' + (c ? "" : "none") + ((n.color || "") === c ? " on" : "") + '" title="' + PR.esc(name) + '"' + (c ? ' data-c="' + c + '"' : "") + "></button>").join("") + "</div></div>" +
+      sec(PR.t("封面")) + bannerHtml(n) +
       sec(PR.t("字型")) + '<div class="ni-fonts">' + FONTS().map(([k, sample, label]) => '<button type="button" data-font="' + k + '" class="f-' + (k || "sys") + ((n.font || "") === k ? " on" : "") + '"><b>' + sample + "</b><span>" + PR.esc(label) + "</span></button>").join("") + "</div>" +
+      sec(PR.t("紙張")) + '<div class="seg ni-paper" role="group" aria-label="' + PR.esc(PR.t("紙張")) + '">' + [["", PR.t("空白")], ["grid", PR.t("方格")], ["dots", PR.t("點陣")]].map(([k, l]) => '<button type="button" data-paper="' + k + '"' + ((n.paper || "") === k ? ' class="on"' : "") + ">" + l + "</button>").join("") + "</div>" +
       sec(PR.t("版面寬度")) + widthHtml();
+  }
+  // 「加上封面」：先放一張和這份筆記的顏色搭的漸層（滑鼠移到封面上可以換）
+  const BANNER_OF = { gray: "ink", red: "rose", orange: "dawn", yellow: "sand", green: "forest", teal: "sea", blue: "mist", purple: "dusk", pink: "rose", brown: "sand" };
+  /* 封面：一排小色塊（沒有＋十組漸層），最後一格是「自己的圖」（開挑選的小框，可以上傳） */
+  function bannerHtml(n) {
+    const v = n.banner || "", img = /^clips\//.test(v);
+    return '<div class="ni-banners"><button type="button" class="nb-sw none' + (v ? "" : " on") + '" data-banner="" title="' + PR.t("沒有封面") + '"></button>' +
+      (PR.BANNERS || []).map(([k, name]) => '<button type="button" class="nb-sw nb-' + k + (v === k ? " on" : "") + '" data-banner="' + k + '" title="' + PR.esc(name) + '"></button>').join("") +
+      '<button type="button" class="nb-sw nb-up' + (img ? " on" : "") + '" data-banner-pick title="' + PR.t("用自己的圖…") + '">' + PR.icon("image", "sm") + "</button></div>";
   }
   /* 寫字那一欄多寬：四個常用的（窄、標準、寬、滿版），拖紙的兩邊拉出來的別的寬度顯示成「自訂 ○○○」（note/width.js） */
   function widthHtml() {
@@ -186,6 +197,9 @@
     if (b.dataset.ind) return N.ed.indent(+b.dataset.ind);
     if (b.dataset.tint !== undefined) { N.patch({ color: b.dataset.tint }); return paintInsp(); }
     if (b.dataset.font !== undefined) { N.patch({ font: b.dataset.font }); return paintInsp(); }
+    if (b.dataset.paper !== undefined) { N.patch({ paper: b.dataset.paper }); return paintInsp(); }
+    if (b.dataset.banner !== undefined) { N.patch({ banner: b.dataset.banner }); return paintInsp(); }
+    if (b.dataset.bannerPick !== undefined && PR.noteBanner) return PR.noteBanner(b);
     if (b.dataset.style === "icon") return PR.pickIcon(b, { icon: note().icon, color: note().color, onChange: (v) => { N.patch(v); paintInsp(); } });
     if (b.dataset.width !== undefined && PR.noteWidth) { PR.noteWidth.set(+b.dataset.width === PR.noteWidth.DEFAULT ? 0 : +b.dataset.width); return paintInsp(); }
     if (b.dataset.act) return act(b.dataset.act, b);
@@ -252,11 +266,14 @@
     PR.menu(at, [
       { label: PR.t("重新命名"), icon: has("rename") ? "rename" : "edit", fn: () => act("rename") },
       { label: PR.t("圖示與顏色…"), icon: has("palette") ? "palette" : "accent", fn: () => act("icon") },
+      PR.noteBanner ? (n.banner ? { label: PR.t("換封面…"), icon: "image", fn: () => setTimeout(() => PR.noteBanner(at), 0) }
+        : { label: PR.t("加上封面"), icon: "image", fn: () => N.patch({ banner: BANNER_OF[n.color] || "mist" }) }) : null,
       { label: n.star ? PR.t("取消收藏") : PR.t("收藏"), icon: "star", fn: () => act("star") },
       { label: PR.t("移到分類"), icon: has("movefolder") ? "movefolder" : "folder", fn: () => setTimeout(() => folderMenu(at), 0) },
       "-",
       PR.noteFind ? { label: PR.t("在這份筆記裡找"), icon: "search", kbd: "⌘F", fn: () => setTimeout(() => PR.noteFind(), 0) } : null,
       { label: PR.t("寬頁"), icon: has("wide") ? "wide" : "panel", checked: PR.noteWidth ? PR.noteWidth.preset() === "wide" : !!n.wide, fn: () => act("wide") },
+      { label: PR.t("專注模式"), icon: has("focus") ? "focus" : "type", checked: focusOn(), kbd: "⌘⇧F", fn: () => setFocus(!focusOn()) },
       { label: PR.t("目錄"), icon: has("outline") ? "outline" : "list", checked: !!ui.outline, fn: () => $("#outlineBtn").click() },
       "-",
       { label: PR.t("複製一份"), icon: has("duplicate") ? "duplicate" : "copy", fn: () => act("duplicate") },
@@ -265,6 +282,34 @@
       "-",
       { label: PR.t("刪除"), icon: "trash", danger: true, fn: () => act("delete") },
     ]);
+  });
+
+  /* ---------- 專注模式（更多選單、⌘⇧F；Esc 離開）----------
+     兩欄收起來、頂欄和「問 AI」藏起來（滑鼠移到最上面才出來）、只有正在寫的那一塊是清楚的，其他的淡下去（像 iA Writer）。
+     離開時兩欄照原來的樣子打開。只在這一次開著的期間有效（不記） */
+  let focusPrev = null;
+  const focusOn = () => document.body.classList.contains("focus-mode");
+  function setFocus(on) {
+    if (on === focusOn()) return;
+    if (on) {
+      focusPrev = { outline: !!ui.outline, insp: ui.insp };
+      if (ui.outline) $("#outlineBtn").click();
+      if (ui.insp) setInsp("");
+      document.body.classList.add("focus-mode");
+      if (N.ed && !document.activeElement.closest(".bk")) N.ed.focus("end");
+    } else {
+      document.body.classList.remove("focus-mode");
+      const prev = focusPrev;
+      focusPrev = null;
+      if (prev && prev.outline && !ui.outline) $("#outlineBtn").click();
+      if (prev && prev.insp && !ui.insp) setInsp(prev.insp);
+    }
+  }
+  PR.noteFocus = setFocus;
+  document.addEventListener("keydown", (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F") && !e.isComposing) { e.preventDefault(); setFocus(!focusOn()); return; }
+    if (e.key === "Escape" && focusOn() && !e.defaultPrevented && !(PR.menuOpen && PR.menuOpen()) && !document.querySelector(".popover.open, .menu.open, .note-ai.open")) { e.preventDefault(); setFocus(false); }
   });
 
   /* ---------- 接上編輯器 ---------- */

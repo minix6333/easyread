@@ -30,7 +30,7 @@
     el.dataset.s = s;
     el.title = s === "error" ? PR.t("沒存進去：{msg}", { msg: msg || "" }) : s === "saving" ? PR.t("儲存中…") : PR.t("已儲存");
   }
-  const LIST_KEYS = ["title", "icon", "color", "folder", "star"];  // 文獻庫的清單上看得到的：改了要叫它重新取
+  const LIST_KEYS = ["title", "icon", "color", "folder", "star", "banner"];  // 文獻庫的清單上看得到的：改了要叫它重新取
   const flushSoon = PR.debounce(flush, 400);
   async function flush() {
     if (sending || !Object.keys(pending).length) return;
@@ -112,7 +112,32 @@
     star.title = n.star ? PR.t("取消收藏") : PR.t("收藏");
     if (PR.noteWidth) PR.noteWidth.apply(); else document.body.classList.toggle("wide", !!n.wide);  // 寫字那一欄的寬度（note/width.js）
     if (n.font) document.body.dataset.font = n.font; else delete document.body.dataset.font;
+    if (n.paper) document.body.dataset.paper = n.paper; else delete document.body.dataset.paper;  // 紙張：方格、點陣（notepage.css）
+    paintBanner();
   }
+  /* 封面：紙最上面的一張（漸層或自己的圖）。滑鼠移過去右上角才出現兩顆鈕：換封面、拿掉 */
+  const banner = $("#noteBanner");
+  function paintBanner() {
+    const n = st.note, a = PR.bannerAttrs ? PR.bannerAttrs(n.banner, PR.imageUrl) : null;
+    const key = a ? a.cls + "|" + a.style : "";
+    document.body.classList.toggle("has-banner", !!a);
+    if (banner.dataset.key === key) return;
+    banner.dataset.key = key;
+    banner.hidden = !a;
+    banner.className = "note-banner" + (a ? " " + a.cls : "");
+    banner.setAttribute("style", a ? a.style.replace(/&quot;/g, '"') : "");
+    banner.innerHTML = a ? '<div class="nb-acts"><button type="button" class="nb-btn" data-nb="pick" title="' + PR.t("換封面") + '">' + PR.icon("image", "sm") + "</button>" +
+      '<button type="button" class="nb-btn" data-nb="off" title="' + PR.t("拿掉封面") + '">' + PR.icon("x", "sm") + "</button></div>" : "";
+  }
+  PR.noteBanner = function (anchor) {  // 換封面的小框（封面上的鈕、檢閱器、更多選單都叫這個）
+    PR.pickBanner(anchor, { value: st.note.banner || "", onChange: (v) => patch({ banner: v }), upload });
+  };
+  banner.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-nb]");
+    if (!b) return;
+    if (b.dataset.nb === "off") patch({ banner: "" });
+    else PR.noteBanner(b);
+  });
   $("#noteIcon").addEventListener("click", (e) => PR.pickIcon(e.currentTarget, { icon: st.note.icon, color: st.note.color, onChange: (v) => patch(v) }));
   $("#starBtn").addEventListener("click", () => patch({ star: !st.note.star }));
   const title = $("#noteTitle");
