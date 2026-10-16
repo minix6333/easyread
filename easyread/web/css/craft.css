@@ -377,7 +377,9 @@ body.side-collapsed .bar-side > .btn.icon, body.side-drawer .bar-side > .btn.ico
 .detail-head { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; height: var(--bar-h); }
 .detail-close { background: transparent; box-shadow: none; border-radius: 8px; }
 .detail-close:hover { background: var(--row-hover); }
-.abstract:not(.open)::after { background: linear-gradient(transparent, var(--mat-bg)); }
+/* 摘要收著時最後幾行漸漸淡掉：用遮罩讓字本身變透明（材質是半透明的，蓋一層底色的漸層會看到一塊色帶） */
+.detail .abstract:not(.open) { -webkit-mask-image: linear-gradient(#000 calc(100% - 3.2em), transparent); mask-image: linear-gradient(#000 calc(100% - 3.2em), transparent); }
+.detail .abstract:not(.open)::after { display: none; }
 .jobbox { background: var(--fill); }
 #syncBanner, .sync-banner, .cloud-notice { margin: 6px 22px 10px; border-radius: var(--r-sheet); background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
 @media (min-width: 1100px) {
@@ -1070,6 +1072,7 @@ input[type=range].look-range:focus-visible { outline: 2px solid var(--ring); out
 html[data-vt]::view-transition { pointer-events: none; }
 html[data-vt]::view-transition-group(*) { animation-duration: var(--dur); animation-timing-function: var(--spring); }
 html[data-vt]::view-transition-old(root), html[data-vt]::view-transition-new(root) { animation-duration: .2s; animation-timing-function: ease-out; }
+html[data-vt]::view-transition-old(root) { animation-duration: .1s; }  /* 舊的先很快淡掉：文章優先時文字換行了，兩份疊著淡入淡出會看到重影 */
 html[data-vt]::view-transition-old(*.fill), html[data-vt]::view-transition-new(*.fill) { height: 100%; }
 html[data-vt]::view-transition-old(*.thumb), html[data-vt]::view-transition-new(*.thumb) { height: 100%; object-fit: cover; object-position: top; overflow: clip; mix-blend-mode: normal; }  /* 封面：格子裡和清單裡長寬比不一樣，裁掉多的，不要拉扁 */
 /* 格子⇄清單：飛的途中用大張的那一張（小張放大是糊的，兩張一直疊著淡入淡出看起來是一塊塊灰的）；
@@ -1123,3 +1126,8 @@ body.drawer-open #drawer { visibility: visible; transition: transform var(--dur)
 /* 文獻庫的筆記卡片：有封面的，卡片最上面一條是那張封面（第一張貼的圖就不再當縮圖） */
 .nc-banner { flex: none; height: 30%; margin: -16px -15px 2px; background-position: center; background-size: cover; box-shadow: inset 0 -.5px 0 var(--line); }
 .nc-banner.nb-img { background-repeat: no-repeat; background-color: var(--fill); }
+
+/* 文獻庫詳細資訊的「翻譯」那一塊：一張紙（和清單、卡片同一種），裡面的用量不再是一張卡片疊在灰底上（兩層框看起來很擠） */
+.lib .detail .jobbox { background: var(--sheet); border-radius: 12px; box-shadow: 0 0 0 .5px var(--line); }
+.lib .detail .jobbox .us-card { margin: 10px 0 0; padding: 12px 0 0; border-radius: 0; background: transparent; box-shadow: none; border-top: .5px solid var(--line); }
+.lib .detail .jobbox .us-card .us-limits { border-top-width: .5px; border-top-color: var(--line); }

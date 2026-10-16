@@ -25,17 +25,19 @@
      開著的右側面板和它上面的分頁列（*.panel，從右邊滑進來）、釘著的導覽欄（*.panel-l，從左邊）。
      開關導覽欄（panels.js）、譯文（pdfmode.js）也用這一份。 */
   PR.readerNames = function () {
-    const out = [[PR.$("#canvas"), "rd-canvas", "fill"], [PR.$("#progress"), "rd-progress", "fill"]];
+    // 畫布只在 PDF 優先時跟著滑：有名字的元素畫在其他東西（root）上面，文章優先時文章在 root 裡，畫布一滑就把整篇文章蓋住了
+    const pdf = !!(PR.pdfMain && PR.pdfMain());
+    const out = pdf ? [[PR.$("#canvas"), "rd-canvas", "fill"], [PR.$("#progress"), "rd-progress", "fill"]] : [];
     const bar = PR.$("#bar");
     [["#backBtn", "rd-back"], ['[data-act="drawer"]', "rd-nav"], ["#jobState", "rd-job"], [".view-seg", "rd-seg"], [".bar-group", "rd-group"], ['[data-act="insp"]', "rd-insp"]].forEach(([q, n]) => {
       const el = bar && PR.$(q, bar);
       if (el && el.offsetWidth) out.push([el, n]);
     });
     const head = PR.$(".pv-head"), ai = PR.$(".pv-ai"), back = PR.$(".jump-back");
-    if (head && head.offsetWidth && PR.pdfMain && PR.pdfMain()) out.push([head, "rd-pvhead"]);
+    if (head && head.offsetWidth && pdf) out.push([head, "rd-pvhead"]);
     if (ai && ai.offsetWidth) out.push([ai, "rd-ai"]);
     if (back && back.offsetWidth) out.push([back, "rd-jump"]);
-    if (PR.pdfMain && PR.pdfMain()) {
+    if (pdf) {
       const vh = innerHeight;
       pageNodes.forEach((e, i) => {
         const r = e.node.getBoundingClientRect();

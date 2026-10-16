@@ -42,13 +42,14 @@ body.note-gone #outlineBtn, body.note-gone #starBtn, body.note-gone #inspBtn, bo
 
 /* 標題那一排：圖示在左邊那道槽裡（和區塊的把手同一欄），標題的字和內文對齊 */
 .note-head { position: relative; display: flex; align-items: flex-start; margin: 0 0 6px; }
-.note-icon { flex: none; width: 36px; height: 36px; margin: 1px 8px 0 0; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); opacity: .0; transition: opacity var(--dur-fast), background var(--dur-fast), transform .12s ease-out; }
+.note-icon { flex: none; width: 36px; height: 36px; margin: 4px 8px 0 0; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); opacity: .0; transition: opacity var(--dur-fast), background var(--dur-fast), transform .12s ease-out; }
 .note-icon .ti svg { width: 24px; height: 24px; stroke-width: 1.7; }
 .note-icon.set { opacity: 1; }
 .note-head:hover .note-icon, .note-icon:focus-visible { opacity: 1; }
 .note-icon:hover { background: var(--row-hover); }
 .note-icon:active { transform: scale(.94); }
-.note-page .note-title { flex: 1; min-width: 0; margin: 0; padding: 0; field-sizing: content; }
+.note-page .note-title { flex: 1; min-width: 0; margin: 0; padding: 0; field-sizing: content; font-size: 36px; line-height: 1.2; letter-spacing: -.015em; }  /* 文件標題比內文的大標題（1.6em）明顯大一階，像 Craft */
+@media (max-width: 900px) { .note-page .note-title { font-size: 28px; } }
 .note-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px 44px; min-height: 0; }
 .note-meta:empty { display: none; }
 .note-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; max-width: 240px; padding: 0 9px 0 7px; border-radius: 8px; font: 12px var(--ui); color: var(--ink-2); background: var(--fill); text-decoration: none; transition: background var(--dur-fast), color var(--dur-fast); }
