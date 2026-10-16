@@ -48,7 +48,7 @@
       if (ta.value !== v) { ta.value = v; ta.dispatchEvent(new Event("input", { bubbles: true })); }
     };
     const ed = PR.blockEditor(host, { value: ta.value, compact: true, placeholder: ta.getAttribute("placeholder") || "", upload: PR.store && PR.store.mode === "server" ? uploadClip : null,
-      noAi: true, immediate: true, strip: "always", onChange: (md) => sync(md) });
+      noAi: true, immediate: true, strip: "always", autoDestroy: true, onChange: (md) => sync(md) });  // autoDestroy：卡片重畫後舊的編輯器自己收掉掛在 document 上的監聽
     ta._ed = ed;
     ed.on("blur", () => { sync(); ta.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });  // 卡片那邊靠 focusout 判斷「寫完了」
     ed.on("render", () => PR.emit("md-preview", ta));  // 高度變了：便利貼、頁邊卡重新排位置

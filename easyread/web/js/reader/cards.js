@@ -8,7 +8,16 @@
   const st = { cards: null, drafts: [], drafting: null, adding: null, editing: null, ctrl: null };
   const api = (body) => PR.api("/api/p/" + PR.pid + "/cards", { method: "POST", body }).then((d) => { st.cards = d.cards || []; return st.cards; });
   const load = () => (st.cards ? Promise.resolve(st.cards) : PR.api("/api/p/" + PR.pid + "/cards").then((d) => (st.cards = d.cards || []), () => (st.cards = [])));
-  const repaint = () => { if (PR.notesPanelOpen && PR.notesPanelOpen() && PR.notesTab && PR.notesTab() === "cards") PR.renderNotesPanel(null); else if (PR.notesPanelOpen && PR.notesPanelOpen()) PR.renderNotesPanel(); };
+  /* 正在自己寫卡（表單裡有游標）時別重畫：AI 出完卡、別處改了東西都等寫完（離開表單）再畫，打到一半的字和游標才不會不見 */
+  const typingInForm = () => { const a = document.activeElement; return !!(a && a.closest && a.closest("#notespanel .cd-form")); };
+  const repaint = () => {
+    if (typingInForm()) { st.later = true; return; }
+    if (PR.notesPanelOpen && PR.notesPanelOpen() && PR.notesTab && PR.notesTab() === "cards") PR.renderNotesPanel(null); else if (PR.notesPanelOpen && PR.notesPanelOpen()) PR.renderNotesPanel();
+  };
+  document.addEventListener("focusout", (e) => {
+    if (!st.later || !(e.target.closest && e.target.closest("#notespanel .cd-form"))) return;
+    setTimeout(() => { if (st.later && !typingInForm()) { st.later = false; repaint(); } }, 0);
+  });
   const due = () => (st.cards || []).filter((c) => PR.srs.isDue(c.srs));
   const curPage = () => (PR.pdfPage ? PR.pdfPage() : 1);
   const docTitle = () => { const m = (S.paper && S.paper.meta) || {}; return m.title_en || m.title_zh || ""; };
@@ -55,7 +64,7 @@
     }
     const now = Date.now();
     return '<div class="cd-list">' + st.cards.slice().sort((a, b) => (a.page || 0) - (b.page || 0) || String(a.created).localeCompare(String(b.created))).map((c) => {
-      if (st.editing === c.id) return formHtml(c, c.id);
+      if (st.editing === c.id) return formHtml(st.editDraft && st.editDraft.id === c.id ? Object.assign({}, c, st.editDraft) : c, c.id);
       const isDue = PR.srs.isDue(c.srs, now);
       return '<div class="cd-card' + (isDue ? " due" : "") + '" data-cid="' + PR.esc(c.id) + '"><div class="cd-q">' + md(c.q) + '</div><div class="cd-a">' + md(c.a) + "</div>" +
         '<div class="cd-row">' + (c.page ? '<button class="cd-pg" data-cd="go" title="' + PR.esc(PR.t("翻到第 {page} 頁", { page: c.page })) + '">p.' + c.page + "</button>" : "") +
@@ -99,15 +108,15 @@
     }
     if (k === "ai") return draft({ from: "doc" }, "doc");
     if (k === "stop" && st.ctrl) return st.ctrl.abort();
-    if (k === "add") { st.adding = { q: "", a: "", page: curPage() }; st.editing = null; return repaint(); }
-    if (k === "cancel") { st.adding = null; st.editing = null; return repaint(); }
+    if (k === "add") { st.adding = { q: "", a: "", page: curPage() }; st.editing = null; st.editDraft = null; return repaint(); }
+    if (k === "cancel") { st.adding = null; st.editing = null; st.editDraft = null; return repaint(); }
     if (k === "save") {
       const f = b.closest(".cd-form"), q = f.querySelector("[data-cdq]").value.trim(), a = f.querySelector("[data-cda]").value.trim();
       if (!q || !a) return PR.toast(PR.t("問題和答案都要有字"));
       try {
         if (f.dataset.cdf === "new") await api({ op: "add", cards: [{ q, a, page: st.adding && st.adding.page }] });
         else await api({ op: "update", id: f.dataset.cdf, fields: { q, a } });
-        st.adding = null; st.editing = null;
+        st.adding = null; st.editing = null; st.editDraft = null;
       } catch (err) { PR.toast(PR.t("沒存成：{msg}", { msg: PR.esc(err.message) })); }
       return repaint();
     }
@@ -118,7 +127,7 @@
       return repaint();
     }
     if (k === "drop") { st.drafts = []; return repaint(); }
-    if (k === "edit" && c) { st.editing = c.id; st.adding = null; return repaint(); }
+    if (k === "edit" && c) { st.editing = c.id; st.adding = null; st.editDraft = null; return repaint(); }
     if (k === "del" && c) {
       if (!(await PR.confirm({ title: PR.t("刪掉這張卡？"), body: PR.t("複習的記錄也一起刪掉。"), ok: PR.t("删除"), danger: true, at: b }))) return;
       try { await api({ op: "delete", id: c.id }); } catch (err) { PR.toast(PR.esc(err.message)); }
@@ -134,7 +143,15 @@
     const btn = PR.$("#notespanel [data-cd=keep]"), n = st.drafts.filter((y) => y.keep).length;
     if (btn) { btn.disabled = !n; btn.textContent = PR.t("加入 {n} 張", { n }); }
   });
-  document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#notespanel .cd-form") && e.target.tagName === "TEXTAREA") PR.autosize(e.target); });
+  document.addEventListener("input", (e) => {
+    const f = e.target.closest && e.target.closest("#notespanel .cd-form");
+    if (!f || e.target.tagName !== "TEXTAREA") return;
+    PR.autosize(e.target);
+    // 打到一半的問題、答案記著：面板不得不重畫時（換分頁再回來、劃了線）填回去
+    const q = f.querySelector("[data-cdq]").value, a = f.querySelector("[data-cda]").value;
+    if (f.dataset.cdf === "new" && st.adding) Object.assign(st.adding, { q, a });
+    else if (st.editing === f.dataset.cdf) st.editDraft = { id: f.dataset.cdf, q, a };
+  });
   /* 打開文件時先取一次（筆記面板的「卡片」上要顯示到期幾張） */
   PR.on("rendered", () => { if (!st.cards && PR.store && PR.store.mode === "server") load().then(() => { if (PR.notesPanelOpen && PR.notesPanelOpen()) PR.renderNotesPanel(); }); });
 })(window.PR);

@@ -125,18 +125,35 @@
     return out;
   }
   /* 表格的 Markdown ⇄ 一格一格（純函式）：| 甲 | 乙 |，第二行是 | --- | --- |（對齊的 :--- 記著） */
+  /* 一列拆成幾格：$公式$、\x60程式碼\x60 裡的 | 不是分隔（條件機率 $p(y|x)$）——和排版那邊（markup.js 先把公式、程式碼拿出來再拆）一樣 */
   function splitRow(line) {
     let s = String(line || "").trim();
     if (s.startsWith("|")) s = s.slice(1);
     if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
     const out = [];
-    let cur = "";
+    let cur = "", math = false, code = false;
     for (let i = 0; i < s.length; i++) {
-      if (s[i] === "\\" && s[i + 1] === "|") { cur += "\\|"; i++; continue; }
-      if (s[i] === "|") { out.push(cur.trim()); cur = ""; continue; }
-      cur += s[i];
+      const c = s[i];
+      if (c === "\\" && i + 1 < s.length) { cur += c + s[i + 1]; i++; continue; }  // 跳脫的字（\| \$ …）原樣留著
+      if (c === "\x60" && !math) code = !code;
+      else if (c === "$" && !code && s[i + 1] !== "$" && s[i - 1] !== "$") math = !math;
+      if (c === "|" && !math && !code) { out.push(cur.trim()); cur = ""; continue; }
+      cur += c;
     }
     out.push(cur.trim());
+    return out;
+  }
+  /* 一格的 Markdown 放回表格：公式、程式碼外面的 | 都跳脫（連著的 || 兩個都要）；裡面的不動 */
+  function escCell(c) {
+    const s = String(c || "").replace(/\n+/g, " ");
+    let out = "", math = false, code = false;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === "\\" && i + 1 < s.length) { out += ch + s[i + 1]; i++; continue; }
+      if (ch === "\x60" && !math) code = !code;
+      else if (ch === "$" && !code && s[i + 1] !== "$" && s[i - 1] !== "$") math = !math;
+      out += ch === "|" && !math && !code ? "\\|" : ch;
+    }
     return out;
   }
   function tableGrid(md) {
@@ -150,7 +167,7 @@
   }
   function gridTable(rows, align) {
     const w = Math.max(1, ...rows.map((r) => r.length));
-    const cell = (c) => String(c || "").replace(/\n+/g, " ").replace(/(^|[^\\])\|/g, "$1\\|");
+    const cell = escCell;
     const rule = Array.from({ length: w }, (_, k) => ({ l: ":---", r: "---:", c: ":---:" })[(align || [])[k]] || "---");
     return ["| " + Array.from({ length: w }, (_, k) => cell(rows[0][k])).join(" | ") + " |", "| " + rule.join(" | ") + " |"]
       .concat(rows.slice(1).map((r) => "| " + Array.from({ length: w }, (_, k) => cell(r[k])).join(" | ") + " |")).join("\n");
@@ -227,7 +244,10 @@
   PR.blockKinds = MENU;
   PR.blockGroups = GROUPS;
   const INLINE = (b) => b && (b.type === "p" || b.type === "heading" || b.type === "list");  // 一塊就是一行字的那幾種
-  const RICH = (b) => b && (b.type === "p" || b.type === "heading" || b.type === "list" || b.type === "quote" || b.type === "callout");  // 直接在排好的樣子上改的那幾種
+  /* 直接在排好的樣子上改的那幾種。引用、說明框裡有清單、$$ 公式、程式碼、表格、標題這些一整塊的東西時，改原文（排好的那一格只認行內的樣式，
+     這些會被當成字面上的符號存回去，點進去再出來就壞了） */
+  const BLOCKY = /(^|\n)[ \t]*(?:[-*+][ \t]|\d+[.)][ \t]|\$\$|\x60\x60\x60|\||#{1,6}[ \t]|>)/;
+  const RICH = (b) => b && (b.type === "p" || b.type === "heading" || b.type === "list" || ((b.type === "quote" || b.type === "callout") && !BLOCKY.test(b.text || "")));
   const kindOf = (b) => (!b ? "" : b.type === "heading" ? "h" + b.level : b.type === "list" ? b.kind : b.type === "callout" ? b.kind : b.type === "code" && /^(flow|flowchart|mermaid|graph)$/.test(b.lang || "") ? "flow" : b.type);
   const FIELD_SIZING = typeof CSS !== "undefined" && CSS.supports && CSS.supports("field-sizing", "content");  // 輸入框自己長高，不用每打一個字量一次
 
@@ -264,6 +284,7 @@
         const b = e.target.closest("[data-sb]");
         if (!b) return;
         const k = b.dataset.sb;
+        if (pop) closePop(true);  // 公式小框開著：先把打好的 TeX 收進去（不然換種類、插一塊時就不見了）
         if (!state.editing && !state.selected.size) { const last = state.blocks[state.blocks.length - 1]; if (last) startEdit(last.id, "end"); }
         if (k === "math" || k === "table" || k === "image") api.insertBlock(k);
         else api.convert(api.current().kind === k ? "p" : k);
@@ -333,7 +354,15 @@
       mirror.textContent = "";
       return xy;
     }
+    /* 卡片、便利貼的編輯器每次重畫卡片就換一個新的；舊的元素不在頁面上了，下一次有事件就自己把掛在 document 上的監聽拿掉 */
+    function gone() {
+      if (!opts.autoDestroy || root.isConnected) return false;
+      changeSoon.flush();
+      for (const [ev, fn] of [["selectionchange", placeTools], ["mousemove", onSweep], ["mouseup", endSweep], ["mousedown", onDocDown], ["keydown", onDocKey], ["copy", onDocCopy], ["cut", onDocCopy], ["paste", onDocPaste]]) document.removeEventListener(ev, fn);
+      return true;
+    }
     function placeTools() {
+      if (gone()) return;
       const ta = document.activeElement;
       if (ta && ta.classList && ta.classList.contains("bk-rich") && root.contains(ta)) {  // 排好的那一格：照選取的範圍放；亮起游標所在的樣式
         const sel = getSelection(), on = sel.rangeCount && !sel.isCollapsed && ta.contains(sel.anchorNode) && ta.contains(sel.focusNode);
@@ -521,6 +550,8 @@
       const el = cell.closest(".bk-b"), id = el && el.dataset.id, i = idx(id), b = state.blocks[i];
       if (!b) return;
       if (cell.innerHTML === "<br>") cell.innerHTML = "";
+      typingSnapshot(id);  // 表格裡打字也記得復原點（以前 ⌘Z 一次退掉整串）
+      dirty.add(id);
       b.text = gridMd(el, b);
       changeSoon();
     }
@@ -660,7 +691,9 @@
     function startEdit(id, where) {
       if (state.editing === id) { if (where != null) focusEdit(id, where); return; }
       const was = state.editing;
-      if (was) pullText(was);
+      if (was) { pullText(was); dirty.delete(was); }
+      dirty.delete(id);  // 這一格等一下從存著的 Markdown 重畫：還沒動過
+      closeMention();
       state.editing = id;
       writing(true);
       const hadSel = state.selected.size > 0;
@@ -702,6 +735,7 @@
       if (pop) closePop(true);
       const id = state.editing;
       pullText(id);
+      dirty.delete(id);
       state.editing = null;
       writing(false);
       closeMenu();
@@ -714,11 +748,15 @@
       emit("blur");
     }
     /* 把輸入框裡的字收回區塊 */
+    /* 這次編輯真的動過的塊（打字、改樣式、插公式、貼上…都會經過 onInput／cellInput）。沒動過的塊不從畫面收回來：
+       排好的樣子轉回 Markdown 不見得一字不差，只是點進去再出來就改寫，會把讀者的筆記悄悄改掉 */
+    const dirty = new Set();
     function pullText(id) {
       const el = blockEl(id), f = fieldOf(id);
       const i = idx(id);
-      if (el && i >= 0 && el.querySelector(".bk-grid")) { state.blocks[i].text = gridMd(el, state.blocks[i]); return; }  // 表格：一格一格收回來
+      if (el && i >= 0 && el.querySelector(".bk-grid")) { if (dirty.has(id)) state.blocks[i].text = gridMd(el, state.blocks[i]); return; }  // 表格：一格一格收回來
       if (!f || i < 0) return;
+      if (f.rich && !dirty.has(id)) return;
       const b = state.blocks[i];
       b.text = f.rich ? f.value().replace(/\n+$/, "") : f.value();  // 排好的那一格：最後多按的換行不存
       const langIn = el.querySelector(".bk-lang-in");
@@ -746,9 +784,11 @@
         else if (b.type === "p" && /^(\x60\x60\x60|｀｀｀)([\w+-]*)$/.test(txt)) nb = { type: "code", lang: (/^(?:\x60\x60\x60|｀｀｀)([\w+-]*)$/.exec(txt) || [])[1] || "", text: "" };
         else if (b.type === "p" && /^(\$\$|＄＄|￥￥)$/.test(txt)) nb = { type: "math", text: "" };
         else {
+          const cAt = f.caret();
           for (const [re, mk] of PREFIX) {
             const m = re.exec(txt);
             if (!m) continue;
+            if (!cAt || cAt.start !== m[0].length) continue;  // 只有剛打完開頭記號（游標就在它後面）才換；改「1、研究背景」後面的字不會突然變成清單
             const spec = mk(m, b);
             if (!spec) continue;
             nb = Object.assign(spec, { text: PR.rich.dropMd(f.value(), m[0].length) });
@@ -1011,6 +1051,7 @@
       if (!ta) { const li = e.target.closest && e.target.closest(".bk-lang-in"); if (li) { pullText(li.closest(".bk-b").dataset.id); changeSoon(); } return; }
       const id = ta.closest(".bk-b").dataset.id, i = idx(id), b = state.blocks[i];
       if (!b) return;
+      dirty.add(id);
       if (ta.tagName === "TEXTAREA") {
         autosize(ta);
         // 「/」在區塊開頭（或整塊是空的）：叫出區塊選單
@@ -1098,10 +1139,11 @@
       const id = mn.id, i = idx(id);
       closeMenu();
       const f = fieldOf(id);
-      if (f && !mn.turn && (f.rich ? /^[\/／、][^\s/／、]*$/.test(f.text()) : /^\/[^\s/]*$/.test(f.el.value))) { if (f.rich) f.el.innerHTML = ""; else f.el.value = ""; state.blocks[i].text = ""; }  // 把打的「/xx」清掉
+      const cleared = !!(f && !mn.turn && (f.rich ? /^[\/／、][^\s/／、]*$/.test(f.text()) : /^\/[^\s/]*$/.test(f.el.value)));
+      if (cleared) { if (f.rich) f.el.innerHTML = ""; else f.el.value = ""; state.blocks[i].text = ""; }  // 把打的「/xx」清掉
       if (k === "image") { pickImage(id); return; }
       if (k === "ai") { pullText(id); state.blocks[i].text = ""; stopEdit(); api.askAi(i); return; }
-      if (k === "link") { if (f && f.rich) { f.el.focus(); f.setCaret(0, 0); document.execCommand("insertText", false, "@"); onInput({ target: f.el }); } return; }  // 打一個 @：叫出下面的「提到」
+      if (k === "link") { if (f && f.rich) { f.el.focus(); if (cleared) f.setCaret(0, 0); document.execCommand("insertText", false, "@"); onInput({ target: f.el }); } return; }  // 在游標那裡打一個 @：叫出下面的「提到」
       setType(id, k);
     }
 
@@ -1165,7 +1207,7 @@
       const f = fieldOf(mn.id);
       if (!it || !f || !f.rich) return;
       const c = f.caret(), to = c ? c.start : mn.from + mn.q.length + 1;
-      if (!/^[@＠]/.test(PR.rich.text(f.el).slice(mn.from, to))) return;  // 那個 @ 已經不在原來的地方
+      if (!/^[@＠][^\s@＠]*$/.test(PR.rich.text(f.el).slice(mn.from, to))) return;  // 游標已經不在「@找的字」後面（點到別處了）：不換，免得吃掉一段字
       typingSnapshot(mn.id);
       f.el.focus();
       f.setCaret(mn.from, to);
@@ -1395,7 +1437,7 @@
       return best;
     };
     function onSweep(e) {
-      if (!sweep) return;
+      if (gone() || !sweep) return;
       if (!(e.buttons & 1)) { endSweep(); return; }
       const j = indexAtY(e.clientY);
       if (j < 0) return;
@@ -1423,6 +1465,7 @@
     root.addEventListener("mousedown", (e) => {
       const mi = e.target.closest(".bk-mi");
       if (mi && mi.dataset.mk != null) { e.preventDefault(); pickMention(+mi.dataset.mk); return; }
+      if (state.mention) closeMention();  // 點到別的地方（游標換位置了）：「@」清單收起來
       if (mi) { e.preventDefault(); pickMenu(mi.dataset.k); return; }
       if (e.target.closest(".bk-b.editing .bk-mark.todo, .bk-add, .bk-gadd")) { e.preventDefault(); return; }  // 別把輸入框的焦點搶走
       const h = e.target.closest(".bk-handle");
@@ -1442,7 +1485,7 @@
     });
     /* 點了編輯器外面：選著的區塊放掉（不然之後在別處按 Backspace、方向鍵會動到它們）。筆記 AI、格式面板（.bk-keep）要用選取，不算外面 */
     function onDocDown(e) {
-      if (!state.selected.size || state.editing || root.contains(e.target)) return;
+      if (gone() || !state.selected.size || state.editing || root.contains(e.target)) return;
       if (e.target.closest && e.target.closest("#ctxmenu, .nai, .bk-keep, .dialog-backdrop")) return;
       state.selected.clear(); state.anchor = state.head = null;
       render();
@@ -1524,7 +1567,7 @@
     /* 選著區塊（沒在打字）時的鍵盤：整份文件只有一個編輯器收（焦點在別的輸入框就不管） */
     const owns = (e) => state.selected.size && !state.editing && root.isConnected && !(e.target.closest && e.target.closest("input, textarea, select, [contenteditable], .dialog-backdrop.open"));
     function onDocKey(e) {
-      if (!owns(e) || (PR.menuOpen && PR.menuOpen())) return;
+      if (gone() || !owns(e) || (PR.menuOpen && PR.menuOpen())) return;
       const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase(), r = selectedRange();
       if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); deleteSelected(); }
       else if (e.key === "Escape") { state.selected.clear(); state.anchor = state.head = null; render(); }
@@ -1556,14 +1599,14 @@
       else if (!mod && !e.altKey && e.key.length === 1 && r.from === r.to && INLINE(state.blocks[r.from])) { startEdit(state.blocks[r.from].id, "end"); }  // 直接打字：接在這一塊後面寫
     }
     function onDocCopy(e) {
-      if (!owns(e)) return;
+      if (gone() || !owns(e)) return;
       const md = selectedMarkdown(); if (!md || !e.clipboardData) return;
       e.clipboardData.setData("text/plain", md);
       e.preventDefault();
       if (e.type === "cut") deleteSelected();
     }
     function onDocPaste(e) {
-      if (!owns(e) || !e.clipboardData) return;
+      if (gone() || !owns(e) || !e.clipboardData) return;
       const files = Array.from(e.clipboardData.items || []).filter((it) => it.kind === "file" && /^image\//.test(it.type)).map((it) => it.getAsFile()).filter(Boolean);
       const r = selectedRange();
       if (files.length && opts.upload) { e.preventDefault(); putImage(state.blocks[r.to].id, files[0]); return; }

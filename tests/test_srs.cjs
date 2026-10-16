@@ -50,3 +50,10 @@ test("due checks and the friendly labels", () => {
   assert.equal(srs.span(23 * 3600000), "1 天");
   assert.equal(srs.span(5 * 3600000), "5 小時");
 });
+
+test("answering Good every time keeps difficulty where it started (FSRS-4.5 reverts to D0(3) = w4)", () => {
+  const srs = load();
+  let s = null, now = Date.UTC(2026, 0, 1);
+  for (let k = 0; k < 40; k++) { s = srs.next(s, 3, now); now = Date.parse(s.due); }
+  assert.ok(Math.abs(s.d - 5.1618) < 0.01, s.d);
+});

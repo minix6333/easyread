@@ -11,7 +11,7 @@
   const d0 = (g) => clamp(W[4] - (g - 3) * W[5], 1, 10);
   const recall = (t, s) => Math.pow(1 + FACTOR * t / s, DECAY);
   const interval = (s) => clamp(Math.round(s / FACTOR * (Math.pow(RETAIN, 1 / DECAY) - 1)), 1, MAX_DAYS);
-  const nextD = (d, g) => clamp(W[7] * d0(4) + (1 - W[7]) * (d - W[6] * (g - 3)), 1, 10);
+  const nextD = (d, g) => clamp(W[7] * d0(3) + (1 - W[7]) * (d - W[6] * (g - 3)), 1, 10);  // FSRS-4.5：難度往 D0(3)＝w4 回歸（FSRS-5 才是 D0(4)，參數也不同）
   const sRecall = (d, s, r, g) => s * (1 + Math.exp(W[8]) * (11 - d) * Math.pow(s, -W[9]) * (Math.exp(W[10] * (1 - r)) - 1) * (g === 2 ? W[15] : 1) * (g === 4 ? W[16] : 1));
   const sForget = (d, s, r) => Math.min(s, W[11] * Math.pow(d, -W[12]) * (Math.pow(s + 1, W[13]) - 1) * Math.exp(W[14] * (1 - r)));
   const iso = (ms) => new Date(ms).toISOString();

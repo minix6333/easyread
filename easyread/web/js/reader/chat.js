@@ -209,7 +209,7 @@
       if (!modelsOnly) {
         if (wantThread) { if (st.threads.some((t) => t.id === wantThread)) st.cur = wantThread; wantThread = null; }
         if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
-        if (st.cur) { st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; }
+        if (st.cur) { st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; st.scope = thread().scope || null; }  // 問的範圍跟著對話（拉成獨立視窗、接回來時）
       }
       st.loaded = true;
     } catch (e) { PR.toast(PR.t("读不到对话记录：{msg}", { msg: PR.esc(e.message) })); }
@@ -495,7 +495,11 @@
         }
       }
     } catch (e) {
-      if (e.name === "AbortError") msg.content += "\n\n" + PR.t("（已停止）");
+      if (e.name === "AbortError") {
+        // 按了停止：伺服器沒機會把〔D3 p.5〕換成連結再送回來（存的那份它自己會換）——這裡先換，不然會被當成這一份的第 5 頁
+        if (msg.docs && PR.chatScope) msg.content = PR.chatScope.cite(msg.content, msg.docs);
+        msg.content += "\n\n" + PR.t("（已停止）");
+      }
       else msg.error = PR.t("没能回答：{msg}", { msg: e.message });
     }
     st.streaming = null;
@@ -524,7 +528,7 @@
     if (c === "popout") return PR.chatPopout && PR.chatPopout();
     if (c === "dock") return PR.chatDock && PR.chatDock();
     if (c === "unsel") { st.sel = null; PR.chatLink && PR.chatLink.cleared(); return paintChips(); }
-    if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; render(); if (st.listOpen) { const f = PR.$("#chatpanel .ch-find input"); if (f) f.focus(); } return; }
+    if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = st.scopeOpen = false; st.scopePick = null; render(); if (st.listOpen) { const f = PR.$("#chatpanel .ch-find input"); if (f) f.focus(); } return; }
     if (c === "jump") { const box = PR.$("#chatList"); if (box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); return; }
     if (c === "find") return;
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.scope = null; st.scopeOpen = false; st.scopePick = null; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
@@ -543,8 +547,8 @@
       return render();
     }
     if (c === "effort-level") { if (st.streaming) return; const m = modelOf(st.model); st.chatOptions.reasoning_effort = b.dataset.effort === PR.chatEffort.fallback(st, m) && !m.reasoning_effort ? "" : b.dataset.effort; return render(); }  // 菜单不关；点的就是默认档就不传，跟着 CLI
-    if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
-    if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
+    if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = st.scopeOpen = false; st.scopePick = null; return render(); }  // 一次只開一個選單（範圍的選單也收）
+    if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = st.scopeOpen = false; st.scopePick = null; return render(); }
     if (c === "speed") {  // Fast 開關：改的是設定裡那張模型卡片（選單不關）
       if (st.streaming) return;
       const m = modelOf(st.model), fast = b.dataset.fast === "1";
@@ -583,7 +587,7 @@
       if (!(await PR.confirm({ title: PR.t("删除这个对话？"), body: PR.t("「{title}」。已经放到页边的讨论不受影响。", { title: t.title }), ok: PR.t("删除"), danger: true, at: row }))) return;
       if (!t.local) await PR.api("/api/p/" + PR.pid + "/chat/delete", { method: "POST", body: { thread: t.id } });
       st.threads = st.threads.filter((x) => x !== t);
-      if (st.cur === t.id) { st.cur = null; st.answerStyle = "standard"; }
+      if (st.cur === t.id) { st.cur = null; st.answerStyle = "standard"; st.scope = null; st.scopeOpen = false; st.scopePick = null; }
       return render();
     }
     const card = b.closest(".cm.ai");

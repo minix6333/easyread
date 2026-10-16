@@ -34,12 +34,12 @@
       if (c === "!" && (m = /^!\[[^\]\n]*\]\([^)\s]+\)/.exec(rest))) { flush(); out.push({ raw: m[0] }); i += m[0].length; continue; }
       if (c === "[" && (m = /^\[((?:\\\]|[^\]\n])+)\]\(([^)\s]+)\)/.exec(rest)) && isUrl(m[2])) { flush(); out.push({ link: m[2], c: parse(m[1]) }); i += m[0].length; continue; }
       if (s.startsWith("***", i)) {  // 粗斜體（同一段又粗又斜，存的時候就是 ***字***）
-        const end = s.indexOf("***", i + 3), inner = end > i + 3 ? s.slice(i + 3, end) : "";
+        const end = closeAt(s, "***", i + 3), inner = end > i + 3 ? s.slice(i + 3, end) : "";
         if (inner && !inner.includes("\n")) { flush(); out.push({ k: "b", c: [{ k: "i", c: parse(inner) }] }); i = end + 3; continue; }
       }
       const two = s.slice(i, i + 2);
       if (DOUBLE[two]) {
-        const end = s.indexOf(two, i + 2);
+        const end = closeAt(s, two, i + 2);
         const inner = end > i + 2 ? s.slice(i + 2, end) : "";
         if (inner && !inner.includes("\n")) { flush(); out.push({ k: DOUBLE[two], c: parse(inner) }); i = end + 2; continue; }
       }
@@ -47,10 +47,24 @@
         m = /^\*((?:\\\*|[^*\n])+)\*(?!\*)/.exec(rest);
         if (m) { flush(); out.push({ k: "i", c: parse(m[1]) }); i += m[0].length; continue; }
       }
+      // _斜體_：和粗體貼在一起時存成這樣（emitSeq），***、**** 才不會讀不回來。兩邊不能貼著英文字母數字（snake_case 不算）
+      if (c === "_" && !/[A-Za-z0-9_\\/]/.test(s[i - 1] || "") && (m = /^_((?:\\_|[^_\n])+?)_(?![A-Za-z0-9_])/.exec(rest))) {
+        flush(); out.push({ k: "i", c: parse(m[1]) }); i += m[0].length; continue;
+      }
       buf += c; i++;
     }
     flush();
     return out;
+  }
+
+  /* 從 from 開始找收尾的記號：前面有反斜線跳脫的不算（**p<0.05\*** 的收尾是最後那兩個） */
+  function closeAt(s, mark, from) {
+    for (let at = s.indexOf(mark, from); at >= 0; at = s.indexOf(mark, at + 1)) {
+      let k = at - 1, n = 0;
+      while (k >= 0 && s[k] === "\\") { n++; k--; }
+      if (n % 2 === 0) return at;
+    }
+    return -1;
   }
 
   /* 樹 → 一段段（每段帶著自己有哪些樣式、在哪個連結裡）；長度：字一個一格，公式、圖、換行一格 */
@@ -70,21 +84,36 @@
   /* ---------- 一段段 → Markdown（純函式） ---------- */
   /* 平常的字裡會被當成記號的那幾個要跳脫（\*、\$…）；行首的 # > - 1. 也是，不然重新讀的時候變成標題、清單 */
   function escText(t, lineStart) {
-    let s = t.replace(/\\(?=[\\*\x60$~+=\[\]#>\-.!|_(){}]|$)/g, "\\\\").replace(/[*\x60$]/g, "\\$&").replace(/(~~|\+\+|==)/g, (m) => "\\" + m).replace(/\](?=\()/g, "\\]");
-    if (lineStart) s = s.replace(/^(\s*)(#|>|[-+](?=\s)|\d+(?=[.)]\s))/, "$1\\$2");
+    let s = t.replace(/\\(?=[\\*\x60$~+=\[\]#>\-.!|_(){}]|$)/g, "\\\\").replace(/[*\x60$_]/g, "\\$&").replace(/(~~|\+\+|==)/g, (m) => "\\" + m)
+      .replace(/\[(?=[^\n]*\]\()/g, "\\[").replace(/\](?=\()/g, "\\]");  // 字面上的 [字](網址)：兩個括號都跳脫，讀回來才不會變成連結
+    // 行首的 # > - + 跳脫；「1. 」跳脫的是點（\1. 讀不回來，會一直多一條反斜線）
+    if (lineStart) s = s.replace(/^(\s*)(#|>|[-+](?=\s))/, "$1\\$2").replace(/^(\s*\d+)([.)])(?=\s)/, "$1\\$2");
     return s;
   }
+  const WORD = /[A-Za-z0-9_]/;
   function emitSeq(runs) {
-    let s = "", stack = [], lineStart = true;
-    const close = (k) => { while (stack.length > k) s += OPEN[stack.pop()]; };
-    for (const r of runs) {
+    let s = "", stack = [], delims = [], lineStart = true;
+    const close = (k) => { while (stack.length > k) { stack.pop(); s += delims.pop(); } };
+    /* 斜體用 * 還是 _：和粗體貼在一起（在粗體裡、緊接在 ** 前後）時用 _——不然會寫出 ***、**** 連在一起，讀不回來、也排不出來。
+       _ 兩邊貼著英文字母數字就不算記號，那時只好還是用 * */
+    const italicDelim = (j) => {
+      let end = j;
+      while (end < runs.length && !runs[end].br && (runs[end].m || []).includes("i")) end++;
+      const next = runs[end], nextMarks = next && !next.br ? next.m || [] : [];
+      const nearBold = stack.includes("b") || s.slice(-1) === "*" || nextMarks.includes("b") || runs.slice(j, end).some((r) => (r.m || []).includes("b"));
+      if (!nearBold) return "*";
+      const after = next && !next.br && !nextMarks.length && next.t != null ? next.t.charAt(0) : "";
+      return WORD.test(s.slice(-1)) || WORD.test(after) ? "*" : "_";
+    };
+    for (let j = 0; j < runs.length; j++) {
+      const r = runs[j];
       if (r.br) { close(0); s += "\n"; lineStart = true; continue; }
       const want = ORDER.filter((k) => (r.m || []).includes(k));
       let k = 0;
       while (k < stack.length && want.includes(stack[k]) && stack.indexOf(stack[k]) === k) k++;
       close(k);
-      for (const mk of want) if (!stack.includes(mk)) { s += OPEN[mk]; stack.push(mk); }
-      if (r.tex != null) s += "$" + r.tex + "$";
+      for (const mk of want) if (!stack.includes(mk)) { const d = mk === "i" ? italicDelim(j) : OPEN[mk]; s += d; stack.push(mk); delims.push(d); }
+      if (r.tex != null) s += String(r.tex).trim() ? "$" + r.tex + "$" : "";  // 空的公式（剛插進來、還沒打 TeX）不存：存成 $$ 會把後面整份吞掉
       else if (r.raw != null) s += r.raw;
       else s += stack.includes("code") ? r.t : escText(r.t, lineStart && !stack.length);
       lineStart = false;
@@ -102,7 +131,7 @@
         flush();
         const group = [];
         while (i < runs.length && runs[i].link === r.link) group.push(Object.assign({}, runs[i++], { link: null }));
-        s += "[" + emitSeq(group).replace(/\]/g, "\\]") + "](" + r.link + ")";
+        s += "[" + emitSeq(group).replace(/\]/g, "\\]") + "](" + String(r.link).replace(/[()\s]/g, (c) => ({ "(": "%28", ")": "%29" })[c] || encodeURIComponent(c)) + ")";  // 網址裡的括號、空白編碼掉，讀回來才不會在第一個 ) 斷掉
         continue;
       }
       seq.push(r);

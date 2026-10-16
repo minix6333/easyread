@@ -53,8 +53,9 @@
   function picker(st) {
     if (!st.scopePick) return "";
     const picked = new Set(st.scopePick.ids), q = (st.scopePick.q || "").toLowerCase();
-    const rows = others().filter((i) => !q || (nameOf(i) + " " + (i.title_zh || "") + " " + (i.authors || "")).toLowerCase().includes(q));
-    const one = (i) => '<label class="ch-pick-row"><input type="checkbox" data-pick="' + PR.esc(i.id) + '"' + (picked.has(i.id) ? " checked" : "") + ">" +
+    const hay = (i) => (nameOf(i) + " " + (i.title_en || "") + " " + (i.title_zh || "") + " " + (i.short_zh || "") + " " + (i.authors || "") + " " + (i.year || "")).toLowerCase();
+    const rows = others().filter((i) => !q || hay(i).includes(q));
+    const one = (i) => '<label class="ch-pick-row" data-hay="' + PR.esc(hay(i)) + '"><input type="checkbox" data-pick="' + PR.esc(i.id) + '"' + (picked.has(i.id) ? " checked" : "") + ">" +
       '<span class="t">' + PR.esc(nameOf(i)) + '</span><span class="y">' + PR.esc(String(i.year || "")) + "</span></label>";
     return '<div class="ch-pick"><div class="ch-pick-h"><b>' + PR.t("一起問哪幾份") + '</b><span class="grow"></span><button data-c="scope-pick-x" title="' + PR.t("取消") + '">' + PR.icon("x", "sm") + "</button></div>" +
       '<label class="ch-find">' + PR.icon("search", "sm") + '<input type="search" data-c="scope-q" placeholder="' + PR.t("找文件") + '" value="' + PR.esc(st.scopePick.q || "") + '" autocomplete="off"></label>' +
@@ -95,7 +96,7 @@
     if (!st || !st.scopePick) return;
     st.scopePick.q = e.target.value;
     const q = e.target.value.trim().toLowerCase();
-    PR.$$("#chatpanel .ch-pick-row:not(.here)").forEach((r) => { r.hidden = !!q && !r.textContent.toLowerCase().includes(q); });
+    PR.$$("#chatpanel .ch-pick-row:not(.here)").forEach((r) => { r.hidden = !!q && !(r.dataset.hay || r.textContent.toLowerCase()).includes(q); });  // 作者、中文標題也找得到（畫面上只顯示原文標題）
   });
 
   /* 回答裡的〔D3 p.5〕→ Markdown 連結（和伺服器 libask.link 一樣）；寫到一半就畫成連結，不會先露出代號再跳一下 */

@@ -119,6 +119,7 @@
       else if (m.type === "go") { if (m.note && PR.goToNote) PR.goToNote(m.note); else if (m.anchor && PR.blockById[m.anchor]) PR.jumpTo("b-" + m.anchor); else if (m.page && PR.openPage) PR.openPage(+m.page); window.focus(); }
       else if (m.type === "clear-sel") paintHighlight(null);
       else if (m.type === "changed") PR.poll && PR.poll();
+      else if (m.type === "open" && typeof m.url === "string" && /^\/(read|note)\//.test(m.url)) { PR.navigate(m.url, { beside: true }); window.focus(); }  // 獨立視窗裡點了別份文件的連結（回答的出處）
     };
     const follow = PR.debounce(sendContext, 400);
     window.addEventListener("scroll", follow, { passive: true });
@@ -139,6 +140,17 @@
       else if (m.type === "reader-closed") window.close();
       else if (m.type === "ping") post({ type: "pong" });
     };
+    /* 回答裡連到別份文件、筆記的連結（問整個文獻庫的出處）：交給主視窗在旁邊打開——獨立視窗本身不跳走（它不在外殼裡，沒人接手） */
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (!a || e.defaultPrevented || e.button !== 0) return;
+      let u;
+      try { u = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
+      if (u.origin !== location.origin || !/^\/(read|note)\//.test(u.pathname)) return;
+      if (u.pathname === location.pathname && u.hash) return;  // 這一份自己的頁碼：照原本的（chat.js 自己處理）
+      e.preventDefault();
+      post({ type: "open", url: u.pathname + u.search + u.hash });
+    }, true);
     const bye = () => post({ type: "bye", dock: true, thread: (PR.chatCurrent && PR.chatCurrent()) || "" });
     PR.chatDock = function () { docking = true; bye(); window.close(); };
     window.addEventListener("pagehide", () => { if (!docking) bye(); });

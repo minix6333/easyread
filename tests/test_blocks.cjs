@@ -75,3 +75,14 @@ test("table Markdown ⇄ grid keeps alignment, escaped pipes and pads short rows
   assert.equal(PR.blocksGridTable([["x|y", "z"]], []), "| x\\|y | z |\n| --- | --- |");
   assert.deepEqual(JSON.parse(JSON.stringify(PR.blocksTableGrid("").rows)), [["", "", ""], ["", "", ""]]);
 });
+
+test("table cells keep | inside formulas and code, and escape every other | (|| too)", () => {
+  const PR = load();
+  const md = "| 條件機率 | 程式 |\n| --- | --- |\n| $p(y|x)$ | `a|b` |";
+  const g = PR.blocksTableGrid(md);
+  assert.deepEqual(JSON.parse(JSON.stringify(g.rows)), [["條件機率", "程式"], ["$p(y|x)$", "`a|b`"]]);  // 公式、程式碼裡的 | 不拆格
+  assert.equal(PR.blocksGridTable(g.rows, g.align), md);  // 點進去再出來：一字不差
+  assert.equal(PR.blocksGridTable([["x || y", "$a|b$"]], []), "| x \\|\\| y | $a|b$ |\n| --- | --- |");  // 連著的兩個都跳脫；公式裡的不動
+  const back = PR.blocksTableGrid(PR.blocksGridTable([["x || y", "$a|b$"]], []));
+  assert.deepEqual(JSON.parse(JSON.stringify(back.rows[0])), ["x \\|\\| y", "$a|b$"]);
+});

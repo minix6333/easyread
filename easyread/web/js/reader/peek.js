@@ -50,6 +50,7 @@
     if (page && !data) { load(); return; }
     let l = null;
     if (page && !e.buttons && !skip(e)) { const [x, y] = pointIn(page, e); l = linkAt(+page.dataset.n, x, y); }
+    if ((cur || pinned) && !isOpen()) { cur = null; pinned = false; }  // 釘住的預覽被點別處收掉了：狀態也清掉，不然再指到同一個連結不會出來
     if (l === hover) return;
     if (hoverPage) hoverPage.classList.remove("pv-onlink");
     hover = l; hoverPage = l ? page : null;

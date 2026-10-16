@@ -38,6 +38,13 @@
       document.body.append(wrap);
       wrap.addEventListener("click", onClick);
       wrap.addEventListener("keydown", onKey);
+      /* 開著的時候它就是一個對話框：Esc 先關它（不讓批次選取那邊先接走、把勾的都清掉）；重畫後焦點掉到頁面上也一樣。
+         文獻庫的快捷鍵（Enter 開文件、空白鍵快速預覽、j／k）不作用在後面的清單上 */
+      document.addEventListener("keydown", (e) => {
+        if (!wrap.classList.contains("open") || wrap.contains(e.target)) return;
+        if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+        if (!(e.metaKey || e.ctrlKey)) e.stopImmediatePropagation();
+      }, true);
     }
     render();
     wrap.classList.add("open");
@@ -171,7 +178,7 @@
   function onKey(e) {
     if (e.key === "Escape") { e.stopPropagation(); return close(); }
     if (e.key === "Enter" && e.target.dataset && e.target.dataset.mx === "add" && !e.isComposing) {
-      const q = e.target.value.trim().slice(0, 60);
+      const q = e.target.value.replace(/\s+/g, " ").trim().slice(0, 60);  // 和伺服器一樣把空白（含全形空白）收成一個：欄名才對得上，回來的格子才填得進去
       if (!q) return;
       if (st.columns.some((c) => c.name === q)) return PR.toast(PR.t("已經有這一欄了"));
       const col = { name: q, ask: "" };

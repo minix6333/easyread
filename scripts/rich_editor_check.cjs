@@ -303,6 +303,29 @@ app.whenReady().then(async () => {
     const s = await st();
     check(name, / A→B, x≤y, a↔b, c->d `p->q`$/.test(s.md), { md: s.md.slice(-60) });
   });
+  await run("點進去再點出來：引用裡的清單和公式、表格裡的 $p(y|x)$、「1. 」開頭的標題、粗斜體，存的一字不差", async (name) => {
+    const tricky = ["# 1. Introduction", "> [!note] 重點\n> - 第一點\n> $$\n> E=mc^2\n> $$", "| 條件機率 | 程式 |\n| --- | --- |\n| $p(y|x)$ | `a|b` |",
+      "**粗*斜***和 snake_case、[連結](https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture))", "最後一段結束"].join("\n\n");
+    await open(tricky);
+    for (const needle of ["Introduction", "第一點", "條件機率", "snake", "最後一段"]) {
+      const p = await pt(needle);
+      if (p) { await click(p); await sleep(120); }
+      await key("Escape"); await sleep(120);
+    }
+    await sleep(900);
+    const md = await js("PR.noteEd.getValue()");
+    const stored = await js("fetch('/api/notes/' + PR.note.id).then((r) => r.json()).then((n) => n.body)");
+    check(name, md === tricky && stored === tricky, { md: md === tricky ? "same" : md, stored: stored === tricky ? "same" : stored });
+  });
+  await run("表格裡改別格的字：同一列的 $p(y|x)$ 和 `a|b` 照樣是一格，沒有多拆一欄", async (name) => {
+    await open("| 條件機率 | 程式 |\n| --- | --- |\n| $p(y|x)$ | `a|b` |");
+    await click(await pt("條件機率"));
+    await key("End");
+    await type("式");
+    await key("Escape"); await sleep(700);
+    const md = await js("PR.noteEd.getValue()");
+    check(name, md === "| 條件機率式 | 程式 |\n| --- | --- |\n| $p(y|x)$ | `a|b` |", md);
+  });
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
   step = "cleanup";
   if (!keep) await cleanup();

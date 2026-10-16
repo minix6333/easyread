@@ -231,6 +231,8 @@
     if (!host) return;
     let ed = editors[key];
     if (ed && ed.root && ed.root.className.includes("bk")) {
+      // 換到另一頁的筆記時還在打字：先停下來、存進原來那一頁，才換頁碼（不然剛打的字會存到新的那一頁去）
+      if (ed.isEditing() && host.dataset.page && ed.root.dataset.page && host.dataset.page !== ed.root.dataset.page) ed.blur();
       ed.root.id = host.id; ed.root.className = host.className + " bk" + (key === "page" ? " compact" : "");
       for (const k of Object.keys(host.dataset)) ed.root.dataset[k] = host.dataset[k];
       host.replaceWith(ed.root);
@@ -344,7 +346,8 @@
     if (!PR.notesPanelOpen() || tab !== "page") return;
     const p = curPage(), el = panel(), ae = document.activeElement;
     if (p === panelPage) { if (detached) { detached = false; const c = el.querySelector(".np-chip"); if (c) c.hidden = true; } return; }
-    if (ae && el.contains(ae) && ae.matches("textarea")) {
+    // 正在打字（輸入框，或區塊編輯器裡那一格——它是 contenteditable，不是 textarea）：留在原來那一頁
+    if ((ae && el.contains(ae) && (ae.matches("textarea, input") || ae.isContentEditable)) || Object.values(editors).some((x) => x.isEditing())) {
       detached = true;
       const c = el.querySelector(".np-chip");
       if (c) { c.hidden = false; c.textContent = PR.t("PDF 在第 {n} 頁", { n: p }); }

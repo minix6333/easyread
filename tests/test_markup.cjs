@@ -168,3 +168,17 @@ test("a pic block becomes a figure that asks for a Wikipedia picture; it never c
   assert.match(again, /<figure class="md-pic" data-article="Kernel method" data-file="" data-q=""><div class="pic-slot"><\/div><\/figure>/, "one that was not asked yet still waits");
 });
 
+
+test("notes saved by the WYSIWYG editor render the way they were written", () => {
+  const P = markup();
+  // 斜體貼著粗體時存成 _斜體_
+  assert.equal(P.md("**粗_粗斜_**_斜_"), "<strong>粗<em>粗斜</em></strong><em>斜</em>");
+  assert.equal(P.md("**_又粗又斜_**"), "<strong><em>又粗又斜</em></strong>");
+  // snake_case、網址裡的底線不是斜體
+  assert.ok(!P.md("my_file_name 和 [x](https://e.com/a_b_c)").includes("<em>"));
+  // 跳脫的 1\. 和 \[x\](…) 照字面
+  assert.equal(P.md("1\\. Introduction"), "1. Introduction");
+  assert.ok(!P.md("見 \\[x\\](https://e.com)").includes("<a "));
+  // 網址裡的括號編碼過
+  assert.ok(P.md("[T](https://en.wikipedia.org/wiki/Transformer_%28deep_learning_architecture%29)").includes('href="https://en.wikipedia.org/wiki/Transformer_%28deep_learning_architecture%29"'));
+});

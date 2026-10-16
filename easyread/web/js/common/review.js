@@ -98,6 +98,8 @@
   function onKey(e) {
     if (!st || !box.classList.contains("open")) return;
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); return close(); }
+    // ⌘1–⌘4 是外殼切分頁、按住不放的 Enter 會一直連發：都不是在給這張卡評分
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     if (!st.queue.length) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); close(); } return; }
     if ((e.key === " " || e.key === "Enter") && !st.flip) { e.preventDefault(); e.stopPropagation(); st.flip = true; return render(); }
     if (st.flip && /^[1-4]$/.test(e.key)) { e.preventDefault(); e.stopPropagation(); return grade(+e.key); }
