@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config, paths  # 先載 config（paths 也會）：chat_models 和 config 互相引用，順序反了會炸
-from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
+from . import VERSION, __version__, answer_styles, backdrop, cloudsync, covers, derive, figures, chat, chat_models, chat_store, cli_models, clips, config, detect, engines, i18n, kinds, langs, libask, notehelp, notes, open_link, quick, paperdata, pdfwork, peek, prefs, preread, search, settings_api, supp, trash, tw, library_api, translate_api, updates, usage, webimg, webtools, wsock, jobs, sync
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -242,8 +242,14 @@ class Handler(BaseHTTPRequestHandler):
         web = (bool(body["web"]) if "web" in body else webtools.enabled_default()) and webtools.supported(ecfg)
         if web:
             user["web"] = True
+        # 問的範圍（libask.py）：整個文獻庫、一個分類、挑的幾篇；沒送就照這個對話上次的（舊對話、追問）
+        scope = libask.parse(body["scope"]) if "scope" in body else libask.parse((thread or {}).get("scope"))
+        lib_ctx, codes = ("", {})
+        if scope and mode != "overview":
+            user["scope"] = scope
+            lib_ctx, codes = libask.context(self.app.lib, ws, scope, text, ecfg["engine"])
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                  images=user.get("images"), mode=mode, aside=aside, web=web)
+                                  images=user.get("images"), mode=mode, aside=aside, web=web, library_ctx=lib_ctx)
         # 模型行程还记着这个对话（claude_live / codex_live）：只送新问题；读者还指着同一处连位置上下文也省掉
         prev_turns = sum(1 for x in past if x.get("role") == "assistant")
         live = {"thread": tid, "turns": prev_turns}
@@ -251,7 +257,8 @@ class Handler(BaseHTTPRequestHandler):
             prev_user = next((x for x in reversed(past) if x.get("role") == "user"), None)
             same = chat.same_spot(prev_user, user, refs, page) and not images
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
-                                                images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside, web=web)
+                                                images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside, web=web,
+                                                library_ctx=libask.context(self.app.lib, ws, scope, text, ecfg["engine"], pages_only=True)[0] if scope and mode != "overview" else "")
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -276,10 +283,11 @@ class Handler(BaseHTTPRequestHandler):
         def keep_partial():  # 寫到一半被停下來：已經寫出來的留著，後面記一筆（已停止）
             if pieces:
                 text = webtools.clean("".join(pieces))
+                text = libask.link(text, codes) if codes else text
                 chat_store.append(ws, tid, {**user, "note": None}, text + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot(),
                                   sources=found.final(text))
         try:
-            send({"model": model, "thread": tid, "answer_style": style})
+            send({"model": model, "thread": tid, "answer_style": style, **({"docs": codes} if codes else {})})  # docs：出處代號對照（寫到一半就能把〔D3 p.5〕畫成連結）
             def seen(actual):
                 chat_models.remember(m.get("model", ""), actual)
                 if m.get("engine") == "claude":
@@ -308,6 +316,8 @@ class Handler(BaseHTTPRequestHandler):
                 pieces.append(tail)
                 send({"t": tail})
             answer_text = webtools.clean("".join(pieces))
+            if codes:
+                answer_text = libask.link(answer_text, codes)  # 〔D3 p.5〕→ 連到那份文件那一頁
             final = found.final(answer_text)
             if final:  # 回答最後自己列的那份「Sources:」：底下已經有來源了，拿掉（先算完引用了哪些再拿）
                 answer_text = webtools.strip_source_list(answer_text)

@@ -16,7 +16,8 @@
   const panel = () => PR.$("#chatpanel");
   const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
   const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
-  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null, images: [], uploading: 0, sel: null });
+  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null, images: [], uploading: 0, sel: null, scope: null, scopeOpen: false, scopePick: null });
+  PR.chatState = () => st;  // 問的範圍（chat-scope.js）要讀寫這一份
   const clipUrl = (src) => "/p/" + PR.pid + "/" + src;
   const clipCls = (src) => (/\/c-/.test(src) ? " pdf" : "");  // 從 PDF 框選的（深色模式要跟著頁面反相）；貼進來的照片不動
 
@@ -93,7 +94,7 @@
     if (PR.side !== "chat") { PR.openSide("chat"); autoContext(); }
     load().then(async () => {
       // 追問：接著那一問的對話（就地問答時建的），還在的話切過去
-      if (opts.thread && !st.streaming && st.threads.some((t) => t.id === opts.thread)) { st.cur = opts.thread; st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; }
+      if (opts.thread && !st.streaming && st.threads.some((t) => t.id === opts.thread)) { st.cur = opts.thread; st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; st.scope = thread().scope || null; }
       if (opts.text) return send(opts.text, opts.note, [{ anchor: opts.anchor, quote: opts.quote || "", ...(opts.page && !PR.blockById[opts.anchor] ? { page: opts.page } : {}) }]);
       const added = addRef(opts.anchor, opts.quote, opts.page);
       if (opts.draft) st.draft = opts.draft;
@@ -247,7 +248,7 @@
       '</span><button data-c="unsel" title="' + PR.t("不問這一句") + '">×</button></span>';
   }
   function chipsHtml() {
-    return st.refs.length ? st.refs.map((r, i) => refChip(r, i)).join("") : st.sel ? selChip(st.sel) : st.auto && !st.noAuto ? refChip(st.auto, 0, true) : "";
+    return (PR.chatScope ? PR.chatScope.chip(st) : "") + (st.refs.length ? st.refs.map((r, i) => refChip(r, i)).join("") : st.sel ? selChip(st.sel) : st.auto && !st.noAuto ? refChip(st.auto, 0, true) : "");
   }
   /* 只換標籤那一排：選字、捲動時不重畫整個面板（輸入框的游標和正在打的字不能動） */
   function paintChips() {
@@ -275,7 +276,7 @@
       (st.listOpen ? listHtml() : "");
   }
   function listHtml() {
-    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + (t.aside ? " sub" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
+    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + (t.aside ? " sub" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + (t.scope && PR.chatScope ? '<span class="tt-scope" title="' + PR.esc(PR.chatScope.label(t.scope)) + '">' + PR.icon(PR.chatScope.icon(t.scope), "sm") + "</span>" : "") + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
       '<div class="tm">' + PR.t("{n} 问", { n: Math.round((t.messages || []).length / 2) }) + " · " + PR.esc(when(t.updated)) + "</div>" +
       '<button class="tx" data-c="rename" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("改名")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("edit", "sm") + '</button><button class="tx" data-c="del" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("删除")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("trash", "sm") + "</button></div>").join("");
     // 對話多了（超過六串）：最上面一格搜尋，打字就只留標題對得上的（不重畫，只藏起來）
@@ -286,11 +287,12 @@
     if (m.role === "user") {
       return '<div class="cm user">' + (m.images && m.images.length ? '<div class="cm-imgs">' + m.images.map((src) => '<a href="' + PR.esc(clipUrl(src)) + '" target="_blank" rel="noopener"><img class="' + clipCls(src).trim() + '" src="' + PR.esc(clipUrl(src)) + '" alt=""></a>').join("") + "</div>" : "") +
         '<div class="bubble">' + PR.md(m.content, { cite: false, xref: false }) + "</div>" +
+        (m.scope && PR.chatScope ? '<span class="cm-scope">' + PR.icon(PR.chatScope.icon(m.scope), "sm") + "<span>" + PR.esc(PR.chatScope.label(m.scope)) + "</span></span>" : "") +
         ((m.refs && m.refs.length ? m.refs : m.anchor || m.page ? [m] : []).filter((r) => PR.blockById[r.anchor] || r.page)
           .map((r) => '<button class="cm-ctx" data-c="go" data-anchor="' + PR.esc(PR.blockById[r.anchor] ? r.anchor : "") + '" data-page="' + (r.page || "") + '">' + PR.icon("link", "sm") + "<span>" + PR.esc(ctxLabel(r)) + "</span></button>").join("")) + "</div>";
     }
     const live = st.streaming && st.streaming.msg === m;
-    return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
+    return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '" data-beside><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style" title="' + PR.t("简明回答") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("brief") ? "brief" : "list", "sm") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i>' + (live ? PR.waitStatus.html("chat") : "") + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
       (live ? '<div class="web-live" hidden></div>' : "") + '<div class="src-slot">' + PR.sourcesHtml(m.sources, live ? { live: true } : null) + "</div>" +
@@ -299,6 +301,12 @@
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
+    if (st.scope && PR.chatScope) {  // 一起問好幾份：建議的問題換成跨文件的
+      const lib = [PR.t("這幾份在處理同一個問題時，做法有什麼不同？"), PR.t("有哪些共同的結論？哪裡說法互相矛盾？"), PR.t("哪幾份和我現在讀的這份最相關？為什麼？"), PR.t("幫我寫一段文獻回顧，每一句標出處")];
+      const IC = ["layers", "bulb", "link", "notebook"];
+      return '<div class="ch-empty"><h3>' + PR.esc(PR.t("一起問：{what}", { what: PR.chatScope.label(st.scope) })) + "</h3>" +
+        '<div class="chips">' + lib.map((q, i) => '<button data-c="suggest"><span class="ic">' + PR.icon(IC[i], "sm") + '</span><span class="tx">' + PR.esc(q) + "</span></button>").join("") + "</div></div>";
+    }
     const counts = markCounts();
     const colors = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
     const sug = [PR.t("这段在说什么？用大白话讲一遍"), PR.t("这个公式每一项是什么意思？怎么推出来的？"), PR.t("这里的结论靠得住吗？有什么前提？")];
@@ -329,9 +337,10 @@
       PR.esc(!webOk ? PR.t("這個模型不能上網查") : webOn ? PR.t("可以上網查資料（需要時才查）") : PR.t("不上網查")) + '">' + PR.icon("globe", "sm") + "</button>";
     const imgs = st.images.length || st.uploading ? '<div class="ch-imgs">' + st.images.map((src, i) => '<span class="ch-img"><img class="' + clipCls(src).trim() + '" src="' + PR.esc(clipUrl(src)) + '" alt=""><button data-c="unimg" data-i="' + i + '" title="' + PR.t("不附這張") + '">×</button></span>').join("") +
       (st.uploading ? '<span class="ch-img busy"><span class="spin"></span></span>' : "") + "</div>" : "";
-    return '<div class="ch-compose"><div class="ch-chips">' + chips + "</div>" + imgs +
+    return '<div class="ch-compose">' + (PR.chatScope ? PR.chatScope.picker(st) : "") + '<div class="ch-chips">' + chips + "</div>" + imgs +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-attach" data-c="attach" title="' + PR.t("附圖片（也可以直接貼上）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("clip", "sm") + "</button>" + web +
+      (PR.chatScope ? PR.chatScope.button(st) + PR.chatScope.menu(st) : "") +
       '<button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
@@ -343,6 +352,7 @@
     if (!box || !j) return;
     j.classList.toggle("on", box.scrollHeight - box.scrollTop - box.clientHeight > 240);
   }
+  PR.chatRender = () => render();
   function render() {
     const el = panel();
     if (!el) return;
@@ -391,12 +401,13 @@
       sealed.innerHTML = live.html;
     }
     const cut = safeCut(text);
+    const cite = (x) => (st.streaming.msg.docs && PR.chatScope ? PR.chatScope.cite(x, st.streaming.msg.docs) : x);  // 問整個文獻庫：〔D3 p.5〕寫到就畫成連結
     if (cut > live.at) {
-      const more = PR.mdBlocks(text.slice(live.at, cut), { live: true });
+      const more = PR.mdBlocks(cite(text.slice(live.at, cut)), { live: true });
       live.html += more; live.at = cut;
       sealed.insertAdjacentHTML("beforeend", more);
     }
-    tail.innerHTML = PR.mdBlocks(text.slice(live.at), { live: true });
+    tail.innerHTML = PR.mdBlocks(cite(text.slice(live.at)), { live: true });
     const box = PR.$("#chatList");
     if (box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
   }
@@ -437,13 +448,15 @@
     t.answer_style = answerStyle;
     t.model = modelId;
     t.chat_options = chatOptions;
-    const user = { role: "user", content: text, anchor: c ? c.anchor : null, page: (c && c.page) || null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle, ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) };
+    const scope = opts.mode === "overview" ? null : st.scope;
+    t.scope = scope || undefined;
+    const user = { role: "user", content: text, ...(scope ? { scope } : {}), anchor: c ? c.anchor : null, page: (c && c.page) || null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle, ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) };
     const msg = { role: "assistant", content: "", model: modelOf(modelId).label, answer_style: answerStyle };
     t.messages.push(user, msg);
     const ctrl = new AbortController();
     st.streaming = { ctrl, msg };
     PR.waitStatus.start("chat");
-    st.draft = ""; st.listOpen = false; st.menuOpen = false; st.effortOpen = false;
+    st.draft = ""; st.listOpen = false; st.menuOpen = false; st.effortOpen = false; st.scopeOpen = false; st.scopePick = null;
     if (!only) st.images = [];
     if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
     if (noteId) { PR.asking.add(noteId); PR.renderMargin(); }
@@ -452,7 +465,7 @@
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, ...PR.web.body(modelOf(modelId)), ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) }),
+        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, page: user.page, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions, scope: scope || null, ...PR.web.body(modelOf(modelId)), ...(images.length ? { images } : {}), ...(opts.mode ? { mode: opts.mode } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -468,6 +481,7 @@
           const ev = JSON.parse(line);
           if (ev.thread && (!t.id || t.local)) { t.id = ev.thread; delete t.local; st.cur = ev.thread; }
           if (ev.model) msg.model = ev.model;
+          if (ev.docs) msg.docs = ev.docs;  // 範圍裡的文件代號（〔D3 p.5〕→ 哪一份）
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.stream === "live" && st.streaming) { st.streaming.live = true; renderLiveSoon(); }  // Codex 真的在逐字串流：不用提示「寫完才會一次顯示」
           if (ev.status) { PR.waitStatus.set("chat", ev.status); if (msg.content) webLive(PR.webStatusText(ev.status)); }  // 還沒出字：重新連線、太擠、思考、上網查；寫到一半又去查：最後一行說一聲
@@ -499,8 +513,9 @@
     if (!e.target.closest("#chatpanel")) return;
     const b = e.target.closest("[data-c]");
     if (e.target.closest("#chatDocPop")) return;  // 「AI 讀過的範圍」那一塊自己處理（chat-doc.js）
-    if (!b) { if ((st.menuOpen && !e.target.closest(".ch-menu")) || (st.usageOpen && !e.target.closest(".us-pop"))) { st.menuOpen = st.usageOpen = false; render(); } return; }
+    if (!b) { if ((st.menuOpen && !e.target.closest(".ch-menu")) || (st.scopeOpen && !e.target.closest(".ch-menu")) || (st.usageOpen && !e.target.closest(".us-pop"))) { st.menuOpen = st.usageOpen = st.scopeOpen = false; render(); } return; }
     const c = b.dataset.c;
+    if (PR.chatScope && !st.streaming && PR.chatScope.act(c, b, st)) return render();
     const row = b.closest(".ch-thread[data-t]");
     if (c === "close") return PR.toggleChat(false);
     if (c === "doc") return PR.chatDoc.toggle();
@@ -510,7 +525,7 @@
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; render(); if (st.listOpen) { const f = PR.$("#chatpanel .ch-find input"); if (f) f.focus(); } return; }
     if (c === "jump") { const box = PR.$("#chatList"); if (box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); return; }
     if (c === "find") return;
-    if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
+    if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.scope = null; st.scopeOpen = false; st.scopePick = null; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "web") {
       if (st.streaming) return;
       PR.web.set(!PR.web.on());
@@ -591,10 +606,11 @@
     if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
     st.answerStyle = styleOf(t);
     st.chatOptions = { ...((t && t.chat_options) || {}) }; st.effortOpen = false;
+    st.scope = (t && t.scope) || null; st.scopeOpen = false; st.scopePick = null;
     render();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && (st.effortOpen || st.menuOpen)) { st.effortOpen = st.menuOpen = false; render(); return; }
+    if (e.key === "Escape" && (st.effortOpen || st.menuOpen || st.scopeOpen || st.scopePick)) { st.effortOpen = st.menuOpen = st.scopeOpen = false; st.scopePick = null; render(); return; }
     if (e.target.id !== "chatInput") return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(e.target.value); }
     if (e.key === "Escape") e.target.blur();

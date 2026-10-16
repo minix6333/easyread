@@ -396,7 +396,7 @@ def same_spot(prev: dict | None, user: dict, refs, page) -> bool:
 
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
            answer_style: str = answer_styles.DEFAULT, page=None, images=None, followup: bool = False, with_context: bool = True,
-           mode: str | None = None, aside: dict | None = None, pics: bool | None = None, web: bool = False) -> str:
+           mode: str | None = None, aside: dict | None = None, pics: bool | None = None, web: bool = False, library_ctx: str = "") -> str:
     """pics：可不可以放網路上的圖（None＝照設定）。web：這一題可以上網查（webtools.PROMPT 那一段）。followup：這個對話的模型行程還活著、記著前面幾輪（claude_live / codex_live），只送新問題，不再重發說明和對話記錄；
     with_context=False 表示讀者還指著同一處（same_spot），位置上下文也省掉。mode：這一問的專門寫法（MODES 的 key：推導、圖解；
     overview 是整份導讀）。aside：小視窗追問（aside_context 的結果）。
@@ -422,8 +422,8 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     marks = _marks(ws, colors) if want else ("" if followup else _marks_summary(ws))
     seen = {page} | {r.get("page") for r in (refs or []) if r.get("page")}
     # 整份文件：預讀寫的全文筆記＋整份文字（放得下時）；放不下就是筆記＋全文地圖，再按問題找最相關的幾頁
-    doc, has_all = _document(ws, engine)
-    near_text = "" if has_all or mode == "overview" else docmap.nearby(ws, ask, skip=seen, k=3, per=2400 if followup else docmap.PAGE_BUDGET)
+    doc, has_all = ("", False) if library_ctx else _document(ws, engine)
+    near_text = "" if has_all or mode == "overview" or library_ctx else docmap.nearby(ws, ask, skip=seen, k=3, per=2400 if followup else docmap.PAGE_BUDGET)
     aside_text = _aside_text(aside)
     if mode == "overview" and not followup:  # 導讀的追問走一般的追問（行程記得整份文字）
         brief = preread.text(ws)
@@ -435,11 +435,12 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
                 + f"\n\n读者现在问：{ask}")  # i18n-ok
         return localize(text, langs.reply_code(meta))
     if followup:
-        text = ((_context(ws, anchor, quote, refs, page, whole=has_all) + "\n\n") if with_context else "读者还指着刚才那一处。\n\n")  # i18n-ok
+        text = ((_context(ws, anchor, quote, refs, page, whole=has_all and not library_ctx) + "\n\n") if with_context else "读者还指着刚才那一处。\n\n")  # i18n-ok
+        text += ("这一问的范围还是那几份文件（代号同前），和这一问相关的：\n" + library_ctx + "\n\n") if library_ctx else ""  # i18n-ok
         text += (marks + "\n\n") if marks else ""
         hint = _images_hint(images, engine).strip()
         text += (hint + "\n\n") if hint else ""
-        text += ("问题可能涉及的其他页：\n" + near_text + "\n\n") if near_text else ""  # i18n-ok
+        text += ("问题可能涉及的其他页：\n" + near_text + "\n\n") if near_text and not library_ctx else ""  # i18n-ok
         text += (aside_text + "\n\n") if aside_text else ""
         text += (special + "\n") if special else ""
         text += f"读者接着问：{ask}"  # i18n-ok
@@ -448,13 +449,27 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     style_text = (answer_styles.STE100_INSTRUCTIONS if ste else "用" + langs.reply_lang(meta) + "。" + cn(style(langs.reply_code(meta))))  # i18n-ok
     whole = _paper_context(ws) if ste and not has_all else ""
     noun = noun_of(ws)
+    fmt = ("区分“文件里写了什么”和“你的补充解释”，文件里没有的内容不要说成是文件说的。"  # i18n-ok
+           "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
+           r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok
+           "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
+           "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n")  # i18n-ok
+    if library_ctx:  # 問整個文獻庫（libask.py）：範圍裡每份的總覽、相關幾份的全文筆記、相關幾頁原文；讀者指著的地方在 D1
+        from . import libask
+        text = ("你在陪读者读文献，回答他边读边冒出来、要看好几份文件的问题。\n" + style_text + cn(libask.RULES) + fmt  # i18n-ok
+                + ("" if ste else cn(figures(webimg.enabled() if pics is None else pics))) + (cn(webtools.PROMPT) if web else "")
+                + "\n\n" + library_ctx
+                + "\n\n读者现在开着的是 D1，他指着的地方：\n" + _context(ws, anchor, quote, refs, page, whole=False)  # i18n-ok
+                + ("\n\n" + marks if marks else "")
+                + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
+                + _images_hint(images, engine)
+                + ("\n\n" + aside_text if aside_text else "")
+                + ("\n\n" + special.rstrip() if special else "")
+                + f"\n\n读者现在问：{ask}")  # i18n-ok
+        return localize(text, langs.reply_code(meta))
     # 順序：不變的在前（說明、整份文件），會變的在後（讀者指著哪、對話、問題）——同一份文件接著問時前面那一大段吃得到快取
     text = (f"你在陪读者读一篇{noun}，回答他边读边冒出来的问题。你已经把整份{noun}读完了（下面有全文），回答时要放在整份里看，不要只看读者指着的那一小段。\n" + style_text  # i18n-ok
-            + "区分“文件里写了什么”和“你的补充解释”，文件里没有的内容不要说成是文件说的。"  # i18n-ok
-            "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
-            r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok
-            "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
-            "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n"  # i18n-ok
+            + fmt
             + ("" if ste else cn(figures(webimg.enabled() if pics is None else pics))) + tool + (cn(webtools.PROMPT) if web else "")
             + doc
             + "\n\n" + _context(ws, anchor, quote, refs, page, whole=has_all)

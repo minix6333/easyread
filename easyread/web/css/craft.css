@@ -1357,3 +1357,45 @@ body.side-swap .side-panel { transition: none !important; }
 .pv-flash { position: absolute; left: -6px; right: -6px; height: 2.6%; margin-top: -.5%; border-radius: 6px; background: var(--accent-soft-2); box-shadow: inset 3px 0 0 var(--accent); pointer-events: none; animation: pvFlash 1.8s ease-out forwards; }
 @keyframes pvFlash { 0%, 50% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pv-flash { animation: pvFlash 1.8s steps(1, end) forwards; } }
+
+/* ---------- 問 AI 的範圍（reader/chat-scope.js）：這份文件／分類／整個文獻庫／挑幾份 ---------- */
+.ch-scope { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink-3); transition: color var(--dur-fast), background var(--dur-fast); }
+.ch-scope svg.i { width: 15px; height: 15px; }
+.ch-scope.on { color: var(--accent); }
+.ch-scope.open { background: var(--surface-2); }
+.ch-scope:disabled { opacity: .4; }
+@media (hover: hover) and (pointer: fine) { .ch-scope:not(:disabled):hover { background: var(--surface-2); } }
+.ch-menu.ch-scope-menu { min-width: 230px; }
+.ch-menu.ch-scope-menu .ch-menu-h { padding: 6px 10px 4px; font: 11.5px var(--ui); color: var(--ink-3); }
+.ch-menu.ch-scope-menu button { flex-direction: row; align-items: center; gap: 9px; }
+.ch-menu.ch-scope-menu button > svg.i { width: 15px; height: 15px; flex: none; color: var(--ink-3); }
+.ch-menu.ch-scope-menu button.on > svg.i { color: var(--accent); }
+.ch-menu.ch-scope-menu b { flex: 1; width: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-menu.ch-scope-menu small { color: var(--ink-3); font: 12px var(--ui); font-variant-numeric: tabular-nums; }
+.ch-menu.ch-scope-menu .ch-model-check { margin-left: 2px; }
+.chip-ctx.scope { background: var(--accent-soft-2); color: var(--ink); }
+.chip-ctx.scope svg { color: var(--accent); }
+.cm.user .cm-scope { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 0 8px; height: 22px; border-radius: 8px; font: 11.5px var(--ui); color: var(--ink-3); background: var(--fill); }
+.cm.user .cm-scope svg.i { width: 12px; height: 12px; color: var(--accent); }
+.ch-thread .tt .tt-scope { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: var(--accent); }
+.ch-thread .tt .tt-scope svg.i { width: 13px; height: 13px; }
+/* 挑幾份：輸入框上面浮起來的一張清單 */
+.ch-pick { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 8px); z-index: 7; display: flex; flex-direction: column; max-height: min(420px, 60vh); padding: 8px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule), var(--shadow); }
+.ch-pick-h { display: flex; align-items: center; gap: 6px; padding: 2px 4px 6px; font: 13px var(--ui); color: var(--ink); }
+.ch-pick-h .grow { flex: 1; }
+.ch-pick-h button { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); }
+.ch-pick-h button:hover { background: var(--fill); color: var(--ink); }
+.ch-pick .ch-find { margin: 0 0 6px; }
+.ch-pick-list { flex: 1; min-height: 60px; overflow-y: auto; overscroll-behavior: contain; }
+.ch-pick-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 9px; cursor: pointer; font: 13px/1.35 var(--ui); color: var(--ink-2); }
+.ch-pick-row:hover { background: var(--fill); }
+.ch-pick-row input { flex: none; accent-color: var(--accent); }
+.ch-pick-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-pick-row .y { flex: none; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ch-pick-row.here { color: var(--ink-3); cursor: default; }
+.ch-pick-f { display: flex; align-items: center; gap: 8px; padding: 8px 4px 2px; border-top: 1px solid var(--line); margin-top: 6px; font: 12px var(--ui); color: var(--ink-3); }
+.ch-pick-f .grow { flex: 1; }
+.ch-pick .hint { padding: 10px; }
+/* 回答裡的出處：小小的一顆，點了在旁邊打開那一頁 */
+.cm.ai .body a.doclink { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; margin: 0 1px; border-radius: 6px; font: 500 11.5px/1.7 var(--ui); color: var(--accent); background: var(--accent-soft); text-decoration: none; white-space: nowrap; vertical-align: 1px; }
+.cm.ai .body a.doclink:hover { background: var(--accent-soft-2); }

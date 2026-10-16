@@ -7,9 +7,9 @@
   PR.framed = framed;
   const post = (msg) => window.parent.postMessage(Object.assign({ easyread: true }, msg), location.origin);
   /* 到某個網址：被框住就請外殼開分頁，不然照常跳轉 */
-  PR.navigate = function (url) {
+  PR.navigate = function (url, opts) {
     const u = new URL(url, location.href);
-    if (framed && u.origin === location.origin && /^\/(read|note)\//.test(u.pathname)) { post({ type: "open", url: u.pathname + u.search + u.hash }); return true; }
+    if (framed && u.origin === location.origin && /^\/(read|note)\//.test(u.pathname)) { post({ type: "open", url: u.pathname + u.search + u.hash, beside: !!(opts && opts.beside) }); return true; }
     if (framed && u.origin === location.origin && (u.pathname === "/" || u.pathname === "/library")) { post({ type: "home", url: "/library" + u.search + u.hash }); return true; }
     location.href = url;
     return false;
@@ -42,7 +42,7 @@
     try { u = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
     if (u.origin !== location.origin || !(/^\/(read|note)\//.test(u.pathname) || u.pathname === "/" || u.pathname === "/library")) return;
     e.preventDefault();
-    PR.navigate(u.href);
+    PR.navigate(u.href, { beside: !!a.closest("[data-beside]") });  // 問 AI 回答裡的出處：在旁邊打開，這一份留著
   }, true);
   const sendTitle = () => { if (document.title && document.title !== "EasyRead") post({ type: "title", title: document.title }); };
   const t = document.querySelector("title");

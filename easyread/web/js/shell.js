@@ -347,7 +347,7 @@
   window.addEventListener("message", (e) => {
     if (e.origin !== location.origin || !e.data || !e.data.easyread) return;
     const from = tabOfSource(e.source), d = e.data;
-    if (d.type === "open") openUrl(String(d.url || ""));
+    if (d.type === "open") openUrl(String(d.url || ""), "", !!d.beside);
     else if (d.type === "home") goHome(String(d.url || ""));
     else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*FOLI$/, ""); renderTabs(); save(); }
     else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
