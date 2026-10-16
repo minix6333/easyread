@@ -27,7 +27,7 @@
   let box = null, input = null, list = null, rows = [], sel = 0, moved = false;
   let data = { papers: [], notes: [] }, hits = [], hitsFor = "", seq = 0, timer = 0;
   const dark = () => document.documentElement.dataset.theme === "dark";
-  const paperTitle = (p) => p.title_zh || p.title_en || p.short_zh || p.id;
+  const paperTitle = (p) => p.title_en || p.title_zh || p.short_zh || p.id;  // 和主頁卡片一樣：原文標題
   const noteTitle = (n) => n.title || PR.t("未命名筆記");
   const noteIcon = (n) => (PR.tintIcon ? PR.tintIcon(n.icon, n.color, PR.hasIcon("notes") ? "notes" : "notebook") : PR.icon("notebook", "sm"));
   const byTime = (k1, k2) => (a, b) => String(b[k1] || b[k2] || "").localeCompare(String(a[k1] || a[k2] || ""));

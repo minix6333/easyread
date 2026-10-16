@@ -57,20 +57,18 @@
   let scrollQueued = false;
   addEventListener("scroll", () => { if (scrollQueued) return; scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; markCurrent(); }); }, { passive: true });
 
-  /* 寬視窗開關兩欄：整個畫面用 View Transitions 換過去（ui.js 的 PR.morph）——紙從舊位置滑到新位置、欄從旁邊滑進來、滑出去，
-     頂欄的鈕跟著欄的邊走。以前是動畫布的 left／right 和整頁的 padding：四百塊的筆記每一格都要重排一次，收面板時面板一下就不見了。
+  /* 寬視窗開關兩欄：紙從舊位置滑到新位置（PR.flip，只動 translate），欄從旁邊滑進來、滑出去（notepage.css），
+     頂欄和畫布的邊在 body.lay-anim 那段時間跟著滑（craft.css）。以前（2.1.0-tw.12 前半）是 View Transitions 拍整個畫面，
+     桌面版的毛玻璃視窗裡按下去要先停一下；再更早是動整頁的 padding，四百塊的筆記每一格都要重排。
      窄視窗兩欄是蓋在紙上面的，CSS 自己滑。 */
-  function noteNames() {
-    const b = document.body, out = [[$("#canvas"), "nt-canvas", "fill"], [$("#noteMain"), "nt-paper"], [$("#noteAi"), "nt-ai"]];
-    [["#backBtn", "nt-back"], ["#outlineBtn", "nt-ol"], ["#noteState", "nt-state"], ["#starBtn", "nt-star"], ["#inspBtn", "nt-insp"], ["#noteMore", "nt-more"]].forEach(([q, n]) => {
-      const el = $(q);
-      if (el && el.offsetWidth) out.push([el, n]);
-    });
-    if (b.classList.contains("ol-open")) out.push([$("#noteOutline"), "nt-outline", "panel-l"]);
-    if (b.classList.contains("in-open")) out.push([$("#noteInsp"), "nt-inspector", "panel"]);
-    return out;
-  }
-  const morph = (fn) => (!narrow.matches && PR.morph ? PR.morph(fn, { type: "note", names: noteNames }) : fn());
+  let layT = 0;
+  const morph = (fn) => {
+    if (narrow.matches || !PR.flip) return fn();
+    clearTimeout(layT);
+    document.body.classList.add("lay-anim");
+    layT = setTimeout(() => document.body.classList.remove("lay-anim"), (PR.dur ? PR.dur() : 450) + 60);
+    PR.flip([$("#noteMain")], fn);
+  };
 
   /* ---------- 右邊的面板 ---------- */
   const TABS = () => [["insert", PR.t("插入")], ["format", PR.t("格式")], ["style", PR.t("樣式")], ["info", PR.t("資訊")]];

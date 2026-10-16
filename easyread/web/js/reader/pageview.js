@@ -11,48 +11,77 @@
   const articleOpen = () => !PR.articleOpen || PR.articleOpen();
 
   /* 右侧面板开关：pages | notes | null */
-  /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。
-     面板開／關（不是面板之間切換）時，整個畫面用 View Transitions 換過去（PR.morph）：畫布、PDF 頁、頂欄右邊的鈕、頁碼膠囊
-     從舊位置、舊大小滑到新的，面板從右邊滑進來——以前是 PDF 頁一下子變窄、重新解碼時整頁白一下，左邊的目錄還閃出來一塊。 */
+  /* 面板開／關、釘目錄欄、開關譯文：版面一次換好，真的頁面從舊的位置和大小滑到新的（PR.flipLayout）。
+     2.1.0-tw.12 用 View Transitions 拍整個畫面再變形：桌面版的毛玻璃視窗裡拍一次要 0.1～0.15 秒（按下去先停一下），
+     捲到一半時上下半露的頁面在動畫裡跑出捲動區外、結束才被切掉（看起來跳一下）。現在按下去那一格就開始動，頁面一直在捲動區裡。
+     面板之間切換（筆記⇄問 AI⇄資訊）：直接換，新的那個淡進來。 */
   PR.side = null;
   PR.openSide = function (name) {
     const layout = body.classList.contains("side-open") !== !!name, prev = PR.side;
-    PR.side = name;  // 馬上就是新的（後面接著叫的程式要看）；畫面上的 class 在 apply 裡換
-    if (layout && PR.morph && PR.sideMotion !== false) PR.morph(() => applySide(name), { type: "side", names: PR.readerNames });
-    else if (name && prev && prev !== name && PR.morph && PR.sideMotion !== false) PR.morph(() => applySide(name), { type: "tab" });  // 面板之間切換（筆記⇄問 AI⇄資訊）：淡過去
+    PR.side = name;  // 馬上就是新的（後面接著叫的程式要看）
+    if (layout && PR.sideMotion !== false) PR.flipLayout(() => applySide(name));
+    else if (name && prev && prev !== name) swapSide(name);
     else applySide(name);
   };
-  /* 跟著滑的東西（PR.morph 的 names）：畫布、頂欄兩邊那幾顆、頁碼膠囊、「問 AI」、看得到的 PDF 頁（上下各多一頁）、
-     開著的右側面板和它上面的分頁列（*.panel，從右邊滑進來）、釘著的導覽欄（*.panel-l，從左邊）。
-     開關導覽欄（panels.js）、譯文（pdfmode.js）也用這一份。 */
-  PR.readerNames = function () {
-    // 畫布只在 PDF 優先時跟著滑：有名字的元素畫在其他東西（root）上面，文章優先時文章在 root 裡，畫布一滑就把整篇文章蓋住了
-    const pdf = !!(PR.pdfMain && PR.pdfMain());
-    const out = pdf ? [[PR.$("#canvas"), "rd-canvas", "fill"], [PR.$("#progress"), "rd-progress", "fill"]] : [];
-    const bar = PR.$("#bar");
-    [["#backBtn", "rd-back"], ['[data-act="drawer"]', "rd-nav"], ["#jobState", "rd-job"], [".view-seg", "rd-seg"], [".bar-group", "rd-group"], ['[data-act="insp"]', "rd-insp"]].forEach(([q, n]) => {
-      const el = bar && PR.$(q, bar);
-      if (el && el.offsetWidth) out.push([el, n]);
-    });
-    const head = PR.$(".pv-head"), ai = PR.$(".pv-ai"), back = PR.$(".jump-back");
-    if (head && head.offsetWidth && pdf) out.push([head, "rd-pvhead"]);
-    if (ai && ai.offsetWidth) out.push([ai, "rd-ai"]);
-    if (back && back.offsetWidth) out.push([back, "rd-jump"]);
+  function swapSide(name) {
+    body.classList.add("side-swap");  // 兩個面板都不滑（一個出去一個進來會疊在一起）
+    applySide(name);
+    const el = PR.$(name === "notes" ? "#notespanel" : name === "chat" ? "#chatpanel" : name === "info" ? "#infopanel" : "#pageview");
+    if (el && el.animate && typeof matchMedia === "function" && !matchMedia("(prefers-reduced-motion: reduce)").matches) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
+    const off = () => body.classList.remove("side-swap");
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => requestAnimationFrame(off)); else off();
+  }
+  /* 版面大改的動畫（打開／收起右側面板、釘／收目錄欄、開關譯文）：
+     - 看得到的 PDF 頁：換之前記下位置，換之後每一頁從舊的位置、大小（translate＋等比例縮放）回到新的。是真的頁面在動，
+       捲動區照樣把它切在框裡；剛露出來的頁（版面變小、多看得到一頁）照同一個比例從外面接進來。
+     - 文章那一欄（文章優先、或譯文開著）：字會重排，整欄從舊的位置滑過去、淡一下。
+     - 畫布、頂欄、頁碼膠囊、「問 AI」：body.lay-anim 這段時間 CSS 讓它們的邊滑過去（craft.css）；面板自己本來就是滑的。
+     重的工作（重量公式、邊註重排、換清晰度）排在動畫之後（afterSlide）。 */
+  PR.flipLayout = function (change) {
+    const still = typeof matchMedia !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (still || !body.animate || !PR.dur) { change(); return; }
+    const vh = innerHeight, pdf = !!(PR.pdfMain && PR.pdfMain());
+    const before = new Map();
+    if (pdf) for (const e of pageNodes) { const r = e.node.getBoundingClientRect(); if (r.height && r.bottom > -60 && r.top < vh + 60) before.set(e.node, r); }
+    const stage = PR.$("#stage"), stageB = stage && stage.offsetWidth ? stage.getBoundingClientRect() : null;
+    const head = PR.$(".pv-head"), headB = head && head.offsetWidth ? head.getBoundingClientRect() : null;
+    const dur = PR.dur(), ease = PR.spring();
+    clearTimeout(layT);
+    body.classList.add("lay-anim");
+    layT = setTimeout(() => body.classList.remove("lay-anim"), dur + 60);
+    change();
     if (pdf) {
-      const vh = innerHeight;
-      pageNodes.forEach((e, i) => {
-        const r = e.node.getBoundingClientRect();
-        if (r.height && r.bottom > -vh * 0.5 && r.top < vh * 1.5) out.push([e.node, "rd-p" + (i + 1), "page"]);
-      });
+      // 有量到舊位置的頁：照量到的；剛露出來的：照最近一頁的比例推回去（所有頁都是同一個縮放）
+      let ref = null;
+      const now = [];
+      for (const e of pageNodes) {
+        const a = e.node.getBoundingClientRect();
+        if (!a.height || a.bottom < -60 || a.top > vh + 60) continue;
+        now.push([e.node, a]);
+        if (!ref && before.has(e.node)) ref = [before.get(e.node), a];
+      }
+      for (const [node, a] of now) {
+        let b = before.get(node);
+        if (!b && ref) { const k = ref[0].width / ref[1].width; b = { left: ref[0].left + (a.left - ref[1].left) * k, top: ref[0].top + (a.top - ref[1].top) * k, width: a.width * k }; }
+        if (!b || !a.width) continue;
+        const s = b.width / a.width, dx = b.left - a.left, dy = b.top - a.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(s - 1) < 0.002) continue;
+        node.getAnimations().forEach((x) => { if (x.id === "lay") x.cancel(); });
+        const x = node.animate([{ transformOrigin: "0 0", transform: "translate(" + dx + "px," + dy + "px) scale(" + s + ")" }, { transformOrigin: "0 0", transform: "none" }], { duration: dur, easing: ease });
+        x.id = "lay";
+      }
     }
-    const open = PR.$(body.classList.contains("np-open") ? "#notespanel" : body.classList.contains("ch-open") ? "#chatpanel" : body.classList.contains("in-open") ? "#infopanel" : body.classList.contains("pv-open") && !(PR.pdfMain && PR.pdfMain()) ? "#pageview" : null);
-    if (open) out.push([open, "rd-panel", "panel"]);
-    const tabs = PR.$("#inspTabs");
-    if (tabs && tabs.offsetWidth) out.push([tabs, "rd-tabs", "panel"]);
-    const nav = PR.$("#drawer");
-    if (nav && body.classList.contains("nav-open")) out.push([nav, "rd-drawer", "panel-l"]);
-    return out;
+    if (headB && head.offsetWidth) {  // 頁碼膠囊在 PDF 那一格的正中間：跟著滑
+      const a = head.getBoundingClientRect(), dx = headB.left + headB.width / 2 - (a.left + a.width / 2);
+      if (Math.abs(dx) > 0.5) head.animate([{ translate: dx + "px 0" }, { translate: "0 0" }], { duration: dur, easing: ease });
+    }
+    if (stage && stage.offsetWidth) {
+      const a = stage.getBoundingClientRect();
+      if (!stageB) stage.animate([{ opacity: 0, translate: "24px 0" }, { opacity: 1, translate: "0 0" }], { duration: dur, easing: ease });  // 剛打開的譯文
+      else if (Math.abs(a.left - stageB.left) > 0.5 || Math.abs(a.width - stageB.width) > 0.5) stage.animate([{ opacity: 0.55, translate: (stageB.left - a.left) + "px 0" }, { opacity: 1, translate: "0 0" }], { duration: dur, easing: ease });
+    }
   };
+  let layT = 0;
   function applySide(name) {
     if (PR.side !== name) return;  // 這中間又換了（View Transitions 晚一格才跑）：以最後那次為準
     body.classList.toggle("pv-open", name === "pages");
@@ -81,11 +110,12 @@
   }
   /* 面板滑進滑出要 .22 秒（CSS --dur）：重的工作排到那之後；連著叫幾次只做最後一次 */
   let slideT = null;
-  // 整個畫面正在用 View Transitions 換（<html data-vt>，PR.morph）：等它換完再做，邊註卡片才是在看得到的時候滑到新位置
+  // 版面正在滑（body.lay-anim，PR.flipLayout）或整個畫面正在淡過去（<html data-vt>）：等它做完再做——重量公式一次一百多毫秒，
+  // 放在動畫中間會卡一下；邊註卡片也是在看得到的時候才滑到新位置
   PR.afterSlide = function (fn) {
-    const root = document.documentElement, vt = !!(root && root.dataset && root.dataset.vt);
+    const root = document.documentElement, busy = body.classList.contains("lay-anim") || !!(root && root.dataset && root.dataset.vt);
     clearTimeout(slideT);
-    slideT = setTimeout(fn, vt ? 620 : 240);
+    slideT = setTimeout(fn, busy ? (PR.dur ? PR.dur() : 450) + 90 : 240);
   };
 
   PR.togglePages = function (force) {

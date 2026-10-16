@@ -1260,3 +1260,17 @@ body.rd-loading::after { content: ""; position: fixed; left: 50%; top: 46%; z-in
 /* 第一次畫出來的那一刻（程式還沒跑完，reader.html 的 <body class="rd-loading">）：頂欄的鈕還沒有圖示，先不露出來，和內容一起淡進來 */
 body.rd-loading #bar, body.rd-loading .pv-ai { opacity: 0; }
 #bar { transition: opacity .2s ease-out; }
+
+/* ---------- 版面大改的動畫（reader/pageview.js 的 PR.flipLayout、note/panels.js）----------
+   只在 body.lay-anim 那一段時間讓畫布、頂欄、「問 AI」的邊滑過去（平常拉視窗、拖面板寬度時不能慢半拍跟著跑）。
+   這幾個都是固定位置、裡面幾乎沒東西的元素，動它們的邊很便宜；頁面本身是 flipLayout 用 transform 在動。 */
+body.lay-anim :is(#canvas, #progress, .pv-ai, .jump-back, .note-ai) { transition: left var(--dur) var(--spring), right var(--dur) var(--spring), width var(--dur) var(--spring); }
+body.lay-anim #bar { transition: left var(--dur) var(--spring), right var(--dur) var(--spring), opacity .2s ease-out; }
+body.resizing :is(#canvas, #progress, #bar, .pv-ai) { transition: none !important; }
+/* 面板上面那一排分頁（筆記、問 AI、資訊）：跟著面板一起從右邊滑進來、滑出去（以前是一下子出現、一下子不見） */
+body.insp-col #inspTabs { display: flex; width: var(--side-w-live, var(--side-w)); transform: translateX(102%); visibility: hidden; transition: transform var(--dur) var(--spring), visibility 0s var(--dur); }
+body.side-open.insp-col #inspTabs { transform: none; visibility: visible; transition: transform var(--dur) var(--spring), visibility 0s; }
+body.resizing #inspTabs { transition: none; }
+/* 面板之間切換（筆記⇄問 AI⇄資訊）：兩個都不滑，新的淡進來（pageview.js 的 swapSide） */
+body.side-swap .side-panel { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { body.insp-col #inspTabs { transition: visibility 0s; } }

@@ -9,12 +9,13 @@
   }
 
 
-  /* 標題可以直接改。翻譯過的：大標題是譯文，原文標題縮成下面一小行「原文」（還是可以改，引用、查資料用得到） */
+  /* 標題可以直接改。大標題是原文（和卡片上的一樣）；翻譯過的，譯文標題縮成下面一小行「譯名」（一樣可以改） */
   function titleFields(i) {
     const tr = '<div class="%c" contenteditable="plaintext-only" data-meta="title_zh" lang="' + (i.target || "zh") + '" spellcheck="false">' + PR.esc(i.title_zh || "") + "</div>";
     const en = '<div class="%c" contenteditable="plaintext-only" data-meta="title_en" lang="en" spellcheck="false">' + PR.esc(i.title_en || "") + "</div>";
+    if (!i.title_en) return tr.replace("%c", "title-main");  // 本來就是中文的文件：只有一個標題
     if (!PR.titles(i).translated) return en.replace("%c", "title-main");
-    return tr.replace("%c", "title-main") + '<div class="title-orig"><span>' + PR.t("原文") + "</span>" + en.replace("%c", "title-sub") + "</div>";
+    return en.replace("%c", "title-main") + '<div class="title-orig"><span>' + PR.t("譯名") + "</span>" + tr.replace("%c", "title-sub") + "</div>";
   }
 
   function jobHtml(i) {

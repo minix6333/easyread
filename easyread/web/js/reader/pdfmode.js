@@ -128,12 +128,12 @@
     if (open === artOpen) return;
     artOpen = open;
     const to = open && ((opts && opts.to) || (PR.pdfBlockNow ? PR.pdfBlockNow() : PR.pdfBlock && PR.pdfBlock()));  // PDF 畫面中間那一段（「跟隨」關著也一樣對得到）
-    // PDF 那一格變窄、譯文出來：整個畫面用 View Transitions 換過去（PDF 頁從舊大小縮到新大小，不是一下子跳；見 pageview.js 的 openSide）
+    // PDF 那一格變窄、譯文出來：PDF 頁從舊大小縮到新大小、譯文那一欄淡進來（PR.flipLayout，見 pageview.js）
     const change = () => {
       PR.applyLayout();
       if (open && !(opts && opts.quiet) && to && PR.blockById[to]) PR.jumpTo("b-" + to, { noBack: true, instant: true });
     };
-    if (PR.morph && PR.sideMotion !== false && !(opts && opts.instant)) PR.morph(change, { type: "article", names: PR.readerNames });
+    if (PR.flipLayout && PR.sideMotion !== false && !(opts && opts.instant)) PR.flipLayout(change);
     else change();
     if (!open) return;
     // 寬公式重量（實測 140 ms）和邊注排版等譯文滑出來之後再做，先讓面板順順地滑；量完把剛才跳到的段落停回原位
