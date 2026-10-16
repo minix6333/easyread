@@ -205,6 +205,8 @@
     { k: "h1", icon: ["h1", "bigger"], g: "text", label: t("大標題"), hint: "#", kw: "h1 heading title" },
     { k: "h2", icon: ["h2", "bigger"], g: "text", label: t("副標題"), hint: "##", kw: "h2 subtitle" },
     { k: "h3", icon: ["h3", "bigger"], g: "text", label: t("標題"), hint: "###", kw: "h3 heading" },
+    { k: "link", icon: ["link", "link"], g: "text", label: t("連到文件或筆記"), hint: "@",
+      kw: "link mention paper note page 連結 提到 文件 筆記" },  // i18n-ok（斜線選單裡打中文也找得到）
     { k: "bullet", icon: ["bullets", "log"], g: "list", label: t("項目清單"), hint: "-", kw: "list bullet ul" },
     { k: "number", icon: ["numbers", "list"], g: "list", label: t("編號清單"), hint: "1.", kw: "number ol" },
     { k: "todo", icon: ["todo", "check"], g: "list", label: t("待辦"), hint: "[]", kw: "todo task check" },
@@ -703,6 +705,7 @@
       state.editing = null;
       writing(false);
       closeMenu();
+      closeMention();
       tools.classList.remove("open");
       repaint(id);
       changeSoon.flush();
@@ -835,6 +838,7 @@
       if (!b || !f) return;
       const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase(), code = e.code || "";
       if (state.menu) { if (menuKey(e)) return; }
+      if (state.mention) { if (mentionKey(e)) return; }
       if (e.key === "Escape") { e.preventDefault(); stopEdit(); select(id); return; }
       if (mod && !e.shiftKey && !e.altKey && key === "z") { if (state.history.length) { e.preventDefault(); undo(); } else if (f.rich) e.preventDefault(); return; }
       if (mod && !e.altKey && (key === "y" || (e.shiftKey && key === "z"))) { if (state.future.length) { e.preventDefault(); redo(); } else if (f.rich) e.preventDefault(); return; }
@@ -1024,6 +1028,7 @@
       const txt = PR.rich.text(ta);
       if (INLINE(b) && (/^[\/／][^\s/／]*$/.test(txt) || /^、[^\s、]*$/.test(txt))) openMenu(id, txt.slice(1));
       else if (state.menu) closeMenu();
+      if (state.mention || /[@＠]/.test(txt)) mentionCheck(id, txt);
       if (convertByPrefix(id)) return;
       b.text = PR.rich.md(ta);
       changeSoon();
@@ -1053,7 +1058,7 @@
       if (!el) return;
       let m = root.querySelector(".bk-menu");
       if (!m) { m = document.createElement("div"); m.className = "bk-menu"; root.append(m); }
-      const items = MENU().filter((it) => (!q || (it.label + " " + it.kw).toLowerCase().includes(q.toLowerCase())) && (it.k !== "image" || opts.upload) && (it.k !== "ai" || !opts.noAi));
+      const items = MENU().filter((it) => (!q || (it.label + " " + it.kw).toLowerCase().includes(q.toLowerCase())) && (it.k !== "image" || opts.upload) && (it.k !== "ai" || !opts.noAi) && (it.k !== "link" || (!turn && PR.mentions)));
       if (!items.length) { closeMenu(); return; }
       state.menu = { id, items, at: 0, turn: !!turn };
       const groups = GROUPS();
@@ -1092,7 +1097,75 @@
       if (f && !mn.turn && (f.rich ? /^[\/／、][^\s/／、]*$/.test(f.text()) : /^\/[^\s/]*$/.test(f.el.value))) { if (f.rich) f.el.innerHTML = ""; else f.el.value = ""; state.blocks[i].text = ""; }  // 把打的「/xx」清掉
       if (k === "image") { pickImage(id); return; }
       if (k === "ai") { pullText(id); state.blocks[i].text = ""; stopEdit(); api.askAi(i); return; }
+      if (k === "link") { if (f && f.rich) { f.el.focus(); f.setCaret(0, 0); document.execCommand("insertText", false, "@"); onInput({ target: f.el }); } return; }  // 打一個 @：叫出下面的「提到」
       setType(id, k);
+    }
+
+    /* ---------- 「@」提到：連到文獻庫的一篇文件（閱讀頁還有這一篇的第幾頁）、另一份筆記 ----------
+       找的東西在 common/mention.js（PR.mentions.find）。@ 前面要是行首、空白或標點（打 email 的 a@b 不會跳出來）；
+       後面打的字拿來篩；↑↓ 選、Enter／Tab 放進去、Esc 收起（字留著）。放進去的是連結，存成 [Karan 2026](/read/…) */
+    let mentionSeq = 0;
+    function mentionCheck(id, txt) {
+      const f = fieldOf(id);
+      if (!PR.mentions || !f || !f.rich) return closeMention();
+      const c = f.caret();
+      if (!c || c.start !== c.end) return closeMention();
+      const m = /(?:^|[\s\u3000，。、；：！？（「『(\[])[@＠]([^\s@＠]{0,30})$/.exec((txt != null ? txt : PR.rich.text(f.el)).slice(0, c.start));
+      if (!m) return closeMention();
+      openMention(id, c.start - m[1].length - 1, m[1]);
+    }
+    async function openMention(id, from, q) {
+      const seq = ++mentionSeq;
+      let items = [];
+      try { items = await PR.mentions.find(q); } catch (e) { items = []; }
+      if (seq !== mentionSeq || state.editing !== id) return;  // 打得比找得快：只畫最後一次
+      let m = root.querySelector(".bk-mention");
+      if (!m) { m = document.createElement("div"); m.className = "bk-mention"; m.setAttribute("role", "listbox"); root.append(m); }
+      if (!items.length) { closeMention(); return; }
+      state.mention = { id, from, q, items, at: 0 };
+      m.innerHTML = items.map((it, k) => '<button type="button" class="bk-mi' + (k === 0 ? " on" : "") + '" data-mk="' + k + '"><span class="bk-mic">' + ico(it.icon, "link") + "</span><b>" + esc(it.label) + "</b>" + (it.sub ? "<small>" + esc(it.sub) + "</small>" : "") + "</button>").join("");
+      const sel = getSelection(), rr = root.getBoundingClientRect();
+      let r = sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+      if (!r || (!r.top && !r.height)) { const el = blockEl(id); r = el ? el.getBoundingClientRect() : rr; }
+      const h = Math.min(320, m.scrollHeight || 320), below = innerHeight - r.bottom, up = below < h + 16 && r.top > below;
+      m.classList.toggle("up", up);
+      m.style.top = (up ? r.top - rr.top - h - 6 : r.bottom - rr.top + 6) + "px";
+      m.style.left = Math.max(4, Math.min(r.left - rr.left - 10, rr.width - Math.min(320, rr.width) - 4)) + "px";
+      m.scrollTop = 0;
+      m.classList.add("open");
+    }
+    function closeMention() {
+      mentionSeq++;
+      if (!state.mention) return;
+      state.mention = null;
+      const m = root.querySelector(".bk-mention");
+      if (m) m.classList.remove("open");
+    }
+    function mentionKey(e) {
+      const mn = state.mention, m = root.querySelector(".bk-mention");
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        mn.at = (mn.at + (e.key === "ArrowDown" ? 1 : mn.items.length - 1)) % mn.items.length;
+        m.querySelectorAll(".bk-mi").forEach((x, k) => { x.classList.toggle("on", k === mn.at); if (k === mn.at && x.scrollIntoView) x.scrollIntoView({ block: "nearest" }); });
+        return true;
+      }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickMention(mn.at); return true; }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMention(); return true; }
+      if (/^(ArrowLeft|ArrowRight|Home|End|PageUp|PageDown)$/.test(e.key)) closeMention();  // 游標走開了
+      return false;
+    }
+    function pickMention(k) {
+      const mn = state.mention; if (!mn) return;
+      const it = mn.items[k];
+      closeMention();
+      const f = fieldOf(mn.id);
+      if (!it || !f || !f.rich) return;
+      const c = f.caret(), to = c ? c.start : mn.from + mn.q.length + 1;
+      if (!/^[@＠]/.test(PR.rich.text(f.el).slice(mn.from, to))) return;  // 那個 @ 已經不在原來的地方
+      typingSnapshot(mn.id);
+      f.el.focus();
+      f.setCaret(mn.from, to);
+      if (PR.rich.insertLink(f.el, it.text, it.url)) onInput({ target: f.el });
     }
     async function pickImage(id) {
       if (!opts.upload) return;
@@ -1345,6 +1418,7 @@
     document.addEventListener("mouseup", endSweep);
     root.addEventListener("mousedown", (e) => {
       const mi = e.target.closest(".bk-mi");
+      if (mi && mi.dataset.mk != null) { e.preventDefault(); pickMention(+mi.dataset.mk); return; }
       if (mi) { e.preventDefault(); pickMenu(mi.dataset.k); return; }
       if (e.target.closest(".bk-b.editing .bk-mark.todo, .bk-add, .bk-gadd")) { e.preventDefault(); return; }  // 別把輸入框的焦點搶走
       const h = e.target.closest(".bk-handle");

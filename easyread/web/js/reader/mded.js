@@ -55,7 +55,7 @@
     // Esc、⌘↩：交給卡片原本的處理（存好、收起）；選單、公式小框開著時 Esc 先收它們
     host.addEventListener("keydown", (e) => {
       if (e.isComposing || e.keyCode === 229) return;
-      const finish = (e.key === "Enter" && (e.metaKey || e.ctrlKey)) || (e.key === "Escape" && !host.querySelector(".bk-menu.open, .bk-pop"));
+      const finish = (e.key === "Enter" && (e.metaKey || e.ctrlKey)) || (e.key === "Escape" && !host.querySelector(".bk-menu.open, .bk-mention.open, .bk-pop"));
       if (!finish) return;
       e.preventDefault(); e.stopPropagation();
       sync();

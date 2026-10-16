@@ -324,7 +324,10 @@
       }
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.stopPropagation(); PR.closeSticky(); return; }
     }
-    if (e.key === "Escape" && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); PR.closeSticky(); }
+    if (e.key === "Escape" && !e.isComposing) {
+      if (box && box.querySelector(".bk-menu.open, .bk-mention.open, .bk-pop")) return;  // 裡面的編輯器開著「/」選單、「@」清單、公式小框：Esc 先收那個
+      e.preventDefault(); e.stopImmediatePropagation(); PR.closeSticky();
+    }
   }, true);
   /* 點別的地方：收起（小圓點、選字工具列、選單不算） */
   document.addEventListener("mousedown", (e) => {

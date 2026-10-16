@@ -277,6 +277,22 @@ app.whenReady().then(async () => {
     const s3 = await st();
     check(name, /最後一段。甲乙$/.test(s1.md) && stored1 === s1.md && /最後一段。甲乙丙$/.test(s2.md) && s3.md === "外面改的內容", { s1: s1.md.slice(-12), stored1: String(stored1).slice(-12), s2: s2.md.slice(-12), s3: s3.md });
   });
+  await run("打 @ 找文件：選了變成連結（第一作者 年），接著打的字在連結外面；打 email 的 a@b 不會跳出來", async (name) => {
+    await click(await pt("最後一段"));
+    await key("End");
+    await type("寄到 a@b");
+    await sleep(500);
+    const mail = await js("!!document.querySelector('.bk-mention.open')");
+    await type(" 見 @karan");
+    let shown = false;
+    for (let k = 0; k < 30 && !shown; k++) { await sleep(100); shown = await js("!!document.querySelector('.bk-mention.open .bk-mi')"); }
+    const first = await js("(document.querySelector('.bk-mention.open .bk-mi.on') || {}).textContent || ''");
+    await key("Return");
+    await type("提出");
+    await key("Escape"); await sleep(500);
+    const s = await st();
+    check(name, !mail && shown && /Finetuning|取樣/.test(first) && /見 \[Karan 2026\]\(\/read\/4cf6b1e1a402\)提出$/.test(s.md), { mail, shown, first, md: s.md.slice(-80) });
+  });
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 5));
   step = "cleanup";
   if (!keep) await cleanup();

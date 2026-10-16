@@ -399,6 +399,6 @@ h1, h2, .bk-h1, .bk-h2, .list-head h1, .dialog h2 { font-optical-sizing: auto; }
 small, .hint, .card .hd, .card .meta, .row .t3 { letter-spacing: .005em; }
 @media (prefers-reduced-transparency: reduce) {
   .topbar::before { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg); mask-image: none; -webkit-mask-image: none; height: 100%; }
-  #tabs, .side, #drawer, .detail-head, .pv-head, .np-head, .ch-head, .bk-menu, .dock-head, .nai-quick button { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  #tabs, .side, #drawer, .detail-head, .pv-head, .np-head, .ch-head, .bk-menu, .bk-mention, .dock-head, .nai-quick button { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) { .side-knob, .seg-knob { transition: none; } }

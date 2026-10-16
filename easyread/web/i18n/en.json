@@ -1473,7 +1473,6 @@
  "引別人的話": "Quote someone",
  "引用": "Quote",
  "把這段改短一半，只留關鍵。": "Cut this passage in half, keeping only the essentials.",
- "把這段整理成條列，每點一句，保留所有重點。": "Turn this passage into a bulleted list, one sentence per point, keeping every key point.",
  "把這段的內容整理成一個 Markdown 表格。": "Organise this passage into a Markdown table.",
  "拖動換順序；點一下選取這一塊": "Drag to reorder; click to select this block",
  "捨棄": "Discard",
@@ -1482,7 +1481,6 @@
  "收合": "Toggle",
  "改成表格": "Make a table",
  "改短": "Shorten",
- "整理成條列": "Make a list",
  "最大的標題": "The largest heading",
  "查核": "Fact-check",
  "標題": "Title",
@@ -1999,5 +1997,7 @@
  "AI 整理的版本": "AI-tidied version",
  "把這段筆記重新排版成好讀的結構：該分段的分段，需要的話加簡短的小標題（用筆記裡原本的用字）；並列的重點改成條列，有先後的步驟改成編號清單，要做的事改成待辦清單，適合對照的內容排成表格，公式寫成 $…$ 或 $$…$$。原本的字句、數字、公式、引用、連結和頁碼一個都不能改、不能刪；除了小標題，不要加任何新的內容或說明。只動排版。": "Re-lay out this note into an easy-to-read structure: split it into paragraphs where needed and add short headings if useful (using the note's own words); turn parallel points into bullet lists, ordered steps into numbered lists, things to do into a to-do list, content worth comparing into a table, and write formulas as $…$ or $$…$$. Do not change or delete any of the original wording, numbers, formulas, quotes, links or page numbers, and apart from the headings do not add any new content or commentary. Change the layout only.",
  "整理": "Tidy",
- "還沒有筆記可以整理": "Nothing to tidy yet"
+ "還沒有筆記可以整理": "Nothing to tidy yet",
+ "連到文件或筆記": "Link to a document or note",
+ "這一篇的第 {n} 頁": "Page {n} of this document"
 }

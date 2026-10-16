@@ -59,6 +59,33 @@ app.whenReady().then(async () => {
     await key("Escape"); await sleep(400);
     await js(`PR.commit({ op: "note_del", id: ${JSON.stringify(made)} }); PR.applyMarks && PR.applyMarks(); 1`); await sleep(400);
   }
+  // 便利貼裡打 @3：連到這一篇的第 3 頁（存成 [p.3](/read/…#page=3)）
+  step = "mention";
+  await js(`(function () { const page = document.querySelector('.pv-page[data-n="1"]'); const s = Array.from(page.querySelectorAll('.pv-text > span')).find((x) => /sampling/i.test(x.textContent));
+    const t = s.firstChild, i = t.textContent.toLowerCase().indexOf('sampling'); const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 8); s.scrollIntoView({ block: 'center' });
+    const g = getSelection(); g.removeAllRanges(); g.addRange(r); document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); })(); 1`);
+  await sleep(500);
+  await js('document.querySelector("#selbar [data-s=note]").click(); 1');
+  await sleep(700);
+  await type("定義在 @3");
+  let shown = false;
+  for (let k = 0; k < 30 && !shown; k++) { await sleep(100); shown = await js("!!document.querySelector('.pv-sticky .bk-mention.open .bk-mi')"); }
+  await key("Return");  // 放進去
+  // 清單開著時按 Esc：只收清單，便利貼還開著（字留著）
+  await type(" @");
+  let again = false;
+  for (let k = 0; k < 30 && !again; k++) { await sleep(100); again = await js("!!document.querySelector('.pv-sticky .bk-mention.open')"); }
+  await key("Escape");
+  await sleep(200);
+  const mid2 = await js("JSON.stringify({ open: !!document.querySelector('.pv-sticky .bk-mention.open'), sticky: !!document.querySelector('.pv-sticky .md-rich-host'), src: (document.querySelector('.pv-sticky textarea[data-rich]') || {}).value || '' })").then(JSON.parse);
+  await key("Backspace"); await key("Backspace");
+  await key("Escape");  // 這次才收起便利貼
+  await sleep(600);
+  const ment = await js(`JSON.stringify(Object.values((PR.state.reader || {}).notes || {}).filter((n) => !n.deleted && /定義在/.test(n.body || "")).map((n) => ({ id: n.id, body: n.body })))`).then(JSON.parse);
+  check("便利貼裡打 @3：連到這一篇的第 3 頁，存成 [p.3](/read/…#page=3)", shown && ment.length === 1 && ment[0].body === "定義在 [p.3](/read/" + id + "#page=3)", { shown, mid2, ment });
+  check("「@」的清單開著時按 Esc：只收清單，便利貼還開著", again && !mid2.open && mid2.sticky && /@$/.test(mid2.src), { again, mid2 });
+  for (const n of ment) await js(`PR.commit({ op: "note_del", id: ${JSON.stringify(n.id)} }); PR.applyMarks && PR.applyMarks(); 1`);
+  await sleep(300);
   check("整個過程主控台沒有錯誤", errors.length === 0, errors.slice(0, 4));
   console.log(bad ? bad + " 項沒過" : "全部通過");
   win.destroy(); app.exit(bad ? 1 : 0);

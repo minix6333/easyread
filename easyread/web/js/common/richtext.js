@@ -404,6 +404,24 @@
     return true;
   }
   const linkAt = (el) => { const sel = getSelection(); return sel.rangeCount ? closestIn(el, sel.getRangeAt(0).startContainer, (n) => n.tagName === "A") : null; };
+  /* 選起來的那一段（「@找的字」）換成一個連結；游標放在連結後面，接著打的字不會跑進連結裡 */
+  function insertLink(el, label, url) {
+    const sel = getSelection();
+    if (!sel.rangeCount || !label || !isUrl(url)) return false;
+    const r = sel.getRangeAt(0);
+    if (!el.contains(r.commonAncestorContainer)) return false;
+    r.deleteContents();
+    const a = document.createElement("a");
+    a.className = "rt-a"; a.dataset.href = url; a.setAttribute("href", url);
+    a.textContent = label;
+    r.insertNode(a);
+    const after = document.createTextNode(ZW);
+    a.after(after);
+    const r2 = document.createRange();
+    r2.setStart(after, 1); r2.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r2);
+    return true;
+  }
 
   /* ---------- 打完一對記號就變成那個樣子 ---------- */
   const AUTO = [
@@ -570,5 +588,5 @@
   }
   const plainOf = (md) => runsOfTree(parse(md)).map((r) => (r.t != null ? r.t : r.br ? "\n" : "\uFFFC")).join("");
 
-  PR.rich = { parse, runsOfTree, emit, lenOf, join, dropMd, plainOf, html, texHtml, runs, md, length, caret, setCaret, slice, text, onFirstLine, onLastLine, endsWithEmptyLine, toggle, active, insertTex, setTex, link, linkAt, autoformat, tidy, fromHtml, cleanPaste, isAtom, ZW };
+  PR.rich = { parse, runsOfTree, emit, lenOf, join, dropMd, plainOf, html, texHtml, runs, md, length, caret, setCaret, slice, text, onFirstLine, onLastLine, endsWithEmptyLine, toggle, active, insertTex, setTex, link, linkAt, insertLink, autoformat, tidy, fromHtml, cleanPaste, isAtom, ZW };
 })(window.PR);
