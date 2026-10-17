@@ -62,6 +62,11 @@ window.PR = window.PR || {};
     const pad = (n) => String(n).padStart(2, "0");
     return PR.t("{m}月{d}日 {time}", { m: d.getMonth() + 1, d: d.getDate(), time: pad(d.getHours()) + ":" + pad(d.getMinutes()) });
   };
+  PR.shortDay = function (iso) {  // 只有日期：卡片底下那一行（模型名字＋日期）放不下時間
+    if (!iso) return "";
+    const d = new Date(iso);
+    return isNaN(d) ? "" : PR.t("{m}月{d}日", { m: d.getMonth() + 1, d: d.getDate() });
+  };
   PR.relTime = function (iso) {
     if (!iso) return "";
     const s = (Date.now() - new Date(iso)) / 1000;

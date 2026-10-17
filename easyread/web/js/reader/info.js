@@ -47,7 +47,7 @@
       "</div>" +
       (n && page ? '<div class="in-prog" title="' + PR.t("第 {p} / {n} 页", { p: page, n }) + '"><i style="width:' + Math.round((Math.min(n, page) / n) * 100) + '%"></i></div><p class="in-note">' + PR.t("第 {p} / {n} 页", { p: page, n }) + "</p>" : "") +
       '<div class="in-chips">' +
-      [["highlight", PR.t("畫線"), "highlighter"], ["note", PR.t("筆記"), "sticky"], ["question", PR.t("提問"), "help"], ["ai", "AI", "sparkle"]].map(([k, l, ic]) =>
+      [["highlight", PR.t("畫線"), "highlighter"], ["note", PR.t("筆記"), "sticky"], ["question", PR.t("提問"), "l-message-circle"], ["ai", "AI", "sparkle"]].map(([k, l, ic]) =>
         '<button data-in="notes" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '"' + (c[k] ? "" : ' class="zero"') + ">" + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + "<b>" + c[k] + "</b></button>").join("") + "</div>" +
       '<div class="in-acts">' +
       (pdf ? act("pdf", PR.t("打开原 PDF"), { href: pdf, target: "_blank", rel: "noopener" }) : "") +

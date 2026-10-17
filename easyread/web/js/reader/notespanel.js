@@ -169,7 +169,7 @@
     for (const it of all) { const k = KEEP(it); for (const key of ["mine", "hl", "q", "agent", "star"]) if (k[key]) count[key]++; }
     const used = new Set(all.filter((it) => it.src === "mine" && it.data.kind !== "question" && (it.data.quote || it.data.region)).map((it) => it.data.color || "yellow"));
     // 篩選：一排圖示＋條數（全部、筆記、畫線、提問、AI、重點頁），字在滑鼠提示裡
-    const chips = [["all", PR.t("全部"), "layers"], ["mine", PR.t("笔记"), "sticky"], ["hl", PR.t("划线"), "highlighter"], ["q", PR.t("提問"), "help"], ["agent", "AI", "sparkle"], ["star", PR.t("重點頁"), "star"]]
+    const chips = [["all", PR.t("全部"), "layers"], ["mine", PR.t("笔记"), "sticky"], ["hl", PR.t("划线"), "highlighter"], ["q", PR.t("提問"), "l-message-circle"], ["agent", "AI", "sparkle"], ["star", PR.t("重點頁"), "star"]]
       .filter(([k]) => k === "all" || count[k] || filter === k)
       .map(([k, l, ic]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '" title="' + PR.esc(l) + '" aria-label="' + PR.esc(l) + '">' + PR.icon(PR.hasIcon(ic) ? ic : "note", "sm") + (k !== "all" && count[k] ? '<i class="n">' + count[k] + "</i>" : "") + "</button>").join("");
     const dots = used.size > 1 || color ? '<span class="dots">' + PR.HL_COLORS.filter(([c]) => used.has(c) || color === c).map(([c, name]) => '<button data-nc="' + c + '" class="dot-' + c + (color === c ? " on" : "") + '" title="' + name + '"></button>').join("") + "</span>" : "";

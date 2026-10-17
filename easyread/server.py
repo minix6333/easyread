@@ -305,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
         加起來不超過 NOW_PAGES 的兩倍；放不下的、背景正在看的，放到背景（看完下一問就有）。"""
         from . import pagevision
         docs = [ws] if not scope else libask.members(self.app.lib, scope, ws, order)
-        now, budget = [], pagevision.NOW_PAGES if not scope else pagevision.NOW_PAGES * 2
+        now, budget, later = [], pagevision.NOW_PAGES if not scope else pagevision.NOW_PAGES * 2, 0
         for d in docs:
             if not (d.root / "source.pdf").exists() or pagevision.busy(d.root):
                 continue
@@ -313,8 +313,8 @@ class Handler(BaseHTTPRequestHandler):
             if want and budget >= len(want):
                 now.append((d, want))
                 budget -= len(want)
-            elif want:
-                pagevision.start(d.root)
+            elif want and later < pagevision.LATER_DOCS:  # 放不下的：背景看，一問最多排幾份（整個文獻庫幾十份都有圖片頁時，不要一次排進去吃掉額度）
+                later += pagevision.start(d.root)
         if not now:
             return
         ecfg = pagevision.vision_cfg(model_id)

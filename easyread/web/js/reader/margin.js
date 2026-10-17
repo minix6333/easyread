@@ -37,28 +37,34 @@
   }
 
   /* 框選的區域（選不到字的圖、投影片）：用整頁圖當背景裁出那一塊當縮圖 */
-  function clipHtml(d) {
+  function clipHtml(d, tall) {
     const p = d.region && d.page && ((S.paper.meta || {}).pages || [])[d.page - 1];
     if (!p) return "";
     const [x0, y0, x1, y1] = d.region, w = Math.max(x1 - x0, 0.001), h = Math.max(y1 - y0, 0.001);
     const ratio = (h * (p.h || 792)) / (w * (p.w || 612));  // 高 / 寬
     const src = PR.imageUrl(p.img) + (PR.store.mode === "server" ? "?w=1600&v=2" : "");  // v：見 pageview.js 的 srcOf
-    return '<div class="clip" style="width:min(100%,' + Math.round(170 / ratio) + "px);aspect-ratio:" + (1 / ratio).toFixed(4) + ";background-image:url(&quot;" + PR.esc(src) + "&quot;);background-size:" +
+    return '<div class="clip" style="width:min(100%,' + Math.round((tall || 170) / ratio) + "px);aspect-ratio:" + (1 / ratio).toFixed(4) + ";background-image:url(&quot;" + PR.esc(src) + "&quot;);background-size:" +
       (100 / w).toFixed(2) + "% " + (100 / h).toFixed(2) + "%;background-position:" + (w < 1 ? (x0 / (1 - w)) * 100 : 0).toFixed(2) + "% " + (h < 1 ? (y0 / (1 - h)) * 100 : 0).toFixed(2) + '%"></div>';
   }
   PR.clipHtml = clipHtml;
   const act = (a, icon, title, extra) => '<button data-a="' + a + '" title="' + PR.esc(title) + '"' + (extra || "") + ">" + PR.icon(icon, "sm") + "</button>";
-  /* AI 對這條筆記／問題的回答：嵌在卡片裡 */
-  function replyHtml(e) {
+  /* AI 對這條筆記／問題的回答：嵌在卡片裡。qa：提問卡片——回答就是正文，模型和時間放在文末一行（像文章的署名） */
+  function replyHtml(e, qa) {
     const can = PR.store.mode === "server";
+    if (qa) return '<div class="reply qa-a" data-card="' + PR.esc(e.id) + '"><div class="body">' + PR.mdBlocks(e.body) + '</div><div class="rft">' + (qa.page ? '<span class="where">p.' + qa.page + "</span>" : "") +
+      '<span class="who">' + PR.esc(e.by || "AI") + '</span><span class="meta" title="' + PR.esc(PR.shortTime(e.updated || e.at)) + '">' + PR.shortDay(e.updated || e.at) + '</span><span class="grow"></span><span class="acts">' +
+      act("rcopy", "copy", PR.t("复制")) + (can && PR.canChat && PR.canChat() ? act("regen", "redo", PR.t("重新回答")) : "") + (can ? act("adel", "trash", PR.t("删除")) : "") + "</span></div></div>";
     return '<div class="reply" data-card="' + PR.esc(e.id) + '"><div class="rhd"><span class="ic ai">' + PR.icon("sparkle", "sm") + '</span><span class="who">' + PR.esc(e.by || "AI") + '</span><span class="meta">' + PR.shortTime(e.updated || e.at) +
       '</span><span class="grow"></span><span class="acts">' + act("rcopy", "copy", PR.t("复制")) + (can && PR.canChat && PR.canChat() ? act("regen", "redo", PR.t("重新回答")) : "") + (can ? act("adel", "trash", PR.t("删除")) : "") + "</span></div>" +
       '<div class="body">' + PR.mdBlocks(e.body) + "</div></div>";
   }
   /* 正在流出來的回答（ask.js 一邊收一邊改這一塊） */
-  function liveHtml(id) {
+  function liveHtml(id, qa) {
     const l = PR.liveAnswers[id];
     if (!l) return "";
+    const acts = '<span class="acts on">' + (l.error ? act("ask", "redo", PR.t("再試一次")) + act("dismiss", "x", PR.t("关闭")) : act("stop", "stop", PR.t("停止"))) + "</span>";
+    const body = '<div class="body">' + (l.error ? PR.esc(l.error) : l.text ? PR.mdBlocks(l.text, { live: true }) : '<p class="thinking"><i></i><i></i><i></i>' + (PR.waitStatus ? PR.waitStatus.html(id) : "") + (PR.waitHint ? PR.waitHint() : "") + "</p>") + "</div>";
+    if (qa) return '<div class="reply live qa-a' + (l.error ? " err" : "") + '">' + body + '<div class="rft"><span class="who">' + PR.esc(l.model || "AI") + "</span>" + (l.error ? "" : '<span class="spin"></span>') + '<span class="grow"></span>' + acts + "</div></div>";
     return '<div class="reply live' + (l.error ? " err" : "") + '"><div class="rhd"><span class="ic ai">' + PR.icon("sparkle", "sm") + '</span><span class="who">' + PR.esc(l.model || "AI") + "</span>" + (l.error ? "" : '<span class="spin"></span>') +
       '<span class="grow"></span><span class="acts on">' + (l.error ? act("ask", "redo", PR.t("再試一次")) + act("dismiss", "x", PR.t("关闭")) : act("stop", "stop", PR.t("停止"))) + "</span></div>" +
       '<div class="body">' + (l.error ? PR.esc(l.error) : l.text ? PR.mdBlocks(l.text, { live: true }) : '<p class="thinking"><i></i><i></i><i></i>' + (PR.waitStatus ? PR.waitStatus.html(id) : "") + (PR.waitHint ? PR.waitHint() : "") + "</p>") + "</div></div>";
@@ -94,7 +100,12 @@
     // 動作（滑鼠移上去才出現）：改、讓 AI 回答／點評／追問、刪
     const askBtn = !canAsk || d.kind === "highlight" || !d.body || asking ? ""
       : isQ ? (answered ? act("followup", "message", PR.t("追问 AI")) : act("ask", "sparkle", PR.t("让 AI 回答"))) : act("ask", "sparkle", PR.t("让 AI 点评"));
-    const head = '<div class="hd"><span class="ic">' + PR.icon(isQ ? "help" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
+    // 提問（不在寫的時候）排成一篇短文：問題是標題、原文是引言、AI 的回答是正文，模型和時間是文末一行；沒有問號圖示、沒有框中框。
+    // 標題列就是問題那一行（頁邊的卡片拿它拖、收起時只剩它），動作滑過去才疊在右上角。長的回答收著，「繼續閱讀」打開整篇（qa-read.js）
+    const qa = isQ && !editing ? { page } : null;
+    const readBtn = qa && answered && PR.openQa ? act("read", "l-book-open", PR.t("打開閱讀")) : "";
+    const head = qa ? '<div class="hd"><div class="qa-t">' + (d.body ? PR.md(d.body, { xref: false }) : "") + '</div><span class="acts">' + readBtn + askBtn + act("edit", "edit", PR.t("编辑")) + act("menu", "more", PR.t("更多")) + "</span></div>"
+      : '<div class="hd"><span class="ic">' + PR.icon(isQ ? "l-message-circle" : d.kind === "highlight" ? "marker" : "note", "sm") + '</span><span class="lbl">' + lbl + "</span>" +
       (page ? '<span class="where" title="' + PR.esc(PR.shortTime(d.updated || d.created)) + '">p.' + page + "</span>" : "") + '<span class="meta">' + PR.shortTime(d.updated || d.created) + '</span><span class="grow"></span>' +
       (editing ? "" : '<span class="acts">' + askBtn + act("edit", "edit", PR.t("编辑")) + act("menu", "more", PR.t("更多")) + "</span>") + "</div>";
     // 關聯的筆記：一排小標籤，點了跳過去，× 取消關聯
@@ -114,14 +125,16 @@
     const body = editing
       ? (PR.mdEd || ((h) => h))('<textarea rows="1" placeholder="' + (isQ ? PR.t("想問什麼？") : PR.t("寫筆記…")) + '">' + PR.esc(d.body || "") + "</textarea>", { bar: !isQ }) + quick +
         '<div class="kinds"><span class="kseg"><button data-k="note" class="' + (!isQ ? "on" : "") + '" title="' + PR.t("笔记") + '" aria-label="' + PR.t("笔记") + '">' + PR.icon(PR.hasIcon("sticky") ? "sticky" : "note", "sm") +
-          '</button><button data-k="question" class="' + (isQ ? "on" : "") + '" title="' + PR.t("提問") + '" aria-label="' + PR.t("提問") + '">' + PR.icon("help", "sm") + "</button></span>" +
+          '</button><button data-k="question" class="' + (isQ ? "on" : "") + '" title="' + PR.t("提問") + '" aria-label="' + PR.t("提問") + '">' + PR.icon("l-message-circle", "sm") + "</button></span>" +
         (isQ ? "" : colorDots(d)) + '<span class="grow"></span>' +
         (isQ && canAsk ? '<button class="ask-model" data-a="model" title="' + PR.t("换模型") + '"><span>' + PR.esc((PR.chatModel && PR.chatModel.label()) || PR.t("模型")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
           '<button class="send" data-a="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("arrowUp", "sm") + "</button>"
           : "") + "</div>"
       : (d.body ? '<div class="body">' + PR.mdBlocks(d.body) + "</div>" : "");
-    return '<div class="card mine k-' + (d.kind || "note") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + (isQ && !answered ? (asking ? " asking" : " pending") : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
-      head + quote + body + replies.map(replyHtml).join("") + liveHtml(d.id) + linksHtml + "</div>";
+    // 還沒回答的提問：一顆「讓 AI 回答」（以前是問號圖示旁的一個小點）
+    const wait = qa && !answered && !asking && !PR.liveAnswers[d.id] && askBtn ? '<div class="qa-wait"><button data-a="ask">' + PR.icon("sparkle", "sm") + "<span>" + PR.t("让 AI 回答") + "</span></button></div>" : "";
+    return '<div class="card mine k-' + (d.kind || "note") + (qa ? " qa" : "") + (editing ? " editing" : "") + (d.color && !isQ ? " c-" + d.color : "") + (isQ && !answered ? (asking ? " asking" : " pending") : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
+      head + quote + (qa ? "" : body) + replies.map((r) => replyHtml(r, qa)).join("") + liveHtml(d.id, qa) + wait + linksHtml + "</div>";
   }
   PR.cardHtml = cardHtml;
   PR.collectNotes = collect;
@@ -230,6 +243,11 @@
       if (body.scrollHeight > 220) long.push([body, host]);
     }
     for (const [body, host] of long) {
+      if (host.classList.contains("qa-a") && PR.openQa) {
+        body.classList.add("clamp");
+        body.insertAdjacentHTML("afterend", '<button class="more" data-a="read">' + PR.t("繼續閱讀") + "</button>");
+        continue;
+      }
       const open = expanded.has(host.dataset.card || host.dataset.note);
       body.classList.toggle("clamp", !open);
       body.insertAdjacentHTML("afterend", '<button class="more" data-a="more">' + (open ? PR.t("收起全文") : PR.t("展开全文")) + "</button>");
@@ -448,6 +466,7 @@
       if (!open && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "nearest" });  // 收起后卡片顶端跑到屏幕上方了，拉回来
       return true;
     }
+    if (nid && a && a.dataset.a === "read") { PR.openQa && PR.openQa(nid, a); return true; }
     // 嵌在筆記卡片裡的回答：複製、重新回答、刪除
     const reply = e.target.closest(".reply[data-card]");
     if (reply && a) {
@@ -502,12 +521,13 @@
     const canAsk = PR.canChat && PR.canChat() && PR.feature("chat") && n.kind !== "highlight" && n.body && !PR.asking.has(nid);
     const text = [n.quote ? PR.t("「{q}」", { q: n.quote }) : "", n.body || ""].filter(Boolean).join("\n");
     PR.menu(at, [
+      isQ && answered && PR.openQa ? { label: PR.t("打開閱讀"), icon: "l-book-open", fn: () => PR.openQa(nid) } : null,
       { label: PR.t("编辑"), icon: "edit", fn: edit },
       canAsk ? { label: isQ ? (answered ? PR.t("追问 AI") : PR.t("让 AI 回答")) : PR.t("让 AI 点评"), icon: "sparkle", fn: () => (isQ && answered ? PR.followUp(nid) : PR.askModel(nid)) } : null,
       (n.quote || n.region) && !isQ ? { dots: PR.HL_COLORS.map(([c, name]) => ({ color: "var(--ul-" + c + ")", title: name, on: (n.color || "yellow") === c, fn: () => { PR.saveNote(Object.assign({}, n, { color: c })); repaint(); } })) } : null,
       "-",
       text ? { label: PR.t("複製文字"), icon: "copy", fn: () => navigator.clipboard.writeText(text).then(() => PR.toast(PR.t("已复制"), null, 1200)) } : null,
-      n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "help", fn: () => { PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,
+      n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "l-message-circle", fn: () => { PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,
       PR.noteRefMenu ? { label: PR.t("加進總結…"), icon: "notebook", fn: () => setTimeout(() => PR.noteRefMenu(at, nid), 0) } : null,
       PR.cardsFromNote && PR.canChat && PR.canChat() ? { label: PR.t("做成複習卡"), icon: "l-brain", fn: () => PR.cardsFromNote(n) } : null,
       PR.linkFrom ? { label: PR.t("建立關聯"), icon: "link", fn: () => PR.linkFrom(nid) } : null,

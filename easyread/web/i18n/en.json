@@ -2001,5 +2001,11 @@
  "連到文件或筆記": "Link to a document or note",
  "這一篇的第 {n} 頁": "Page {n} of this document",
  "正在看《{title}》第 {pages} 頁的圖": "Reading the images on pages {pages} of “{title}”",
- "正在看第 {pages} 頁的圖": "Reading the images on pages {pages}"
+ "正在看第 {pages} 頁的圖": "Reading the images on pages {pages}",
+ "打開閱讀": "Open to read",
+ "繼續閱讀": "Continue reading",
+ "第 {p} 頁": "Page {p}",
+ "跳到原文的位置": "Go to the passage",
+ "複製全文（Markdown）": "Copy all (Markdown)",
+ "{m}月{d}日": "{m}/{d}"
 }

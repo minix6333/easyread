@@ -150,7 +150,7 @@
       (PR.lexMatch && PR.lexMatch(pendingSel.quote) ? btn("term", "type", PR.t("術語：在這份文件裡是什麼意思")) : "") +
       (PR.store.mode === "server" && PR.excerptMenu ? btn("excerpt", "notebook", PR.t("加到筆記（可以直接拖進旁邊開著的筆記）") + key("E")) : "") +
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
-      (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "help", PR.t("提问") + key("Q")));
+      (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "l-message-circle", PR.t("提问") + key("Q")));
     bar.classList.add("open");
     if (pdf && canAsk && PR.warmQuick) PR.warmQuick();  // 選了字就先把選字翻譯的模型行程拉起來（不連網、不花額度）
     const r = pendingSel.rect, w = bar.offsetWidth, h = bar.offsetHeight || 40;

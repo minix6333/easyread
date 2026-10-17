@@ -12,7 +12,7 @@
     let p = PR.$("#askline");
     if (!p) {
       p = PR.el("button", { id: "askline", class: "askline", title: PR.t("對這句另外問（原本的對話不動）") });
-      p.innerHTML = PR.icon("help", "sm") + "<span>" + PR.t("問這句") + "</span>";
+      p.innerHTML = PR.icon("l-message-circle", "sm") + "<span>" + PR.t("問這句") + "</span>";
       document.body.append(p);
     }
     return p;

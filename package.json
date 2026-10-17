@@ -1,6 +1,6 @@
 {
   "name": "easyread-desktop",
-  "version": "2.1.0-tw.13",
+  "version": "2.1.0-tw.14",
   "description": "EasyRead desktop application powered by Electron",
   "author": "Edwardxlai",
   "main": "electron/main.cjs",

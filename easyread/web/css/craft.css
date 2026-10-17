@@ -1228,6 +1228,38 @@ body.rd-loading::after { content: ""; position: fixed; left: 50%; top: 46%; z-in
 .card .reply .rhd .who { color: var(--ink-2); font-weight: 600; }
 .card .reply .body { font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.7; }
 .card .reply.err { background: color-mix(in srgb, var(--danger) 7%, var(--fill)); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--danger) 20%, transparent); }
+/* ---- 提問排成一篇短文（margin.js 的 qa）：問題是標題、原文是淡淡的引言、AI 的回答是正文（不再是框裡的框），
+   模型和時間是文末一行；動作滑過去才疊在右上角。筆記面板、頁邊、文章旁、便利貼都一樣 ---- */
+.card.qa > .hd { position: relative; display: block; min-height: 0; margin: 0 0 6px; }
+.card.qa .qa-t { font: 600 calc(14.5px * var(--fs-ratio, 1))/1.45 var(--ui); color: var(--ink); letter-spacing: -.003em; text-wrap: pretty; overflow-wrap: anywhere; }
+.card.qa .qa-t .katex { font-size: 1em; }
+.card.qa > .hd .acts { position: absolute; top: -5px; right: -6px; display: flex; padding: 2px; border-radius: 9px; background: var(--note-bg); box-shadow: 0 0 0 .5px var(--rule-2), 0 6px 14px -8px rgba(0, 0, 0, .5); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast); }
+.card.qa:hover > .hd .acts, .card.qa:focus-within > .hd .acts, .card.qa > .hd .acts.on { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .card.qa > .hd .acts { position: static; justify-content: flex-end; margin-top: 4px; padding: 0; background: none; box-shadow: none; opacity: 1; pointer-events: auto; } }
+.card.qa .quote, .card.qa.c-green .quote { margin: 0 0 9px; font-size: calc(12px * var(--fs-ratio, 1)); line-height: 1.6; color: var(--ink-3); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.card.qa .clip { margin: 2px 0 10px; }
+.card .reply.qa-a { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.card .reply.qa-a + .reply.qa-a { margin-top: 14px; padding-top: 12px; border-top: .5px solid var(--rule); }
+.card .reply.qa-a > .body { font-size: calc(13.5px * var(--fs-ratio, 1)); line-height: 1.75; color: var(--ink); }
+.card .reply.qa-a > .more { display: inline-block; margin-top: 3px; color: var(--accent); font: 500 12px/1.6 var(--ui); }
+.card .reply.qa-a > .more:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.card .rft { display: flex; align-items: center; gap: 6px; min-height: 22px; margin-top: 8px; font: 11.5px/1 var(--ui); color: var(--ink-3); }
+.card .rft .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .rft .meta { flex: none; opacity: 1; font-size: 11.5px; }
+.card .rft .meta::before { content: "·"; margin-right: 6px; }
+.card .rft .acts { opacity: 0; transition: opacity var(--dur-fast); }
+.card .reply.qa-a:hover .rft .acts, .card .rft .acts.on { opacity: 1; }
+@media (hover: none) { .card .rft .acts { opacity: 1; } }
+.card .rft .spin { width: 9px; height: 9px; color: var(--ink-3); }
+.card .reply.qa-a.err > .body { font: 12.5px/1.6 var(--ui); color: var(--danger); }
+.card.qa .qa-wait button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 8px; border-radius: 8px; background: var(--fill); color: var(--accent); font: 500 12px var(--ui); }
+.card.qa .qa-wait button:hover { background: var(--fill-2); }
+.card.qa .qa-wait svg { width: 13px; height: 13px; }
+.pv-margin .card.qa .qa-t { font-size: calc(13px * var(--fs-ratio, 1)); line-height: 1.45; }
+.pv-margin .card .reply.qa-a > .body { font-size: calc(12.5px * var(--fs-ratio, 1)); line-height: 1.7; }
+:is(.pv-margin, #margin) .card.qa.fold .qa-t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+:is(.pv-margin, #margin) .card.qa.fold > .hd .lbl::after { content: none; }
+
 /* 頁邊（PDF 旁）的小卡片：左邊一道細細的顏色，一眼看出是哪個顏色畫的（那一欄不顯示原話） */
 .pv-margin .card.mine::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 0 3px 3px 0; background: var(--nc); opacity: .9; }
 
@@ -1553,3 +1585,34 @@ table.mx td.none .mx-t { color: var(--ink-3); }
 #popover.lexpop .lx-pop .lx-t { align-items: center; }
 #popover.lexpop .lx-pop .lx-t > svg.i { color: var(--accent); flex: none; }
 #popover.lexpop .lx-acts { margin-top: 8px; }
+
+/* ---------- 打開閱讀（reader/qa-read.js）：一則提問排成一篇短文，放在畫面中間的一張紙上 ----------
+   像 Craft 打開一頁：上面一行淡淡的頁碼和時間、右邊幾顆圖示；大標題是問題，引言是原文，正文是回答，追問一段一段接在後面。
+   點了才開：只有一下淡入（不縮放、不滑動）。 */
+#qar { position: fixed; inset: 0; z-index: 88; display: grid; place-items: center; background: rgba(20, 20, 24, .26); transition: opacity .14s ease-out; }
+@starting-style { #qar { opacity: 0; } }
+:root[data-theme="dark"] #qar { background: rgba(0, 0, 0, .46); }
+.qar { width: min(760px, calc(100vw - 48px)); max-height: calc(100vh - 56px); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; outline: 0; background: var(--note-bg);
+  box-shadow: 0 0 0 .5px var(--rule-2), 0 24px 70px -18px rgba(0, 0, 0, .5), 0 4px 14px rgba(0, 0, 0, .14); }
+.qar-hd { flex: none; display: flex; align-items: center; gap: 2px; height: 46px; padding: 0 8px 0 24px; }
+.qar-kick { min-width: 0; font: 500 12px/1 var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qar-hd .grow { flex: 1; }
+.qar-hd .btn.icon { flex: none; width: 30px; height: 30px; border-radius: 8px; color: var(--ink-2); }
+.qar-hd .btn.icon:hover { background: var(--fill); color: var(--ink); }
+.qar-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 56px 48px; outline: 0; }
+.qar-doc { max-width: 640px; margin: 0 auto; font: calc(15px * var(--fs-ratio, 1))/1.8 var(--ui); color: var(--ink); overflow-wrap: anywhere; text-autospace: normal; }
+.qar-doc h1 { margin: 4px 0 16px; font: 700 calc(23px * var(--fs-ratio, 1))/1.35 var(--ui); letter-spacing: -.012em; text-wrap: balance; }
+.qar-q { margin: 0 0 24px; padding: 1px 0 1px 14px; border-left: 3px solid color-mix(in srgb, var(--accent) 40%, var(--rule-2)); font-size: .88em; line-height: 1.7; color: var(--ink-2); }
+.qar-q[lang="en"] { font-family: var(--serif-en, var(--ui)); }
+.qar-doc .clip { margin: 0 0 20px; border-radius: 10px; box-shadow: 0 0 0 .5px var(--line); }
+.qar-ans > :first-child { margin-top: 0; }
+.qar-ans p { margin: 0 0 .85em; }
+.qar-ans h2, .qar-ans h3, .qar-ans h4 { margin: 1.5em 0 .5em; font-size: 1.04em; line-height: 1.45; }
+.qar-ans ul, .qar-ans ol { padding-left: 1.4em; }
+.qar-ans img { max-width: 100%; border-radius: 8px; }
+.qar-by { display: flex; gap: 6px; margin: 16px 0 0; font: 12px/1.4 var(--ui); color: var(--ink-3); }
+.qar-by::before { content: "—"; }
+.qar-at::before { content: "·"; margin-right: 6px; }
+.qar-sec { margin-top: 36px; padding-top: 28px; border-top: .5px solid var(--rule); }
+.qar-sec h2 { margin: 0 0 12px; font: 650 calc(17px * var(--fs-ratio, 1))/1.45 var(--ui); letter-spacing: -.005em; }
+@media (max-width: 640px) { .qar-body { padding: 2px 22px 32px; } .qar-hd { padding-left: 18px; } }
