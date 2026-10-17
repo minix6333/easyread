@@ -59,19 +59,21 @@ def _paper_pages(root: Path) -> list[tuple[int, str, str]]:
         files = sorted(f for f in d.iterdir() if _PAGE.search(f.name))
     except OSError:
         return []
-    mark = (_stamp(d), len(files), _stamp(files[0]) if files else (), _stamp(files[-1]) if files else ())
+    from . import pagevision  # 整頁是圖的那幾頁：看圖讀出來的字（看了新的頁，快取就換）
+    mark = (_stamp(d), len(files), _stamp(files[0]) if files else (), _stamp(files[-1]) if files else (), pagevision.stamp(root))
     with _lock:
         hit = _pages.get(str(root))
         if hit and hit[0] == mark:
             return hit[1]
     out = []
     for f in files:
+        n = int(_PAGE.search(f.name).group(1))
         try:
-            shown = squash(f.read_text(encoding="utf-8", errors="replace"))
+            shown = squash(pagevision.overlay(root, n, f.read_text(encoding="utf-8", errors="replace")))
         except OSError:
             continue
         if shown:
-            out.append((int(_PAGE.search(f.name).group(1)), shown, _fold(shown)))
+            out.append((n, shown, _fold(shown)))
     with _lock:
         if len(_pages) > 3000:
             _pages.clear()

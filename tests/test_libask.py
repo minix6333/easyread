@@ -62,12 +62,36 @@ class LibAsk(unittest.TestCase):
         self.assertIn("D2 Wei 2025《Data Agent", text)
         self.assertIn("以強化學習挑選訓練資料", text)  # 預讀筆記
         # 中文的「災難性遺忘」用 D1 的術語表換成 catastrophic forgetting，找得到兩份的英文頁
-        self.assertIn("〔D1 p.1〕", text)
-        self.assertIn("〔D2 p.2〕", text)
-        self.assertNotIn("〔D3 p.1〕", text)  # 不相關的不帶
+        hit = text.split("和问题最相关的几页原文")[1].split("问题比较广")[0]
+        self.assertIn("〔D1 p.1〕", hit)
+        self.assertIn("〔D2 p.2〕", hit)
+        self.assertNotIn("〔D3 p.1〕", hit)  # 不相關的不算「最相關」……
+        self.assertIn("〔D3 p.1〕\nSupport vector", text.split("问题比较广")[1])  # ……但額度還很多：照順序補上，沒有全文筆記的那份不會只剩標題
         pages, _ = libask.context(self.lib, self.here, {"kind": "all"}, "catastrophic forgetting", "codex", pages_only=True)
         self.assertTrue(pages.startswith("和问题最相关的几页原文"))
         self.assertNotIn("Data Agent", pages)
+
+    def test_a_broad_question_still_shows_every_document(self):
+        _paper(self.tmp, "dddd4444", {"title_en": "L2 Bayesian decision theory"}, [f"Slide {i} Bayes risk minimum error rate" for i in range(1, 30)],
+               tags=["Course"], opened="2026-10-13")
+        keep = libask.FILL_PAGES
+        libask.FILL_PAGES = 5
+        try:
+            text, codes = libask.context(self.lib, self.here, {"kind": "tag", "tag": "Course"}, "整理一下這門課要知道的東西", "codex")
+        finally:
+            libask.FILL_PAGES = keep
+        self.assertEqual([codes[k]["id"] for k in ("D1", "D2", "D3")], ["aaaa1111", "cccc3333", "dddd4444"])
+        wide = text.split("问题比较广")[1]
+        self.assertIn("〔D2 p.1〕\nSupport vector", wide)  # 對不到字的廣問題：每份從頭的幾頁
+        self.assertIn("〔D3 p.5〕\nSlide 5", wide)
+        self.assertNotIn("〔D3 p.6〕", wide)  # 每份最多 FILL_PAGES 頁……
+        heads = text.split("还没有全文笔记的几份")[1]
+        self.assertIn("D3：p6 Slide 6", heads)  # ……其餘的頁帶開頭幾個字，看得出整份講到哪裡
+        self.assertIn("p29 Slide 29", heads)
+        self.assertNotIn("D1：", heads)  # 有全文筆記的不用
+        pages, _ = libask.context(self.lib, self.here, {"kind": "tag", "tag": "Course"}, "整理一下這門課要知道的東西", "codex", pages_only=True)
+        self.assertEqual(pages, "")  # 追問不補（第一問補過，模型記得）
+        self.assertEqual([ws.id for ws in libask.unread(self.lib, codes, self.here)], ["cccc3333", "dddd4444"])  # 答完在背景預讀的
 
     def test_citations_become_links(self):
         codes = {"D1": {"id": "aaaa1111", "who": "Karan 2026"}, "D2": {"id": "bbbb2222", "who": "Wei 2025"}}

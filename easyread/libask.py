@@ -30,6 +30,12 @@ BRIEF_PER = 5200
 PAGE_PER = 2400
 PAGES_PER_DOC = 3
 PAGES_TOTAL = 40000  # 原文頁的總字數（Claude／Codex；按量計費的 API 一半）
+FILL_PER = 1500      # 問題很廣時補上的頁：每頁最多帶幾個字
+FILL_PAGES = 12      # 補的時候每份最多幾頁
+HEAD_PER = 60        # 沒有全文筆記的那幾份：沒放進來的頁，每頁帶開頭幾個字（看得出整份講了什麼、在哪一頁）
+HEADS_DOC = 1800
+HEADS_TOTAL = 12000
+PREREAD_KICK = 6     # 範圍裡還沒預讀的，答完這一問順便在背景讀幾份
 
 _lock = threading.Lock()
 _cards: dict[str, tuple[tuple, dict]] = {}
@@ -123,6 +129,31 @@ def members(lib, scope: dict, here: Workspace, order: list | None = None) -> lis
     return [here] + others[:MAX_DOCS - 1]
 
 
+def _boiler(pages: list[tuple]) -> str:
+    """每頁開頭都一樣的那一段（投影片的頁首：課名、作者、版權）：一半以上的頁（至少三頁）都以它開頭。補頁、每頁開頭時拿掉。"""
+    if len(pages) < 3:
+        return ""
+    words = [shown[:300].split() for _n, shown, _f in pages]
+    best = ""
+    for k in range(2, 21):
+        count: dict[str, int] = {}
+        for w in words:
+            if len(w) > k:
+                key = " ".join(w[:k])
+                count[key] = count.get(key, 0) + 1
+        if not count:
+            break
+        key, hits = max(count.items(), key=lambda x: x[1])
+        if hits < max(3, len(pages) * 0.5):
+            break
+        best = key
+    return best
+
+
+def _strip(shown: str, boiler: str) -> str:
+    return shown[len(boiler):].lstrip(" -–|·•:：") if boiler and shown.startswith(boiler) else shown  # i18n-ok 標點
+
+
 def _tokens(question: str, cards: list[dict]) -> tuple[list[str], list[str]]:
     """（英文關鍵詞, 中文兩字詞）。中文的詞用每一份的術語表換成英文，才找得到英文的原文頁。"""
     q = question or ""
@@ -177,9 +208,36 @@ def context(lib, here: Workspace, scope: dict, question: str, engine: str, pages
         used += len(text)
         if used >= budget * 0.95:
             break
+    # 問題很廣（「整理這門課要知道的東西」）：對得上的頁不多，剩下的額度輪流分給每一份，從第一頁照順序帶——
+    # 沒有全文筆記的先（不然那一份在提示詞裡只剩一個標題，模型只能說「只有標題，沒有內容」）。
+    # 追問不補：第一問補過的，模型那邊還記得
+    filled = []
+    if not pages_only and used < budget * 0.6:
+        have = {(k, n) for k, n, _t in picked}
+        queue = {k: [u for u in search._paper_pages(docs[k].root) if (k, u[0]) not in have] for k in range(len(docs))}
+        boil = {k: _boiler(search._paper_pages(docs[k].root)) for k in range(len(docs))}
+        turn = sorted(range(len(docs)), key=lambda k: (2 if k in with_brief else 1 if cards[k]["brief"] else 0, k))
+        added = {k: 0 for k in turn}
+        moved = True
+        while moved and used < budget * 0.95:
+            moved = False
+            for k in turn:
+                if not queue[k] or added[k] >= FILL_PAGES:
+                    continue
+                n, shown, _f = queue[k].pop(0)
+                text = _strip(shown, boil[k])[:FILL_PER]
+                if not text:
+                    continue
+                if used + len(text) > budget:
+                    continue
+                filled.append((k, n, text))
+                added[k] += 1
+                used += len(text)
+                moved = True
     picked.sort(key=lambda x: (x[0], x[1]))
-    pages = ("和问题最相关的几页原文（〔代号 p.页码〕开头；公式和表格抽出来可能是乱的）：\n"  # i18n-ok
-             + "\n\n".join(f"〔D{k + 1} p.{n}〕\n{text}" for k, n, text in picked)) if picked else ""  # i18n-ok
+    filled.sort(key=lambda x: (x[0], x[1]))
+    cite = lambda rows: "\n\n".join(f"〔D{k + 1} p.{n}〕\n{text}" for k, n, text in rows)  # noqa: E731  i18n-ok
+    pages = ("和问题最相关的几页原文（〔代号 p.页码〕开头；公式和表格抽出来可能是乱的）：\n" + cite(picked)) if picked else ""  # i18n-ok
     if pages_only:
         return pages, codes
     lines = [f"D{k + 1} {c['who']}《{c['title'][:110]}》" + (f"：{c['lead']}" if c["lead"] else "") for k, c in enumerate(cards)]  # i18n-ok 提示詞
@@ -189,7 +247,31 @@ def context(lib, here: Workspace, scope: dict, question: str, engine: str, pages
         parts.append("其中几份，你之前读完整份后写的全文笔记（页码是那一份自己的页码）：\n" + "\n\n".join(briefs))  # i18n-ok
     if pages:
         parts.append(pages)
+    if filled:
+        parts.append("问题比较广，几份文件从头的几页原文（照页码顺序）：\n" + cite(filled))  # i18n-ok 提示詞
+    # 沒有全文筆記的：其餘的頁每頁開頭幾個字（投影片多半是那一頁的標題），模型才知道整份講了什麼、在第幾頁
+    shown_pages = {(k, n) for k, n, _t in picked + filled}
+    bare = [k for k, c in enumerate(cards) if not c["brief"]]
+    per, heads = min(HEADS_DOC, HEADS_TOTAL // max(1, len(bare))), []
+    for k in bare:
+        all_pages = search._paper_pages(docs[k].root)
+        boiler = _boiler(all_pages)
+        rest = [f"p{n} {_strip(shown, boiler)[:HEAD_PER]}" for n, shown, _f in all_pages if (k, n) not in shown_pages]
+        if rest and per >= 200:
+            heads.append(f"D{k + 1}：" + "｜".join(rest)[:per])  # i18n-ok 提示詞
+    if heads:
+        parts.append("还没有全文笔记的几份，上面没放进来的页，每页开头几个字（看得出讲了什么、在第几页；要细节就说要看哪几页）：\n" + "\n".join(heads))  # i18n-ok
     return "\n\n".join(parts), codes
+
+
+def unread(lib, codes: dict, here: Workspace) -> list[Workspace]:
+    """範圍裡還沒有全文筆記的幾份（目前這份另外處理）：答完一問在背景讀，下一問起就帶著筆記。"""
+    out = []
+    for c in codes.values():
+        ws = lib.ws(c["id"]) if c["id"] != here.id else None
+        if ws and not card(ws)["brief"]:
+            out.append(ws)
+    return out[:PREREAD_KICK]
 
 
 def followup(pages: str) -> str:

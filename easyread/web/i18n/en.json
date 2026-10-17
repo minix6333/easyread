@@ -1999,5 +1999,7 @@
  "整理": "Tidy",
  "還沒有筆記可以整理": "Nothing to tidy yet",
  "連到文件或筆記": "Link to a document or note",
- "這一篇的第 {n} 頁": "Page {n} of this document"
+ "這一篇的第 {n} 頁": "Page {n} of this document",
+ "正在看《{title}》第 {pages} 頁的圖": "Reading the images on pages {pages} of “{title}”",
+ "正在看第 {pages} 頁的圖": "Reading the images on pages {pages}"
 }

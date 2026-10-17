@@ -36,8 +36,9 @@ def _page_text(ws: Workspace, n) -> str:
     """原 PDF 某一頁抽取的文字（還沒整理成段落的 PDF，問 AI 時拿這個當上下文）。"""
     try:
         from . import derive  # 這台沒有這篇的抽取文字（另一台匯入的）就先重做
+        from . import pagevision  # 整頁是圖的那一頁：看圖讀出來的字
         p = derive.extract(ws.root) / f"page-{int(n):03d}.txt"
-        return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+        return pagevision.overlay(ws.root, int(n), p.read_text(encoding="utf-8", errors="replace") if p.exists() else "")
     except (TypeError, ValueError):
         return ""
 

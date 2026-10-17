@@ -136,6 +136,9 @@ def _run(ws: Workspace, mid: str | None, info: dict) -> None:
     cancel: threading.Event = info["cancel"]
     with _gate:
         for _ in range(2):  # 讀的時候補充資料又變了：再讀一次（最多兩次）
+            _see(ws, mid, cancel)  # 整頁是圖的頁先看過（pagevision.py），全文筆記才寫得到那些頁的內容
+            if cancel.is_set():
+                return
             sig = signature(ws)
             try:
                 ecfg, m = chat_models.engine_cfg(config.load(), mid)
@@ -169,6 +172,15 @@ def _run(ws: Workspace, mid: str | None, info: dict) -> None:
                 return
             if signature(ws) == sig:
                 return
+
+
+def _see(ws: Workspace, mid: str | None, cancel: threading.Event) -> None:
+    """預讀之前：這份文件整頁是圖、還沒看過的頁先看（不超過 pagevision.AUTO_PAGES 頁；再多的等讀者問到）。"""
+    from . import pagevision
+    try:
+        pagevision.read_all(ws.root, mid, cancel)  # 背景已經在看這一份：等它看完
+    except Exception:  # noqa: BLE001 —— 看圖沒成功不擋預讀
+        log.exception("預讀前看圖讀頁出錯 %s", ws.id)  # i18n-ok 記錄
 
 
 def start(ws: Workspace, model: str | None = None) -> bool:
@@ -208,6 +220,8 @@ def auto(ws: Workspace) -> bool:
         data = load(ws)
         sig = signature(ws)
         if data.get("parts") and data.get("sig") == sig:
+            from . import pagevision  # 筆記是新的，但有整頁是圖、還沒看過的頁：背景看（看完內容變了，下一次就會重寫筆記）
+            pagevision.start(ws.root)
             return False
         if data.get("error") and data.get("error_sig") == sig:
             return False

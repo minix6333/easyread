@@ -45,13 +45,15 @@ def page_texts(ws: Workspace) -> list[str]:
     total = int(meta.get("page_count") or 0)
     if not total and extract.is_dir():
         total = len([p for p in extract.glob("page-*.txt")])
+    from . import pagevision  # 整頁是圖的那幾頁：看圖讀出來的字（pagevision.py）
     out = []
     for n in range(1, total + 1):
         p: Path = extract / f"page-{n:03d}.txt"
         try:
-            out.append(p.read_text(encoding="utf-8", errors="replace") if p.exists() else "")
+            t = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
         except OSError:
-            out.append("")
+            t = ""
+        out.append(pagevision.overlay(ws.root, n, t))
     return out
 
 

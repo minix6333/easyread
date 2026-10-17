@@ -56,6 +56,21 @@ _prefetching: set = set()
 _prefetch_lock = threading.Lock()
 
 
+def _page_ranges(pages) -> str:
+    """[1, 2, 3, 5] → 「1–3、5」（等的時候說在看哪幾頁）。"""
+    out, run = [], []
+    for n in sorted(set(int(p) for p in pages)):
+        if run and n == run[-1] + 1:
+            run.append(n)
+            continue
+        if run:
+            out.append(f"{run[0]}–{run[-1]}" if len(run) > 1 else str(run[0]))
+        run = [n]
+    if run:
+        out.append(f"{run[0]}–{run[-1]}" if len(run) > 1 else str(run[0]))
+    return "、".join(out)  # i18n-ok 頁碼之間的頓號
+
+
 def _prefetch_pages(root, rel: str, w: int) -> None:
     """讀者要了第 n 頁某個寬度的圖：n+1…n+4 頁同寬度的圖在背景先生成（已有的略過；pdfium 一次只做一張，排隊做完）。"""
     m = re.fullmatch(r"pages/page-(\d{3})(\.\w+)", rel)
@@ -251,6 +266,86 @@ class Handler(BaseHTTPRequestHandler):
         scope = libask.parse(body["scope"]) if "scope" in body else prev_scope
         lib_ctx, codes = ("", {})
         order = (thread or {}).get("docs") if scope and scope == prev_scope and isinstance((thread or {}).get("docs"), list) else None
+        # 回應先開始（看圖讀頁要一點時間，等的時候畫面上說在做什麼）；之後組提示詞出錯就用一行 {"error"} 回
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        cancel = threading.Event()
+        pieces: list[str] = []
+        meter = usage.Meter(ecfg["engine"])
+        watching = chat.cancel_when_gone(self, cancel)  # 讀者按停止：馬上知道（不用等到下一次送字）
+
+        def send(obj):
+            self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
+            self.wfile.flush()
+
+        # 看圖讀頁（pagevision.py）：這一問用得到、但整頁是圖（抽不出字）、還沒看過的頁，先請模型看過再回答
+        try:
+            self._see_pages(ws, scope if mode != "overview" else None, order, page, text, m["id"], cancel, send)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            watching()
+            return
+        except Exception:  # noqa: BLE001 —— 沒看成就照原本的文字回答
+            log.exception("看圖讀頁出錯 %s", ws.id)  # i18n-ok 記錄
+        if cancel.is_set():
+            watching()
+            return
+        try:
+            self._chat_answer(ws, body, thread, text, style, ecfg, m, model, tid, refs, page, images, user, mode, aside, past, convo, web,
+                              prev_scope, scope, order, cancel, pieces, meter, watching, send)
+        finally:
+            watching()
+
+    def _see_pages(self, ws, scope, order, page, question, model_id, cancel, send):
+        """這一問要用到的文件裡，整頁是圖（或抽出來是亂碼）、還沒看過的頁：先看再回答，畫面上說在看哪一份、哪幾頁、看到第幾頁。
+        這一份：不多就整份，多的話是讀者正在看的那頁前後、問題裡提到的頁。問一個分類／整個文獻庫：照代號順序（最近打開的先），
+        加起來不超過 NOW_PAGES 的兩倍；放不下的、背景正在看的，放到背景（看完下一問就有）。"""
+        from . import pagevision
+        docs = [ws] if not scope else libask.members(self.app.lib, scope, ws, order)
+        now, budget = [], pagevision.NOW_PAGES if not scope else pagevision.NOW_PAGES * 2
+        for d in docs:
+            if not (d.root / "source.pdf").exists() or pagevision.busy(d.root):
+                continue
+            want = pagevision.wanted(d.root, page, question) if d.id == ws.id else pagevision.missing(d.root)
+            if want and budget >= len(want):
+                now.append((d, want))
+                budget -= len(want)
+            elif want:
+                pagevision.start(d.root)
+        if not now:
+            return
+        ecfg = pagevision.vision_cfg(model_id)
+        if not ecfg:
+            return
+        for d, want in now:
+            meta = d.load("paper").get("meta") or {}
+            head = {"kind": "vision", "pages": _page_ranges(want), "title": (meta.get("title_en") or meta.get("title_zh") or "") if scope else ""}
+            send({"status": head})
+            pagevision.read(d.root, want, ecfg, cancel, workers=pagevision.NOW_WORKERS,
+                            on_progress=lambda done, total, head=head: send({"status": {**head, "done": done, "total": total}}) if done < total else None)
+            if cancel.is_set():
+                return
+            pagevision.start(d.root)  # 剩下沒看的（這一問用不到的頁）放到背景
+
+    def _chat_answer(self, ws, body, thread, text, style, ecfg, m, model, tid, refs, page, images, user, mode, aside, past, convo, web,
+                     prev_scope, scope, order, cancel, pieces, meter, watching, send):
+        lib_ctx, codes = ("", {})
+        try:
+            prompt_text, live, codes = self._chat_prompt(ws, text, style, ecfg, tid, refs, page, images, user, mode, aside, past, convo, web, prev_scope, scope, order)
+        except Exception as e:  # noqa: BLE001 —— 回應已經開始了：錯誤用一行 {"error"} 回
+            log.exception("对话出错 %s", ws.id)
+            try:
+                send({"error": str(e)[:500]})
+            except OSError:
+                pass
+            return
+        self._chat_stream(ws, text, style, ecfg, m, model, tid, images, user, prompt_text, live, codes, web, cancel, pieces, meter, send)
+
+    def _chat_prompt(self, ws, text, style, ecfg, tid, refs, page, images, user, mode, aside, past, convo, web, prev_scope, scope, order):
+        lib_ctx, codes = ("", {})
         if scope and mode != "overview":
             user["scope"] = scope
             lib_ctx, codes = libask.context(self.app.lib, ws, scope, text, ecfg["engine"], order=order)
@@ -269,21 +364,9 @@ class Handler(BaseHTTPRequestHandler):
             live["followup_text"] = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style, page=page,
                                                 images=user.get("images"), followup=True, with_context=not same, mode=mode, aside=aside, web=web,
                                                 library_ctx=pages_ctx)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "close")
-        self.end_headers()
-        self.close_connection = True
-        cancel = threading.Event()
-        pieces: list[str] = []
-        meter = usage.Meter(ecfg["engine"])
-        watching = chat.cancel_when_gone(self, cancel)  # 讀者按停止：馬上知道（不用等到下一次送字）
+        return prompt_text, live, codes
 
-        def send(obj):
-            self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
-            self.wfile.flush()
-
+    def _chat_stream(self, ws, text, style, ecfg, m, model, tid, images, user, prompt_text, live, codes, web, cancel, pieces, meter, send):
         found = webtools.Sources()  # 這一題上網碰過的網頁；回答底下列的是回答裡引用的＋真的打開讀過的（found.final）
 
         def on_source(url, title="", domain="", kind="result"):
@@ -343,6 +426,9 @@ class Handler(BaseHTTPRequestHandler):
             # 還沒讀過整份（舊論文、另一台匯入的）：答完這一問才在背景讀，下一問起就帶著全文筆記。
             # 以前是一收到問題就開始讀——兩件事同時搶同一個帳號，這一問的第一個字被拖慢（實測 30 秒以上）
             preread.auto(ws)
+            if codes:  # 問的是一個分類／整個文獻庫：範圍裡還沒預讀的幾份也排進去（一次讀一份）
+                later = libask.unread(self.app.lib, codes, ws)
+                threading.Thread(target=lambda: [preread.auto(d) for d in later], daemon=True, name="preread-scope").start()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
             keep_partial()
@@ -354,8 +440,6 @@ class Handler(BaseHTTPRequestHandler):
                 send({"error": str(e)[:500]})
             except OSError:
                 pass
-        finally:
-            watching()
 
     def _body(self) -> bytes:
         if getattr(self, "_body_bytes", None) is not None:  # 讀過了：連線上已經沒有這段，再讀會卡住等下一個請求

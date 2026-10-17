@@ -371,23 +371,30 @@
         const act = PR.rich.active(ta), K = { "**": "b", "*": "i", "++": "u", "~~": "s", "\x60": "code", "==": "hl", link: "link" };
         tools.querySelectorAll("[data-t]").forEach((x) => x.classList.toggle("on", act.includes(K[x.dataset.t])));
         const rr = root.getBoundingClientRect(), sr = sel.getRangeAt(0).getBoundingClientRect();
-        tools.style.top = Math.max(-44, sr.top - rr.top - 42) + "px";
-        tools.style.left = Math.max(0, Math.min(sr.left - rr.left + sr.width / 2 - tools.offsetWidth / 2, root.clientWidth - tools.offsetWidth - 4)) + "px";
+        putTools(sr.top, sr.bottom, sr.left + sr.width / 2 - tools.offsetWidth / 2 - rr.left, rr);
         return;
       }
       const on = ta && ta.classList && ta.classList.contains("bk-in") && root.contains(ta) && ta.selectionStart !== ta.selectionEnd;
       tools.classList.toggle("open", !!on);
       if (!on) return;
-      const el = ta.closest(".bk-b");
-      let top = el.offsetTop - 40, left = el.offsetLeft + ta.offsetLeft;
+      const rr = root.getBoundingClientRect(), tr = ta.getBoundingClientRect();
+      let y = tr.top, left = tr.left - rr.left;
       try {
         const a = caretXY(ta, ta.selectionStart);
-        const rr = root.getBoundingClientRect(), tr = ta.getBoundingClientRect();
-        top = tr.top - rr.top + a.y - 42;
-        left = tr.left - rr.left + a.x - 20;
+        y = tr.top + a.y; left = tr.left - rr.left + a.x - 20;
       } catch (e) { /* 量不到就放在這一塊上面 */ }
-      tools.style.top = Math.max(-44, top) + "px";
-      tools.style.left = Math.max(0, Math.min(left, root.clientWidth - tools.offsetWidth - 4)) + "px";
+      putTools(y, y + 20, left, rr);
+    }
+    /* 格式工具列放在選的字上面；上面被捲動框切掉（筆記面板裡第一行）就放下面。座標換成編輯器自己的（它自己會捲時加上捲過的量） */
+    function putTools(selTop, selBottom, left, rr) {
+      let clip = 0;
+      for (let n = root; n && n !== document.body; n = n.parentElement) {
+        if (getComputedStyle(n).overflowY !== "visible") { clip = n.getBoundingClientRect().top; break; }
+      }
+      const below = selTop - 44 < Math.max(0, clip) + 2;
+      tools.classList.toggle("below", below);
+      tools.style.top = (below ? selBottom + 8 : selTop - 42) - rr.top + root.scrollTop + "px";
+      tools.style.left = Math.max(0, Math.min(left, root.clientWidth - tools.offsetWidth - 4)) + root.scrollLeft + "px";
     }
     document.addEventListener("selectionchange", placeTools);
 

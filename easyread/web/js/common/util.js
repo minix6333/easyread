@@ -110,6 +110,11 @@ window.PR = window.PR || {};
     if (s.kind === "open") return PR.t("讀 {site}", { site: s.domain || s.url || "" });
     if (s.kind === "find") return PR.t("在 {site} 裡找「{q}」", { site: s.domain || "", q: s.pattern || "" });
     if (s.kind === "note" && s.text) return s.text.length > 60 ? s.text.slice(0, 58) + "…" : s.text;  // 模型動手前說的那句（「我會去查…」）
+    // 看圖讀頁（pagevision.py）：整頁是圖的那幾頁先請模型看過才回答
+    if (s.kind === "vision") {
+      const line = s.title ? PR.t("正在看《{title}》第 {pages} 頁的圖", { title: String(s.title).slice(0, 40), pages: s.pages || "" }) : PR.t("正在看第 {pages} 頁的圖", { pages: s.pages || "" });
+      return line + (s.total > 0 ? " · " + (s.done || 0) + "/" + s.total : "");  // 頁數多的時候看得出在動
+    }
     return "";
   };
   try { // 改名前（coread-*）存的偏好搬过来
