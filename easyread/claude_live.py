@@ -18,6 +18,7 @@ import json
 import mimetypes
 import os
 import queue
+import re
 import threading
 import time
 from collections.abc import Iterator
@@ -74,6 +75,14 @@ def key_of(c: dict, cwd: Path, tools: str | None, system_prompt: str | None, rea
 WEB_TOOLS = "Read,WebSearch,WebFetch"
 
 
+def rule_path(p: str) -> str:
+    """規則裡的路徑寫法：Claude Code 比對前把路徑換成 POSIX 的樣子，Windows 的 C:\\Users\\x 變成 /c/Users/x。
+    以前直接放 C:\\Users\\x，Windows 上的規則對不到任何檔案，問 AI 時連文件資料夾都讀不到。"""
+    s = p.replace("\\", "/")
+    m = re.match(r"^([A-Za-z]):(/.*)?$", s)
+    return "/" + m.group(1).lower() + (m.group(2) or "/") if m else s
+
+
 def allow_rules(tools: str, read_dirs=None) -> list[str]:
     """--allowedTools 的規則。read_dirs 給了：Read 只准讀這幾個資料夾（Read(//絕對路徑/**)），外面的一律被擋——
     只寫「Read」的話 Claude Code 讀得到整台電腦（實測讀得到 ~/.zshrc），開了上網就可能被文件或網頁裡的指示騙去讀檔案再送出去。
@@ -82,7 +91,7 @@ def allow_rules(tools: str, read_dirs=None) -> list[str]:
     for t in [x.strip() for x in (tools or "").split(",") if x.strip()]:
         if t == "Read" and read_dirs:
             for d in read_dirs:
-                out.append("Read(/" + str(Path(d).resolve()).rstrip("/") + "/**)")
+                out.append("Read(/" + rule_path(str(Path(d).resolve())).rstrip("/") + "/**)")
         else:
             out.append(t)
     return out

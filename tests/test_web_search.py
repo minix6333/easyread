@@ -179,8 +179,10 @@ class ClaudeRulesTest(unittest.TestCase):
         d = Path(tempfile.mkdtemp()) / "有 空白 的資料夾"
         d.mkdir()
         rules = claude_live.allow_rules("Read,WebSearch,WebFetch", [str(d)])
-        self.assertEqual(rules, ["Read(/" + str(d.resolve()) + "/**)", "WebSearch", "WebFetch"])
-        self.assertTrue(rules[0].startswith("Read(//"))  # 兩個斜線＝檔案系統的絕對路徑
+        self.assertEqual(rules, ["Read(/" + claude_live.rule_path(str(d.resolve())) + "/**)", "WebSearch", "WebFetch"])
+        self.assertTrue(rules[0].startswith("Read(//"))  # 兩個斜線＝檔案系統的絕對路徑（Windows 也是：//c/Users/…）
+        self.assertEqual(claude_live.rule_path("C:\\Users\\小明\\我的雲端硬碟\\EasyRead\\abc"), "/c/Users/小明/我的雲端硬碟/EasyRead/abc")
+        self.assertEqual(claude_live.rule_path("/Users/x/EasyRead"), "/Users/x/EasyRead")
         self.assertEqual(claude_live.allow_rules("Read", None), ["Read"])  # 沒給資料夾（翻譯）：照舊
         self.assertEqual(claude_live.allow_rules("", ["/x"]), [])
 
