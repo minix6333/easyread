@@ -33,9 +33,9 @@
         '<h4 class="set-h">' + PR.t("電腦上的 AI App") + "</h4>" +
         (list.length ? '<div class="ai-apps">' + list.map(row).join("") + "</div>" : '<p class="hint">' + (s.mcpLoading ? PR.t("正在找電腦上的 AI App…") : "") + "</p>") +
         '<h4 class="set-h">' + PR.t("右邊的外部工具欄") + '</h4><ul class="ai-notes"><li>' +
-        PR.t("ChatGPT、Claude、Gemini 的網頁版：按外部工具欄上面的迴紋針，附上正在讀的 PDF 或這一頁；在文件裡選字，選字工具列有「問右邊的…」。") + "</li><li>" +
+        PR.t("ChatGPT、Claude、Gemini 的網頁版：直接在它的輸入框問就好，送出時會先附上正在讀的這一頁（問「整份」「這篇」時加上整份 PDF）。迴紋針裡可以關掉，也可以自己挑要附什麼；在文件裡選字，選字工具列有「問右邊的…」。") + "</li><li>" +
         PR.t("回答裡的頁碼（第 5 頁、p. 5）點了左邊就翻過去；在回答上選字按右鍵，可以存成這一頁的筆記。") + "</li><li>" +
-        PR.t("網頁版連不到這台電腦，FOLI 也不會自己把文件傳過去：附上、貼上都要你按，送不送出也是你決定。") + "</li></ul></div>";
+        PR.t("網頁版連不到這台電腦：只有你在它那邊按了送出，正在讀的那一頁才會跟著傳過去；同一段對話裡已經附過的那一頁不會再傳。") + "</li></ul></div>";
     },
     async click(e, s) {
       const b = e.target.closest("[data-mcp]");

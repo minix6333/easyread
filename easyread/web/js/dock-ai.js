@@ -1,10 +1,12 @@
 /* 右邊外部工具欄裡的 AI（ChatGPT、Claude、Gemini…）讀得到、碰得到正在讀的文件。dock.js 建 <webview> 時交給這裡接上：
    - 載好就放進 dock-guest.js：底色換成 FOLI 面板的顏色；回答裡的頁碼（第 5 頁、p. 5）變成可以點、點了這邊翻到那一頁；
+   - 讀者在它的輸入框問問題、按送出：先附上正在讀的那一頁的圖（問「整份」「這篇」時加上整份 PDF），傳完才送出——直接問「這頁在講什麼」
+     它就看得到。同一段對話裡已經附過的那一頁不再附；換一段對話、開新對話就重新附。迴紋針裡可以關掉（每個網頁各自記）；
    - 標題列多一顆迴紋針：附上整份 PDF、附上這一頁（那一頁的圖）、貼上在文件裡選的字、把最後一則回答存成筆記；
    - 閱讀頁選字時多一顆「問右邊的 ChatGPT」：選的字和出處貼進它的輸入框；
    - 在它的回答上選字按右鍵：存到這份文件的筆記、在文件裡找這段、跳到第 N 頁（選單在 main.cjs，做的事在這裡）。
    附檔：主程序用 DevTools 協定把檔案交給它的上傳欄位，沒有合用的欄位就模擬把檔案拖進輸入框（main.cjs 的 easyread:embed-files）。
-   什麼都不會自己送出去：附上、貼上之後要不要送、怎麼問，讀者自己決定。存回來的回答排成提問紀錄（handoff.py），署名是哪個 AI。
+   只有讀者自己按了送出，那一頁才會跟著送出去；迴紋針附上、貼上之後要不要送、怎麼問，讀者自己決定。存回來的回答排成提問紀錄（handoff.py），署名是哪個 AI。
    只對認得的 AI 網站這樣做；別的網站（Notion、翻譯…）照舊只是放在那裡。 */
 (function (PR) {
   "use strict";
@@ -14,7 +16,7 @@
   const isAI = (url) => { try { return AI.test(new URL(url).hostname) || anyHost(); } catch (e) { return false; } };
   const views = new Set();
   let src = null;
-  const guest = () => (src = src || fetch("/web/js/dock-guest.js?v=1").then((r) => (r.ok ? r.text() : Promise.reject(new Error("HTTP " + r.status)))));
+  const guest = () => (src = src || fetch("/web/js/dock-guest.js?v=2").then((r) => (r.ok ? r.text() : Promise.reject(new Error("HTTP " + r.status)))));
   const run = (v, code) => v.executeJavaScript(code);
 
   /* ---------- 正在讀的那一份（外殼裡被選著的那一格；它是閱讀頁才算） ---------- */
@@ -73,10 +75,11 @@
   async function setup(v) {
     v._foli = false;
     v._skin = [];  // 換頁了：之前放的 CSS 跟著舊頁面一起沒了
+    v._warned = false;
     try {
       const code = await guest();
       const d = doc();
-      await run(v, code + "\n;window.__foliGuest && window.__foliGuest.init(" + JSON.stringify({ pages: d ? d.pages : 0 }) + ")");
+      await run(v, code + "\n;window.__foliGuest && window.__foliGuest.init(" + JSON.stringify({ pages: d ? d.pages : 0, hold: !(v._app && v._app.noPage) }) + ")");
       v._foli = true;
       await skin(v);
     } catch (e) { console.warn("dock-ai", e); }
@@ -89,6 +92,7 @@
     try { msg = JSON.parse(m.slice(TAG.length)); } catch (err) { return; }
     if (msg.t === "reskin") skin(v);
     else if (msg.t === "page") goPage(+msg.page);
+    else if (msg.t === "send") autoSend(v, msg);
   }
   // FOLI 的主題、紙色、強調色換了：每一個 AI 網頁重新配色（根節點的 style 也會因為欄寬之類的改變：顏色沒變就不重算）
   let reskinT = 0, lastSig = "";
@@ -133,17 +137,58 @@
     const v = document.querySelector('#dock webview.dock-view[data-app="' + app.id + '"]');
     return v && v._foli ? { app, v } : null;
   }
+  /* ---------- 附檔：FOLI 做好檔案（handoff.py），主程序交給它的上傳欄位 ---------- */
+  // 每個 AI 網頁記得這段對話附過哪幾頁：同一頁接著問不再附；換到另一段對話、開了新對話就重新附。
+  // 對話看網址：/c/…、/chat/…、/app/… 後面的編號；新對話送出第一則之後網址才有編號，從「沒有」變成「有」算同一段
+  const convo = (path) => { const m = /\/(?:c|chat|app|search|conversation|thread)\/[\w-]{6,}/.exec(path || ""); return m ? m[0] : ""; };
+  function given(v, path) {
+    const g = v._given || (v._given = { key: "", has: new Set() });
+    const k = convo(path);
+    if (g.key && k !== g.key) g.has.clear();
+    g.key = k;
+    return g.has;
+  }
+  const keyOf = (d, kind) => d.id + ":" + (kind === "pdf" ? "pdf" : d.page);
+  async function give(v, d, kind, path) {
+    const file = await PR.api("/api/p/" + d.id + "/handoff", { method: "POST", body: { do: "file", kind, page: d.page } });
+    v.focus();
+    let at = null;
+    try { at = await run(v, "window.__foliGuest && window.__foliGuest.focusComposer()"); } catch (e) { at = null; }
+    const r = await window.easyreadDesktop.embedFiles(v.getWebContentsId(), [file.path], at);
+    if (!r || !r.ok) throw new Error((r && r.error) || "");
+    if (path == null) path = await run(v, "location.pathname").catch(() => "");
+    given(v, path).add(keyOf(d, kind));
+    return file;
+  }
+  // 讀者在它那邊按了送出（dock-guest.js 先攔下來）：這段對話還沒有這一頁就先附上，然後請它送出
+  const WHOLE = /整份|整篇|這篇|全文|整本|整章|整個文件|全部內容|這份(?:文件|講義|投影片|論文|報告|資料)|whole|entire|full text|(?:this|the) (?:paper|document|article|deck|chapter|lecture)\b/i;  // i18n-ok 比對讀者的問題
+  async function autoSend(v, msg) {
+    if (v._sending) return;
+    v._sending = true;
+    run(v, "window.__foliGuest && window.__foliGuest.ack()").catch(() => {});
+    let attached = false;
+    try {
+      const d = doc();
+      if (!d || !d.pages || (v._app && v._app.noPage)) return;
+      const has = given(v, msg.path);
+      const want = (WHOLE.test(msg.q || "") ? ["pdf", "page"] : ["page"]).filter((k) => !has.has(keyOf(d, k)));
+      for (const kind of want) {
+        try { await give(v, d, kind, msg.path); attached = true; } catch (e) {
+          if (!v._warned) { v._warned = true; PR.toast(PR.t("{name} 沒有收下正在讀的這一頁，問題照常送出", { name: PR.esc((v._app && v._app.name) || "AI") }), null, 5000); }
+        }
+      }
+    } catch (e) { console.warn("dock-ai", e); }
+    finally {
+      v._sending = false;
+      let r = null;
+      try { r = await run(v, "window.__foliGuest ? window.__foliGuest.release(" + JSON.stringify({ attached, host: true }) + ") : null"); } catch (e) { r = null; }
+      if (r && r.key) { v.focus(); for (const ev of [{ type: "keyDown", keyCode: "Return" }, { type: "char", keyCode: "\r" }, { type: "keyUp", keyCode: "Return" }]) v.sendInputEvent(ev); }
+    }
+  }
   async function attach(kind) {
     const a = active(), d = doc();
     if (!a || !d) return;
-    let file;
-    try { file = await PR.api("/api/p/" + d.id + "/handoff", { method: "POST", body: { do: "file", kind, page: d.page } }); } catch (e) { return PR.toast(PR.t("沒附上：{msg}", { msg: PR.esc(e.message) })); }
-    a.v.focus();
-    let at = null;
-    try { at = await run(a.v, "window.__foliGuest && window.__foliGuest.focusComposer()"); } catch (e) { at = null; }
-    let r = null;
-    try { r = await window.easyreadDesktop.embedFiles(a.v.getWebContentsId(), [file.path], at); } catch (e) { r = { ok: false, error: e.message }; }
-    if (!r || !r.ok) return PR.toast(PR.t("{name} 沒有收下檔案：{msg}", { name: PR.esc(a.app.name), msg: PR.esc((r && r.error) || "") }), null, 5000);
+    try { await give(a.v, d, kind); } catch (e) { return PR.toast(PR.t("{name} 沒有收下檔案：{msg}", { name: PR.esc(a.app.name), msg: PR.esc(e.message) }), null, 5000); }
     // 附上的同時在輸入框寫一句（還沒送出，可以改）：請它標頁碼，回答裡的頁碼這邊才點得回去
     const line = kind === "pdf" ? PR.t("附上的是我正在讀的《{title}》（共 {n} 頁）。回答時請標出處頁碼，寫成「第 N 頁」。", { title: d.title, n: d.pages })
       : PR.t("附上的是《{title}》第 {p} 頁。", { title: d.title, p: d.page });
@@ -186,7 +231,16 @@
         { label: PR.t("貼上在文件裡選的字"), icon: "quote", disabled: none || !d.sel, fn: () => d && ask(d.sel) },
         "-",
         { label: PR.t("把它最後一則回答存成筆記"), icon: "notebook", disabled: none, fn: saveLast },
+        "-",
+        { label: PR.t("問問題時附上正在讀的這一頁"), icon: "l-zap", checked: !a.app.noPage, fn: () => PR.dockAI.auto(a.v, a.app, !!a.app.noPage) },
       ]);
+    },
+    /* 「問問題時附上正在讀的這一頁」開關：每個網頁各自記（存在外部工具欄的設定裡） */
+    auto(v, app, on) {
+      app.noPage = !on;
+      if (v._app && v._app !== app) v._app.noPage = app.noPage;
+      if (PR.dock && PR.dock.saveApps) PR.dock.saveApps();
+      return run(v, "window.__foliGuest ? window.__foliGuest.hold(" + !!on + ") : false").catch(() => false);
     },
     /* 閱讀頁選字時那顆「問右邊的…」要不要出現、叫什麼 */
     target() { const a = active(); return a ? { name: a.app.name } : null; },

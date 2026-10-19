@@ -111,7 +111,7 @@
       if (!saved || typeof saved !== "object") return st;
       st.apps = (Array.isArray(saved.apps) ? saved.apps : []).map((a) => (a && a.kind === "app"
         ? { id: String(a.id || ""), kind: "app", path: /^\/.+\.app$/i.test(a.path || "") ? a.path : "", name: String(a.name || "").slice(0, 60), icon: /^data:image\/png;base64,[\w+/=]+$/.test(a.icon || "") ? a.icon : "" }
-        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "", plain: !!(a && a.plain) }))
+        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "", plain: !!(a && a.plain), noPage: !!(a && a.noPage) }))
         .filter((a) => a.id && (a.url || a.path)).slice(0, 12);
       st.nw = Number(saved.nw) > 0 ? Number(saved.nw) : 480;
       st.seq = Math.max(Number(saved.seq) || 0, st.apps.length);
@@ -130,7 +130,7 @@
   if (!desktop && !demo) return;
 
   const st = M.load(PR.ls.get(KEY, null));
-  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon, plain: !!a.plain })), active: st.active, seq: st.seq });
+  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon, plain: !!a.plain, noPage: !!a.noPage })), active: st.active, seq: st.seq });
   const native = desktop && window.easyreadDesktop.platform === "darwin" && typeof window.easyreadDesktop.nativeDock === "function" ? window.easyreadDesktop.nativeDock : null;
   let nativeOn = null;  // 現在貼在旁邊的那個程式（apps 裡的 id）；沒有就是 null
   const root = document.documentElement;
@@ -318,6 +318,7 @@
       return app;
     },
     native: () => nativeOn,
+    saveApps: () => save(),  // 改了某個網頁自己的設定（dock-ai.js 的「問問題時附上這一頁」）之後存起來
     addApp: (path) => addNative(path, PR.$('#tabs [data-act="dock"]')),
     /* 分頁列右邊的按鈕；貼著別的程式時欄收起來了，切換用的圖示也放在這裡 */
     button: () => (nativeOn ? '<span class="dock-rail">' + st.apps.map((a) => '<button class="dock-app' + (isOn(a) ? " on" : "") + '" data-dockapp="' + PR.esc(a.id) + '" title="' + PR.esc(a.title || a.name) + '">' + appIcon(a) + "</button>").join("") +

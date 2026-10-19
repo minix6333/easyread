@@ -2018,7 +2018,6 @@
  "找不到它的輸入框，已經複製好了：點它的輸入框貼上就可以": "Couldn't find its input box — copied instead; click its input box and paste",
  "把它最後一則回答存成筆記": "Save its last answer as a note",
  "沒有第 {n} 頁": "There is no page {n}",
- "沒附上：{msg}": "Couldn't attach: {msg}",
  "看看": "Show",
  "等它載好再試一次": "Wait until it has loaded, then try again",
  "認不出它最後一則回答：把要存的那段選起來，按右鍵「存到這份文件的筆記」": "Couldn't find its last answer: select the part to keep, right-click and choose “Save to this document's notes”",
@@ -2034,7 +2033,6 @@
  "（《{title}》第 {p} 頁）": "(“{title}”, page {p})",
  "（外部 AI 的回答）": "(Answer from an external AI)",
  "《{title}》": "“{title}”",
- "ChatGPT、Claude、Gemini 的網頁版：按外部工具欄上面的迴紋針，附上正在讀的 PDF 或這一頁；在文件裡選字，選字工具列有「問右邊的…」。": "Web versions of ChatGPT, Claude and Gemini: use the paperclip at the top of the side panel to attach the PDF you're reading or the current page; when you select text in the document, the selection toolbar has “Ask … on the right”.",
  "右邊的外部工具欄": "The external tools panel on the right",
  "回答裡的頁碼（第 5 頁、p. 5）點了左邊就翻過去；在回答上選字按右鍵，可以存成這一頁的筆記。": "Page numbers in answers (p. 5) jump the document on the left; select part of an answer and right-click to save it as a note on this page.",
  "外部 AI": "External AI",
@@ -2047,7 +2045,6 @@
  "會用 claude 指令在你的使用者設定裡加一個叫 foli 的 MCP 伺服器。": "This uses the claude command to add an MCP server named foli to your user settings.",
  "正在找電腦上的 AI App…": "Looking for AI apps on this computer…",
  "沒有這個 App：{id}": "No such app: {id}",
- "網頁版連不到這台電腦，FOLI 也不會自己把文件傳過去：附上、貼上都要你按，送不送出也是你決定。": "Web versions can't reach this computer, and FOLI never sends a document on its own: you attach or paste, and you decide whether to send.",
  "設定檔的格式看不懂：{path}": "Couldn't understand the settings file: {path}",
  "讓 {name} 連到 FOLI？": "Connect {name} to FOLI?",
  "這台電腦上沒找到": "Not found on this computer",
@@ -2056,5 +2053,9 @@
  "連接之後，那個 App 回答時讀得到你正在看的文件（哪一頁、選了什麼字），能搜尋整個文獻庫，也能把回答存成這份文件的筆記、請 FOLI 翻到某一頁。FOLI 沒開也讀得到文獻庫。": "Once connected, the app can read the document you're reading (which page, what you selected), search your whole library, save its answers as notes in the document, and ask FOLI to show a page. It can read the library even when FOLI is closed.",
  "還沒連接": "Not connected",
  "電腦上的 AI App": "AI apps on this computer",
- "換成 FOLI 的底色": "Use FOLI's background colours"
+ "換成 FOLI 的底色": "Use FOLI's background colours",
+ "ChatGPT、Claude、Gemini 的網頁版：直接在它的輸入框問就好，送出時會先附上正在讀的這一頁（問「整份」「這篇」時加上整份 PDF）。迴紋針裡可以關掉，也可以自己挑要附什麼；在文件裡選字，選字工具列有「問右邊的…」。": "Web versions of ChatGPT, Claude and Gemini: just ask in their input box — when you send, the page you're reading is attached first (plus the whole PDF when you ask about the “whole” document). You can turn this off in the paperclip menu, or choose what to attach yourself; when you select text in the document, the selection toolbar has “Ask … on the right”.",
+ "網頁版連不到這台電腦：只有你在它那邊按了送出，正在讀的那一頁才會跟著傳過去；同一段對話裡已經附過的那一頁不會再傳。": "Web versions can't reach this computer: the page you're reading goes along only when you press send there, and a page already attached in the same conversation isn't sent again.",
+ "問問題時附上正在讀的這一頁": "Attach the page I'm reading when I ask",
+ "{name} 沒有收下正在讀的這一頁，問題照常送出": "{name} didn't accept the page you're reading; your question was sent without it"
 }

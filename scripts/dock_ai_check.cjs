@@ -1,7 +1,8 @@
 // 外部工具欄裡的 AI 讀得到正在讀的文件（web/js/dock-ai.js、dock-guest.js、electron/embed-bridge.cjs）：
 // 用一個本機的假 AI 網頁（深色底、一則有頁碼和公式的回答、上傳欄位、輸入框）嵌進右邊，逐項看：
 // 底色換成 FOLI 面板的、回答裡的頁碼標出來而且點了會翻頁、附上這一頁（交給上傳欄位；沒有欄位時拖進輸入框）、
-// 閱讀頁選字「問右邊的…」貼進輸入框、最後一則回答存成提問紀錄（公式還原成 TeX）、回答上按右鍵的翻頁。
+// 閱讀頁選字「問右邊的…」貼進輸入框、最後一則回答存成提問紀錄（公式還原成 TeX）、回答上按右鍵的翻頁、
+// 在它的輸入框按 Enter／送出鈕：先附上正在讀的那一頁、等它「上傳」完才送出（同一段對話同一頁不重附、問整份加上 PDF、可以關掉）。
 // 不連任何外部網站；存進去的筆記最後刪掉。
 //   node_modules/.bin/electron scripts/dock_ai_check.cjs <論文 id> [--base URL]
 const { app, BrowserWindow, ipcMain, webContents } = require("electron");
@@ -20,7 +21,7 @@ process.on("unhandledRejection", fail);
 setTimeout(() => fail(new Error("TIMEOUT")), 150000);
 if (!pid) { console.log("FAILED — 要給一篇論文的 id"); process.exit(2); }
 
-const MOCK = (input) => `<!doctype html><html class="dark"><head><meta charset="utf-8"><style>
+const MOCK = (input, sneaky) => `<!doctype html><html class="dark"><head><meta charset="utf-8"><style>
 :root { --surface-0: #000000; --surface-1: #212121; --surface-2: #303030; --text: #ececec; --brand: #10a37f; }
 html, body { margin: 0; height: 100%; background: var(--surface-0); color: var(--text); font: 15px system-ui; }
 main { position: fixed; inset: 0; background: var(--surface-0); display: flex; flex-direction: column; }
@@ -38,21 +39,31 @@ button.send { background: var(--brand); }
   <ul><li>離散：加總</li><li>連續：積分</li></ul></div>
 </div>
 <div class="literal"></div>
-<form class="composer" onsubmit="return false">${input ? '<input type="file" id="files" multiple accept="image/*,application/pdf" hidden>' : ""}<textarea id="prompt-textarea" placeholder="問問"></textarea><button class="send" type="button">送出</button></form>
+<form class="composer" onsubmit="return false">${input ? '<input type="file" id="files" multiple accept="image/*,application/pdf" hidden>' : ""}<textarea id="prompt-textarea" placeholder="問問"></textarea><span class="bar" role="progressbar" hidden>…</span><button class="send" type="button"${input ? ' aria-label="Send prompt"' : ""}>送出</button></form>
 </main><script>
-window.__got = [];
-const f = document.getElementById("files");
-if (f) f.addEventListener("change", (e) => { for (const x of e.target.files) window.__got.push("input:" + x.name + ":" + x.size); });
+window.__got = []; window.__sent = []; window.__upDone = 0;
+const f = document.getElementById("files"), btn = document.querySelector(".send"), bar = document.querySelector(".bar"), ta = document.getElementById("prompt-textarea");
+// 收到檔案就「上傳」0.7 秒：這段時間送出鈕不能按、有進度條（和真的網站一樣）。
+// sneaky：上傳 1.2 秒，送出鈕看起來能按、也沒有進度條，但傳完之前按送出它不理
+const sneaky = ${sneaky ? "true" : "false"};
+let busy = false;
+const upload = () => {
+  if (sneaky) { busy = true; setTimeout(() => { busy = false; window.__upDone = Date.now(); }, 1200); return; }
+  btn.disabled = true; bar.hidden = false; setTimeout(() => { btn.disabled = false; bar.hidden = true; window.__upDone = Date.now(); }, 700);
+};
+if (f) f.addEventListener("change", (e) => { for (const x of e.target.files) window.__got.push("input:" + x.name + ":" + x.size); upload(); });
 document.addEventListener("dragover", (e) => e.preventDefault());
-document.addEventListener("drop", (e) => { e.preventDefault(); for (const x of e.dataTransfer.files) window.__got.push("drop:" + x.name + ":" + x.size); });
-document.querySelector(".send").addEventListener("click", () => { window.__sent = true; });
+document.addEventListener("drop", (e) => { e.preventDefault(); for (const x of e.dataTransfer.files) window.__got.push("drop:" + x.name + ":" + x.size); upload(); });
+const send = () => { if (btn.disabled || busy || !ta.value.trim()) return; window.__sent.push({ text: ta.value, got: window.__got.slice(), at: Date.now() }); ta.value = ""; window.__got = []; };
+btn.addEventListener("click", send);
+ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 </script></body></html>`;
 
 // 外部工具欄不收本機網址（127.0.0.1、localhost）：假網頁用一個名字，這個測試自己的 Electron 把它對到本機
 app.commandLine.appendSwitch("host-resolver-rules", "MAP foli-mock.test 127.0.0.1");
 app.whenReady().then(async () => {
   step = "mock server";
-  const server = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(MOCK(!/noinput/.test(req.url))); });
+  const server = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(MOCK(!/noinput/.test(req.url), /sneaky/.test(req.url))); });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const mock = "http://foli-mock.test:" + server.address().port + "/";
   // 預載：和桌面版的 preload 一樣的那幾個（這裡的主程序自己接 embed-files，用的是同一份 embed-bridge.cjs）
@@ -70,7 +81,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   const win = new BrowserWindow({ width: 1400, height: 900, show: false, webPreferences: { webviewTag: true, preload: pre, backgroundThrottling: false, partition: "dockai-" + Date.now() } });
   const wc = win.webContents;
   const errors = [];
-  wc.on("console-message", (e) => { if ((e.level === "error" || e.level === 3) && !/presence|WebSocket|favicon/.test(e.message || "")) errors.push(e.message); });
+  wc.on("console-message", (e) => { if ((e.level === "error" || e.level === 3) && !/presence|WebSocket|favicon|ResizeObserver loop/.test(e.message || "")) errors.push("[" + step + "] " + e.message + " @ " + (e.sourceId || "").replace(/^.*\/web\//, "") + ":" + e.lineNumber); });
   const js = (code) => wc.executeJavaScript(code);
   const waitFor = async (cond, what, n) => { for (let i = 0; i < (n || 120); i++) { if (await js("!!(" + cond + ")").catch(() => false)) return; await sleep(100); } throw new Error("waited too long for " + what); };
   const guestOf = () => webContents.getAllWebContents().find((w) => w.getType() === "webview" && !w.isDestroyed() && /^http:\/\/foli-mock\.test/.test(w.getURL()));
@@ -159,7 +170,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   await sleep(1500);
   const got3 = await g.executeJavaScript("window.__got.slice()"), line = await g.executeJavaScript("document.querySelector('#prompt-textarea').value");
   check("點迴紋針 →「附上這一頁」：檔案交給它、輸入框多一句說明（還沒送出）",
-    items.length === 5 && /《.+》/.test(items[0]) && /\(off\)$/.test(items[0]) && got3.length === 1 && /p4\.jpg/.test(got3[0]) && /^附上的是《.+》第 4 頁。\s*$/.test(line) && !(await g.executeJavaScript("!!window.__sent")),
+    items.length === 6 && /《.+》/.test(items[0]) && /\(off\)$/.test(items[0]) && got3.length === 1 && /p4\.jpg/.test(got3[0]) && /^附上的是《.+》第 4 頁。\s*$/.test(line) && !(await g.executeJavaScript("window.__sent.length")),
     { items, got3, line });
 
   step = "ask from selection";
@@ -167,7 +178,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   const asked = await js(`PR.dockAI.ask("Supervised finetuning suffers from catastrophic forgetting.", 2)`);
   await sleep(300);
   const typed = await g.executeJavaScript("document.querySelector('#prompt-textarea').value");
-  const sent = await g.executeJavaScript("!!window.__sent");
+  const sent = (await g.executeJavaScript("window.__sent.length")) > 0;
   check("閱讀頁選字「問右邊的…」：選的字和出處貼進輸入框，沒有送出", asked && /^「Supervised finetuning suffers from catastrophic forgetting\.」（《.+》第 2 頁）\s*$/.test(typed) && !sent, { typed, sent });
 
   step = "save last answer";
@@ -195,6 +206,60 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   await sleep(1500);
   check("回答上選字按右鍵「跳到第 N 頁」：左邊翻過去", (await js(R + ".PR.pdfPage()")) === 6, {});
 
+  step = "attach on send";
+  // 讀者在它的輸入框打字、按 Enter（真的按鍵）或點送出鈕；回傳這一則送出時帶了哪些檔案、從按下去到送出花多久
+  const V = "document.querySelector('#dock webview.dock-view')";
+  const askIt = async (text, how) => {
+    await g.executeJavaScript("(() => { window.__got = []; window.__sent = []; const t = document.querySelector('#prompt-textarea'); t.value = " + JSON.stringify(text) + "; t.focus(); return 1; })()");
+    const t0 = Date.now();
+    if (how === "click") {
+      const b = await g.executeJavaScript("(() => { const r = document.querySelector('.send').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+      g.sendInputEvent({ type: "mouseMove", x: b.x, y: b.y });
+      g.sendInputEvent({ type: "mouseDown", x: b.x, y: b.y, button: "left", clickCount: 1 });
+      g.sendInputEvent({ type: "mouseUp", x: b.x, y: b.y, button: "left", clickCount: 1 });
+    } else {
+      g.sendInputEvent({ type: "keyDown", keyCode: "Return" });
+      g.sendInputEvent({ type: "char", keyCode: "\r" });
+      g.sendInputEvent({ type: "keyUp", keyCode: "Return" });
+    }
+    for (let i = 0; i < 80 && !(await g.executeJavaScript("window.__sent.length")); i++) await sleep(100);
+    const sent = await g.executeJavaScript("window.__sent.slice()"), up = await g.executeJavaScript("window.__upDone");
+    return { sent, ms: Date.now() - t0, afterUpload: !!(sent[0] && sent[0].at >= up) };
+  };
+  const files = (r) => ((r.sent[0] || {}).got || []).map((x) => (/\.pdf:\d+$/.test(x) ? "pdf" : (x.match(/ (p\d+\.jpg):\d+$/) || [])[1] || x));
+  g.focus();
+  await js(R + ".PR.goToPage(6); 1");
+  await sleep(700);
+  const r1 = await askIt("這頁在講什麼");
+  check("在它的輸入框問「這頁在講什麼」按 Enter：先附上正在讀的第 6 頁，傳完才送出，問題原封不動",
+    r1.sent.length === 1 && r1.sent[0].text === "這頁在講什麼" && JSON.stringify(files(r1)) === '["p6.jpg"]' && r1.afterUpload, r1);
+  const r2 = await askIt("那第二個公式呢");
+  check("同一段對話、同一頁接著問：不再附，馬上送出", r2.sent.length === 1 && !files(r2).length && r2.ms < 1200, r2);
+  await g.executeJavaScript("history.pushState(null, '', '/c/6a1b2c3d-new'); 1");
+  const r3 = await askIt("再問一個");
+  await g.executeJavaScript("history.pushState(null, '', '/c/9f8e7d6c-other'); 1");
+  const r4 = await askIt("換一段對話問");
+  check("新對話有了編號還是同一段（不重附）；換到另一段對話就重新附", r3.sent.length === 1 && !files(r3).length && JSON.stringify(files(r4)) === '["p6.jpg"]', { r3, r4 });
+  await js(R + ".PR.goToPage(7); 1");
+  await sleep(700);
+  const r5 = await askIt("整份在講什麼");
+  check("翻到第 7 頁、問「整份」：附上整份 PDF 和第 7 頁", r5.sent.length === 1 && JSON.stringify(files(r5)) === '["pdf","p7.jpg"]' && r5.afterUpload, r5);
+  await js("PR.dockAI.auto(" + V + ", PR.dock.current(), false)");
+  await js(R + ".PR.goToPage(8); 1");
+  await sleep(700);
+  const r6 = await askIt("不要附");
+  const kept = await js("JSON.parse(localStorage.getItem('easyread-dock')).apps[0].noPage");
+  await js("PR.dockAI.auto(" + V + ", PR.dock.current(), true)");
+  check("迴紋針裡關掉「問問題時附上正在讀的這一頁」：照常送出、什麼都不附，設定記住", r6.sent.length === 1 && !files(r6).length && r6.ms < 1200 && kept === true, { r6, kept });
+  const r7 = await askIt("用按鈕送出", "click");
+  check("點送出鈕也一樣：先附上第 8 頁再送出", r7.sent.length === 1 && r7.sent[0].text === "用按鈕送出" && JSON.stringify(files(r7)) === '["p8.jpg"]' && r7.afterUpload, r7);
+  await g.executeJavaScript("(() => { const t = document.querySelector('#prompt-textarea'); t.value = 'a'; t.focus(); window.__sent = []; return 1; })()");
+  g.sendInputEvent({ type: "keyDown", keyCode: "Return", modifiers: ["shift"] });
+  g.sendInputEvent({ type: "keyUp", keyCode: "Return", modifiers: ["shift"] });
+  await sleep(500);
+  check("Shift+Enter（換行）不攔、不送", (await g.executeJavaScript("window.__sent.length")) === 0, {});
+  await g.executeJavaScript("document.querySelector('#prompt-textarea').value = ''; 1");
+
   step = "drop fallback";
   await g.loadURL(mock + "?noinput=1");
   for (let i = 0; i < 100 && !(await g.executeJavaScript("!!window.__foliGuest").catch(() => false)); i++) await sleep(100);
@@ -209,6 +274,21 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   await sleep(500);
   const got2 = await g.executeJavaScript("window.__got.slice()");
   check("沒有上傳欄位的網站：模擬把 PDF 拖進輸入框", drop && drop.ok && drop.how === "drop" && got2.length === 1 && /^drop:.+\.pdf:\d+$/.test(got2[0]), { drop, got2 });
+  await sleep(800);
+  g.focus();
+  const r8 = await askIt("認不出送出鈕");
+  check("上傳欄位、送出鈕都認不出的網站：這一頁拖進去、等它傳完，FOLI 替讀者按 Enter 送出", r8.sent.length === 1 && r8.sent[0].text === "認不出送出鈕" && JSON.stringify(files(r8)) === '["p8.jpg"]' && r8.afterUpload, r8);
+  await g.executeJavaScript("console.debug = () => {}; 1");  // FOLI 收不到「要送出了」：當成 FOLI 沒回應
+  const r9 = await askIt("FOLI 沒回應");
+  check("FOLI 沒回應：1.5 秒後照常送出，問題不會卡住", r9.sent.length === 1 && r9.ms >= 1400 && r9.ms < 3000, r9);
+  await g.loadURL(mock + "?sneaky=1");
+  for (let i = 0; i < 100 && !(await g.executeJavaScript("!!window.__foliGuest").catch(() => false)); i++) await sleep(100);
+  await sleep(500);
+  g.focus();
+  await js(R + ".PR.goToPage(9); 1");
+  await sleep(700);
+  const r10 = await askIt("上傳中按送出它不理的網站");
+  check("上傳時送出鈕看起來能按、但按了不理的網站：傳完再按一次，只送出一則", r10.sent.length === 1 && JSON.stringify(files(r10)) === '["p9.jpg"]' && r10.afterUpload, r10);
 
   step = "cleanup";
   await cleanup();

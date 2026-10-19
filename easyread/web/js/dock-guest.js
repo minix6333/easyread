@@ -1,16 +1,17 @@
 /* 放進右邊外部工具欄那個 AI 網頁裡的一小段程式（ChatGPT、Claude、Gemini…）。dock-ai.js 在它每次載好時用
-   webview.executeJavaScript 放進去；它看不到 FOLI 的任何東西，只做三件事，而且不動那個網站的畫面結構
+   webview.executeJavaScript 放進去；它看不到 FOLI 的任何東西，只做這幾件事，而且不動那個網站的畫面結構
    （不包、不搬它的元素——它們是 React／Angular 管的，動了會在重畫時壞掉）：
    1. 換底色（skinCss）：找出它中性灰的表面色——根節點上的顏色變數、蓋住一大片畫面的區塊——把整組明暗平移到 FOLI 面板的顏色，
       越接近文字的顏色動得越少，文字色不動。算出來的 CSS 交回給 FOLI，由 FOLI 用 insertCSS 放上去（不受網站的 CSP 限制）。
    2. 回答裡的頁碼（第 5 頁、p. 5、pp. 3–4、第 3 張投影片）用 CSS 的「自訂標示」（Highlight API：只標範圍，不改 DOM）標成強調色，
       滑過去是手指，點了請 FOLI 翻到那一頁。
-   3. 給 FOLI 叫的幾個函式：找輸入框並聚焦（回傳位置，附檔時拖到那裡）、讀選取的字、讀最後一則回答（都轉成 Markdown，公式還原成 TeX）。
-   對 FOLI 說話：console.debug("⁣foli:" + JSON)，FOLI 在 webview 的 console-message 收（只接受翻頁、重新配色這種無害的要求）。
+   3. 讀者送出問題時先攔一下，請 FOLI 附上正在讀的那一頁，傳完再替讀者送出（hold 開著時；外部工具欄的迴紋針裡可以關）。
+   4. 給 FOLI 叫的幾個函式：找輸入框並聚焦（回傳位置，附檔時拖到那裡）、讀選取的字、讀最後一則回答（都轉成 Markdown，公式還原成 TeX）。
+   對 FOLI 說話：console.debug("⁣foli:" + JSON)，FOLI 在 webview 的 console-message 收（只接受翻頁、重新配色、要送出了這幾種）。
    不靠 DOM 的部分（頁碼的格式、顏色換算）放在 pure，tests/test_dock_guest.cjs 測。 */
 (function (root) {
   "use strict";
-  const VERSION = 1;
+  const VERSION = 2;
 
   /* ---------- 純函式 ---------- */
   // 頁碼：中文「第 5 頁／第 3–5 頁／第 3 至 5 頁」、「第 5 張投影片」「投影片第 5 張」；英文「p. 5」「pp. 3–4」「page 12」「pages 3-4」「slide 7」。
@@ -317,6 +318,105 @@
     return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + Math.min(b.height, 60) / 2), empty: !(e.value || e.textContent || "").trim() };
   }
 
+  /* ---------- 送出問題時，先讓 FOLI 附上正在讀的那一頁 ---------- */
+  // 讀者在輸入框按 Enter 或按送出鈕：先攔下來（hold 開著時），請 FOLI 把那一頁的圖（問整份時加上 PDF）放進上傳欄位，
+  // 等它傳完、送出鈕能按了，再替讀者按送出。FOLI 1.5 秒內沒說收到、或一分鐘還沒好，就照常送出：問題不會卡在這裡。
+  // 輸入法選字的 Enter、Shift+Enter（換行）、選單開著時的 Enter 都不攔。
+  const SENDS = ['button[data-testid="send-button"]', "#composer-submit-button", "button.send-button"];
+  const SEND_RE = /send|submit|傳送|送出|发送|提交/i;  // i18n-ok 比對各家送出鈕的標籤
+  const shown = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== "hidden"; };
+  const enabled = (b) => !b.disabled && b.getAttribute("aria-disabled") !== "true";
+  const textOf = (c) => (c ? (c.tagName === "TEXTAREA" ? c.value : c.innerText || c.textContent || "") : "").trim();
+  function sendButton() {
+    for (const sel of SENDS) for (const b of document.querySelectorAll(sel)) if (shown(b)) return b;
+    // 輸入框所在的表單（ChatGPT、Claude 都是）或往上幾層裡，標籤像「送出」的按鈕（ChatGPT 沒登入、Gemini 都叫「傳送訊息」）；
+    // 都沒有才拿明寫 type="submit" 的（沒寫 type 的按鈕在表單裡也算 submit，Gemini 的「上傳與工具」就是）
+    const c = composer(), form = c && c.closest("form");
+    let box = form || c, typed = null;
+    for (let i = 0; box && i < (form ? 1 : 9); i++, box = box.parentElement) {
+      for (const b of box.querySelectorAll("button, [role='button']")) {
+        if (!shown(b)) continue;
+        if (SEND_RE.test([b.getAttribute("aria-label"), b.title, b.getAttribute("data-testid")].join(" "))) return b;
+        if (!typed && b.getAttribute("type") === "submit") typed = b;
+      }
+    }
+    return typed;
+  }
+  function uploading() {  // 附件還在傳：送出鈕不能按，或輸入框那一塊有在轉的進度
+    const b = sendButton(), c = composer();
+    if (b && !enabled(b)) return true;
+    const box = c && (c.closest("form") || c.parentElement && c.parentElement.parentElement);
+    return !!box && Array.from(box.querySelectorAll("[role='progressbar'], [aria-busy='true'], .animate-spin")).some(shown);
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let hold = false, pending = 0, acked = false, passKey = 0;  // passKey：FOLI 替讀者按的那一下 Enter 放行到什麼時候（只放那一下）
+  function ask(how) {
+    if (pending) return;  // 已經在等 FOLI：多按的 Enter 不算
+    const mine = pending = Date.now();
+    acked = false;
+    say({ t: "send", how, q: textOf(composer()).slice(0, 400), path: location.pathname });
+    setTimeout(() => { if (pending === mine && !acked) release({}); }, 1500);
+    setTimeout(() => { if (pending === mine) release({}); }, 60000);
+  }
+  async function release(o) {
+    if (!pending) return { sent: false };
+    const mine = pending;
+    acked = true;
+    try {
+      if (o && o.attached) {  // 等附件傳完：先給網站一點時間把它放上去（送出鈕會先變成不能按），再等它連續穩定 0.6 秒
+        await sleep(500);
+        for (let ok = 0, t0 = Date.now(); ok < 3 && Date.now() - t0 < 60000; await sleep(200)) ok = uploading() ? 0 : ok + 1;
+      }
+      if (pending !== mine) return { sent: false };
+      const b = sendButton(), before = textOf(composer());
+      if (b && enabled(b)) {
+        b.click();  // 程式按的（不是讀者按的）：下面攔點擊的不會攔
+        if (o && o.attached) retry(before);  // 不等它：讀者馬上接著問也不會被擋
+        return { sent: true };
+      }
+      passKey = Date.now() + 1500;  // 找不到送出鈕：在輸入框按一下 Enter（放行那一下）
+      if (o && o.host) return { sent: false, key: true };  // FOLI 叫的：請 FOLI 按（真的按鍵）
+      pressEnter();  // FOLI 沒回應：自己按（程式按的，網站大多也認得）
+      return { sent: true };
+    } finally { if (pending === mine) pending = 0; }
+  }
+  // 附件還在傳、網站沒理那一下（輸入框的字還在）：等它能按再按，最多再兩次。送出去了輸入框會清空（或讀者已經打了別的），就停
+  async function retry(before) {
+    for (let n = 0; n < 2; n++) {
+      await sleep(900);
+      if (textOf(composer()) !== before) return;
+      for (let t0 = Date.now(); Date.now() - t0 < 30000 && uploading(); ) await sleep(250);
+      const b = sendButton();
+      if (!b || !enabled(b) || textOf(composer()) !== before) return;
+      b.click();
+    }
+  }
+  function pressEnter() {
+    const c = composer();
+    if (!c) return;
+    const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true });
+    for (const k of ["keyCode", "which"]) Object.defineProperty(ev, k, { get: () => 13 });
+    c.dispatchEvent(ev);
+  }
+  const menuOpen = () => Array.from(document.querySelectorAll("[role='listbox'], [role='menu']")).some(shown);
+  window.addEventListener("keydown", (e) => {
+    if (!hold || e.key !== "Enter" || e.shiftKey || e.altKey || e.isComposing || e.keyCode === 229) return;
+    if (passKey) { const ok = Date.now() < passKey; passKey = 0; if (ok) return; }
+    const c = composer();
+    if (!c || !(c === e.target || c.contains(e.target)) || (!pending && (!textOf(c) || menuOpen()))) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    ask("key");
+  }, true);
+  window.addEventListener("click", (e) => {
+    if (!hold || !e.isTrusted) return;
+    const b = e.target && e.target.closest && e.target.closest("button, [role='button']");
+    if (!b || b !== sendButton() || !textOf(composer())) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    ask("click");
+  }, true);
+
   /* ---------- 開始 ---------- */
   let skinKey = "";
   const mo = new MutationObserver((list) => {
@@ -326,7 +426,8 @@
     scanSoon();
   });
   function init(o) {
-    opts = Object.assign({ pages: 0 }, o || {});
+    opts = Object.assign({ pages: 0, hold: false }, o || {});
+    hold = !!opts.hold;
     skinKey = document.documentElement.className + "|" + (document.body && document.body.className);
     mo.disconnect();
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
@@ -334,5 +435,11 @@
     scanSoon();
     return true;
   }
-  root.__foliGuest = { v: VERSION, init, skinCss, focusComposer, selection, lastAnswer, setPages: (n) => { opts.pages = n || 0; scanSoon(); }, marked: () => marked, hits: () => hits.length };
+  root.__foliGuest = { v: VERSION, init, skinCss, focusComposer, selection, lastAnswer, setPages: (n) => { opts.pages = n || 0; scanSoon(); }, marked: () => marked, hits: () => hits.length,
+    hold: (on) => { hold = !!on; if (!hold && pending) release({}); return hold; }, ack: () => { acked = true; return true; }, release,
+    probe() {  // 檢查用：在這個網站認到的輸入框、送出鈕（新網站或網站改版時，看是哪一個沒認到）
+      const say = (e) => (e ? e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.getAttribute("data-testid") ? "[testid=" + e.getAttribute("data-testid") + "]" : "") + (e.getAttribute("aria-label") ? '["' + e.getAttribute("aria-label") + '"]' : "") : null);
+      const c = composer(), b = sendButton();
+      return { composer: say(c), text: textOf(c).slice(0, 40), send: say(b), enabled: !!(b && enabled(b)), uploading: uploading(), hold };
+    } };
 })(typeof window !== "undefined" ? window : globalThis);
