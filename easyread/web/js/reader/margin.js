@@ -549,6 +549,7 @@
   };
   /* 翻到某一頁；跳得遠就留一個「回剛才那頁」 */
   PR.goToPage = function (n, blockId) {
+    PR.jumpedAt = Date.now();  // 有人明確要看第幾頁（連結、筆記、右邊 AI 回答裡的頁碼）：剛打開時「接著上次那一頁」就別再拉回去（pdfmode.js）
     const from = PR.pdfPage ? PR.pdfPage() : n;
     PR.openPage(n, blockId);
     if (Math.abs(from - n) >= 2) PR.toast(PR.t("第 {page} 页", { page: n }), { label: PR.t("回第 {n} 頁", { n: from }), fn: () => PR.openPage(from) }, 5000);

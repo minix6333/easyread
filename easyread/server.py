@@ -111,6 +111,7 @@ class App:
         self.token = os.urandom(12).hex()
         self.location = library_api.LibraryLocation(self)
         self.presence = None  # presence.Presence，serve() 里设
+        self.focus: dict = {}  # 讀者現在在看哪一份、第幾頁、選了什麼（閱讀頁回報；給電腦上的 AI App 用，mcp_server.py 的 current）
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -556,6 +557,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"found": found, "ready": detect.ready(cfg, found), "engine": cfg.get("engine"), "models": cli_models.listing()})
         if path == "/api/prefs":
             return self._json(200, prefs.load())
+        if path == "/api/mcp":  # 設定 → 外部 AI：電腦上的 AI App 有沒有連到 FOLI（mcp_setup.py）
+            from . import mcp_setup
+            return self._json(200, mcp_setup.listing())
+        if path == "/api/focus":  # 讀者現在在看哪一份、第幾頁、選了什麼（MCP 的 current 問這裡）
+            f = dict(app.focus)
+            if f.get("t"):
+                f["age"] = round(time.time() - f.pop("t"))
+            return self._json(200, f)
         if path in ("/backdrop.jpg", "/backdrop-s.jpg"):  # 自選的背景圖（設定 → 外觀）；網址帶 ?v=，換了圖瀏覽器才會重抓
             return self._file(backdrop.path("small" if path.endswith("-s.jpg") else "full"), cache=True)
         if path == "/api/chat/models":
@@ -766,6 +775,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":
             return self._json(200, prefs.save(json.loads(self._body() or b"{}")))
+        if path == "/api/mcp":  # 設定 → 外部 AI：把 FOLI 加進（或拿出）某個 AI App 的設定
+            from . import mcp_setup
+            return self._json(200, mcp_setup.handle(json.loads(self._body() or b"{}")))
+        if path == "/api/focus":  # 閱讀頁回報：正在看的那一份、第幾頁、選的字（只放在記憶體，不存檔）
+            body = json.loads(self._body() or b"{}")
+            pid = str(body.get("id") or "")
+            if pid and not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", pid):
+                raise ValueError("bad id")
+            app.focus = {"id": pid, "title": str(body.get("title") or "")[:300], "page": int(body.get("page") or 0) or None,
+                         "pages": int(body.get("pages") or 0) or None, "sel": str(body.get("sel") or "")[:4000], "t": time.time()} if pid else {}
+            return self._json(200, {"ok": True})
         if path == "/api/backdrop":
             return self._json(200, backdrop.save(json.loads(self._body() or b"{}")))
         if path == "/api/trash":  # 回收站：restore 恢复一篇 / purge 彻底删一篇 / empty 清空
@@ -833,6 +853,9 @@ class Handler(BaseHTTPRequestHandler):
                 if body.get("mode") == "warm":
                     return self._json(200, quick.warm(ws, body))
                 return quick.handle(self, ws, body)
+            if action == "handoff":  # 給外部 AI 的檔案、把外部 AI 的回答存回來（handoff.py：右邊的外部工具欄、MCP 都用）
+                from . import handoff
+                return self._json(200, handoff.handle(ws, body))
             if action == "discussion_del":
                 return self._json(200, {"deleted": paperdata.delete_discussion(ws, str(body.get("id", "")))})
             if action == "ops":

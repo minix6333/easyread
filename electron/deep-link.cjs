@@ -1,4 +1,5 @@
 // easyread://open?sha256=…&block=… 打开指定论文和段落（给 Zotero 插件等外部工具用，约定见 docs/api.md）。
+// 也可以 &page=12（翻到第幾頁）、&find=詞（在那一頁標出來）：電腦上的 AI App 透過 MCP 請 FOLI 翻頁就是用這個（easyread/mcp_server.py）。
 // 桌面版只做转发：交给后端的 /open，由后端按指纹找论文。
 const { URL } = require("url");
 
@@ -14,6 +15,10 @@ function openPath(link) {
     const value = url.searchParams.get(key);
     if (value && /^[A-Za-z0-9_-]{1,64}$/.test(value)) query.set(key, value);
   }
+  const page = url.searchParams.get("page");
+  if (page && /^\d{1,5}$/.test(page)) query.set("page", page);
+  const find = (url.searchParams.get("find") || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 80);
+  if (find) query.set("find", find);
   return query.has("sha256") || query.has("id") ? `/open?${query}` : null;
 }
 

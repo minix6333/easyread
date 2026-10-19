@@ -1,6 +1,8 @@
 /* 外殼右邊的「外部工具」欄：把 ChatGPT、Claude、Gemini 這類網頁版的工具嵌在視窗右側，邊讀邊用，不用切視窗。
    - 只有桌面版有（用 Electron 的 <webview>：一個獨立的瀏覽器分頁，一般網站不准被 iframe 嵌，這個可以）。
-   - 它只是「放在那裡」：有自己的儲存區（登入狀態留著），拿不到 FOLI 的任何內容，也連不到本機的後端（electron/main.cjs 收緊）。
+   - 它有自己的儲存區（登入狀態留著），自己拿不到 FOLI 的任何內容，也連不到本機的後端（electron/main.cjs 收緊）。
+     認得的 AI 網站（ChatGPT、Claude、Gemini…）由 dock-ai.js 接上：讀者按了才把正在讀的文件、這一頁、選的字交給它，
+     它回答裡的頁碼點得回來、回答存得回筆記，底色換成 FOLI 的。
    - 怎麼加：把網址、連結從瀏覽器拖進視窗（右緣會出現放下的地方）；欄開著時也可以把 App 圖示（ChatGPT.app…）或 .webloc 拖到欄的上緣；
      或按「＋」從清單挑、自己輸入網址。可以放好幾個，上面一排圖示切換；切走的只是藏起來，對話都還在。
    - 欄寬可以拉（拖的時候只移動一條線，放開才重排，和分割格子一樣）；開關、寬度、放了哪些都記著。
@@ -109,7 +111,7 @@
       if (!saved || typeof saved !== "object") return st;
       st.apps = (Array.isArray(saved.apps) ? saved.apps : []).map((a) => (a && a.kind === "app"
         ? { id: String(a.id || ""), kind: "app", path: /^\/.+\.app$/i.test(a.path || "") ? a.path : "", name: String(a.name || "").slice(0, 60), icon: /^data:image\/png;base64,[\w+/=]+$/.test(a.icon || "") ? a.icon : "" }
-        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "" }))
+        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "", plain: !!(a && a.plain) }))
         .filter((a) => a.id && (a.url || a.path)).slice(0, 12);
       st.nw = Number(saved.nw) > 0 ? Number(saved.nw) : 480;
       st.seq = Math.max(Number(saved.seq) || 0, st.apps.length);
@@ -128,7 +130,7 @@
   if (!desktop && !demo) return;
 
   const st = M.load(PR.ls.get(KEY, null));
-  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon })), active: st.active, seq: st.seq });
+  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon, plain: !!a.plain })), active: st.active, seq: st.seq });
   const native = desktop && window.easyreadDesktop.platform === "darwin" && typeof window.easyreadDesktop.nativeDock === "function" ? window.easyreadDesktop.nativeDock : null;
   let nativeOn = null;  // 現在貼在旁邊的那個程式（apps 裡的 id）；沒有就是 null
   const root = document.documentElement;
@@ -155,6 +157,7 @@
     v.dataset.app = app.id;
     if (desktop) { v.setAttribute("partition", "persist:embed"); v.setAttribute("allowpopups", ""); }
     v.setAttribute("src", app.url);
+    if (PR.dockAI) PR.dockAI.wire(v, app);  // 認得的 AI 網站：讀得到正在讀的文件、回答裡的頁碼點得回來、換成 FOLI 的底色（dock-ai.js）
     if (desktop) {
       v.addEventListener("page-title-updated", (e) => { app.title = String(e.title || "").slice(0, 80); paintHead(); });
       v.addEventListener("page-favicon-updated", (e) => { const ic = (e.favicons || []).find((x) => /^https:\/\//.test(x)); if (ic && ic !== app.icon) { app.icon = ic; save(); paintHead(); } });
@@ -208,7 +211,7 @@
       if (el === ref) ref = el.nextElementSibling; else apps.insertBefore(el, ref);  // 已經在對的位置就不搬（搬動會讓動畫、滑鼠停留的狀態重來）
     }
     const nav = PR.$(".dock-nav", head);
-    const html = cur && cur.kind !== "app" ? '<button class="btn icon" data-d="back" title="' + PR.t("上一頁") + '"' + (canBack ? "" : " disabled") + ">" + PR.icon("back", "sm") + "</button>" +
+    const html = cur && cur.kind !== "app" ? (PR.dockAI ? PR.dockAI.button(cur) : "") + '<button class="btn icon" data-d="back" title="' + PR.t("上一頁") + '"' + (canBack ? "" : " disabled") + ">" + PR.icon("back", "sm") + "</button>" +
       '<button class="btn icon" data-d="reload" title="' + PR.t("重新載入") + '">' + PR.icon("redo", "sm") + "</button>" +
       '<button class="btn icon" data-d="more" title="' + PR.t("更多") + '">' + PR.icon("more", "sm") + "</button>" : "";
     if (nav._html !== html) { nav._html = html; nav.innerHTML = html; }
@@ -237,7 +240,7 @@
     dock.classList.toggle("empty", empty);
   }
   function render() {
-    for (const id of Object.keys(views)) if (!st.apps.some((a) => a.id === id)) { views[id].remove(); delete views[id]; }
+    for (const id of Object.keys(views)) if (!st.apps.some((a) => a.id === id)) { if (PR.dockAI) PR.dockAI.forget(views[id]); views[id].remove(); delete views[id]; }
     if (st.open) {
       const cur = active();
       if (cur && cur.kind !== "app") view(cur);  // 用到才載入
@@ -300,6 +303,7 @@
   /* ---------- 對外 ---------- */
   PR.dock = {
     isOpen: () => st.open,
+    current: () => (st.open && !nativeOn ? active() : null),  // 欄裡現在顯示的那個網頁（貼著別的程式、收起來時是 null）
     async toggle(force) {
       const open = force != null ? !!force : !(st.open || nativeOn);
       if (!open) { await leaveNative(); st.open = false; return render(); }
@@ -341,6 +345,7 @@
     if (!b) return;
     const a = b.dataset.d, cur = active(), v = cur && views[cur.id];
     if (a === "add") return addMenu(b);
+    if (a === "ai") return PR.dockAI && PR.dockAI.menu(b);
     if (a === "url") return askUrl(b);
     if (a === "pickapp") { const path = await native("pick"); return path ? addNative(path, b) : null; }
     if (a === "hide") return PR.dock.toggle(false);
@@ -351,6 +356,7 @@
       PR.menu(b, [
         { label: PR.t("回到首頁"), icon: "back", fn: () => { if (v && v.loadURL) v.loadURL(cur.url); else if (v) v.src = cur.url; } },
         { label: PR.t("用瀏覽器開這一頁"), icon: "popout", fn: () => window.open(here(), "_blank", "noopener") },
+        PR.dockAI && PR.dockAI.isAI(cur.url) ? { label: PR.t("換成 FOLI 的底色"), icon: "palette", checked: !cur.plain, fn: () => { cur.plain = !cur.plain; save(); if (v) PR.dockAI.reskin(v, cur); } } : null,
         { label: PR.t("複製這一頁的網址"), icon: "copy", fn: () => navigator.clipboard.writeText(here()).then(() => PR.toast(PR.t("已复制"), null, 1200)) },
         "-",
         { label: PR.t("從這一欄拿掉"), icon: "x", fn: () => { M.remove(st, cur.id); render(); } },

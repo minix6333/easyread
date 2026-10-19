@@ -36,6 +36,13 @@ class OpenLinkTest(unittest.TestCase):
     def test_unsafe_block_is_dropped(self):
         self.assertEqual(self.target(f"sha256={self.sha}&block=<x>"), f"/read/{self.ws.root.name}")
 
+    def test_page_and_phrase_for_ai_apps(self):  # 電腦上的 AI App 透過 MCP 請 FOLI 翻頁（mcp_server.go_to_page）
+        pid = self.ws.root.name
+        self.assertEqual(self.target(f"id={pid}&page=12"), f"/read/{pid}#page=12")
+        self.assertEqual(self.target(f"id={pid}&page=3&find=catastrophic%20forgetting"), f"/read/{pid}#page=3&find=catastrophic%20forgetting")
+        self.assertEqual(self.target(f"id={pid}&page=0"), f"/read/{pid}")
+        self.assertEqual(self.target(f"id={pid}&page=3x&block=p3-2"), f"/read/{pid}#p3-2")
+
     def test_version_reports_api_level(self):
         self.assertEqual(open_link.version()["api"], 1)
 

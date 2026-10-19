@@ -211,6 +211,11 @@ def cmd_migrate(a):
     out(f"已搬入文献库：{ws.id}（{ws.root}）")
 
 
+def cmd_mcp(a):
+    from . import mcp_server  # 一般的 import：打包（PyInstaller）才看得到要帶這個模組
+    mcp_server.main()
+
+
 def main(argv=None):
     if sys.stdout is None:  # pythonw 启动时没有控制台
         import os
@@ -236,6 +241,8 @@ def main(argv=None):
     p = sub.add_parser("demo"); p.add_argument("id"); p.add_argument("--out", default="docs/demo"); p.add_argument("--credit", help="署名和许可说明")
     p.set_defaults(fn=cmd_demo)
     p = sub.add_parser("migrate"); p.add_argument("folder"); p.set_defaults(fn=cmd_migrate)
+    p = sub.add_parser("mcp", help="給電腦上的 AI App（Claude、ChatGPT／Codex、Cursor）用的 MCP 伺服器（stdio）")
+    p.set_defaults(fn=cmd_mcp)
     a = ap.parse_args(argv)
     if not a.cmd:  # 直接运行 easyread：启动并打开浏览器
         a = ap.parse_args(["serve", "--open"])

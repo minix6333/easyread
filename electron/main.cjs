@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, shell, ipcMain, session, nativeTheme } = require("electron");
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain, session, nativeTheme, webContents } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -10,6 +10,7 @@ const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
 const deepLink = require("./deep-link.cjs");
 const { createNativeDock } = require("./native-dock.cjs");
+const embedBridge = require("./embed-bridge.cjs");
 
 // 視窗快取等放 %APPDATA%\EasyRead（預設會用 package.json 的 name，叫 easyread-desktop）。
 // 論文和設定不放這裡：打包後的後端預設用 ~/EasyRead，和 pip 安裝版同一個位置，使用者找得到、好備份。
@@ -311,10 +312,14 @@ app.on("web-contents-created", (_event, contents) => {
   contents.on("will-navigate", (event, target) => { if (!/^https?:\/\//i.test(target) || isLoopback(target)) event.preventDefault(); });
   contents.on("context-menu", (_e, params) => {
     const flags = params.editFlags || {};
+    const sel = (params.selectionText || "").trim();
+    // 外部工具欄裡的網頁（AI 的回答）選了字：可以存到正在讀的那份文件的筆記、在文件裡找、跳到裡面提到的那一頁（web/js/dock-ai.js 做）
+    const inDock = type === "webview" && mainWindow && !mainWindow.isDestroyed() && contents.hostWebContents === mainWindow.webContents;
+    const send = (msg) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("easyread:embed-action", { ...msg, id: contents.id }); };
     const items = params.isEditable
       ? [{ role: "undo", enabled: flags.canUndo }, { role: "redo", enabled: flags.canRedo }, { type: "separator" },
          { role: "cut", enabled: flags.canCut }, { role: "copy", enabled: flags.canCopy }, { role: "paste", enabled: flags.canPaste }, { type: "separator" }, { role: "selectAll" }]
-      : (params.selectionText || "").trim() ? [{ role: "copy" }] : [];
+      : sel ? [{ role: "copy" }, ...(inDock ? embedBridge.selectionItems(sel, isZh(), send) : [])] : [];
     if (items.length) Menu.buildFromTemplate(items).popup();
   });
 });
@@ -347,6 +352,17 @@ ipcMain.handle("easyread:native-dock", async (event, action, arg) => {
     try { return (await app.getFileIcon(String(arg || ""), { size: "normal" })).resize({ width: 36, height: 36 }).toDataURL(); } catch (_) { return ""; }
   }
   return null;
+});
+
+// 把檔案交給外部工具欄裡的 AI 網頁（「附上整份 PDF／這一頁」，見 embed-bridge.cjs）：只收主視窗上那幾個 webview、快取 share 資料夾裡的檔案
+ipcMain.handle("easyread:embed-files", async (event, arg) => {
+  trustedWindow(event);
+  const wc = webContents.fromId(Number(arg && arg.id));
+  if (!wc || wc.isDestroyed() || wc.getType() !== "webview" || wc.session !== session.fromPartition(EMBED_PARTITION)
+      || !mainWindow || mainWindow.isDestroyed() || wc.hostWebContents !== mainWindow.webContents) return { ok: false, error: "target" };
+  const files = embedBridge.checkFiles(arg && arg.files);
+  if (!files) return { ok: false, error: "files" };
+  try { return await embedBridge.giveFiles(wc, files, arg.at || null); } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
 ipcMain.handle("easyread:embed-clear", async event => {

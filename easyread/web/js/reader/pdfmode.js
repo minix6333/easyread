@@ -436,14 +436,15 @@
     if (!PR.pdfMain()) return;
     const target = asked > 0 ? asked : (PR.lastPage && PR.lastPage()) || 1;
     let touched = false;
+    const t0 = Date.now(), moved = () => touched || (PR.jumpedAt || 0) >= t0;  // 讀者自己捲了、點了，或有人明確翻到某一頁
     const sc = PR.$(".pv-scroll");
     const mark = () => { touched = true; };
     ["wheel", "mousedown", "touchstart"].forEach((ev) => sc && sc.addEventListener(ev, mark, { passive: true, once: true }));
     document.addEventListener("keydown", mark, { once: true });
     document.addEventListener("mousedown", mark, { once: true, capture: true });  // 點了任何地方（筆記、回答裡的頁碼連結…）也算：讀者已經在動了，不要再把他拉回「上次那一頁」
-    const go = () => { if (!touched && PR.pdfPage() !== target) PR.openPage(target, null, { instant: true }); };
-    setTimeout(() => { if (!touched) PR.openPage(target, null, { instant: true }); }, 50);
+    const go = () => { if (!moved() && PR.pdfPage() !== target) PR.openPage(target, null, { instant: true }); };
+    setTimeout(() => { if (!moved()) PR.openPage(target, null, { instant: true }); }, 50);
     [350, 900, 1800].forEach((ms) => setTimeout(go, ms));
-    if (target > 1 && !asked) setTimeout(() => { if (!touched) PR.toast(PR.t("接著上次：第 {page} 頁", { page: target }), null, 1800); }, 400);
+    if (target > 1 && !asked) setTimeout(() => { if (!moved()) PR.toast(PR.t("接著上次：第 {page} 頁", { page: target }), null, 1800); }, 400);
   });
 })(window.PR);

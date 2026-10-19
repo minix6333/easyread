@@ -25,4 +25,7 @@ def target(lib, query: dict[str, list[str]]) -> str:
     if ws is None:
         return "/"
     anchor = "#" + quote(block) if re.fullmatch(r"[A-Za-z0-9_\-]{1,64}", block) else ""
+    page, find = first("page"), re.sub(r"[\x00-\x1f]", "", first("find"))[:80]
+    if re.fullmatch(r"\d{1,5}", page) and int(page) >= 1:  # &page=12（&find=詞）：翻到那一頁、標出那個詞（閱讀頁 pdfmode.js 認 #page=）
+        anchor = f"#page={int(page)}" + (f"&find={quote(find)}" if find else "")
     return f"/read/{ws.root.name}{anchor}"

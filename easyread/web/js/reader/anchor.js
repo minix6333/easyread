@@ -138,6 +138,9 @@
     const pdf = pendingSel.side === "pdf";
     const key = (k) => (PR.keysOn ? PR.t("（{k}）", { k }) : "");
     const btn = (s, icon, title, cls) => '<button data-s="' + s + '"' + (cls ? ' class="' + cls + '"' : "") + ' title="' + title + '">' + PR.icon(icon, "sm") + "</button>";
+    // 右邊外部工具欄開著 ChatGPT 之類的 AI（外殼的 dock-ai.js）：選的字和出處可以直接貼進它的輸入框
+    let side = null;
+    try { side = window.parent !== window && window.parent.PR && window.parent.PR.dockAI ? window.parent.PR.dockAI.target() : null; } catch (e) { side = null; }
     bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：涂底色") + '">' + PR.icon("marker", "sm") + "</button>" +
       '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
@@ -150,6 +153,7 @@
       (PR.lexMatch && PR.lexMatch(pendingSel.quote) ? btn("term", "type", PR.t("術語：在這份文件裡是什麼意思")) : "") +
       (PR.store.mode === "server" && PR.excerptMenu ? btn("excerpt", "notebook", PR.t("加到筆記（可以直接拖進旁邊開著的筆記）") + key("E")) : "") +
       (canAsk && PR.chatOpen && PR.chatOpen() ? btn("chat", "quote", PR.t("引用到对话")) : "") +
+      (side ? btn("dockai", "panelright", PR.esc(PR.t("問右邊的 {name}", { name: side.name }))) : "") +
       (canAsk ? btn("question", "sparkle", PR.t("問 AI") + key("Q"), "primary") : btn("question", "l-message-circle", PR.t("提问") + key("Q")));
     bar.classList.add("open");
     if (pdf && canAsk && PR.warmQuick) PR.warmQuick();  // 選了字就先把選字翻譯的模型行程拉起來（不連網、不花額度）
@@ -179,6 +183,7 @@
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"), null, 1200)); return; }
     if (kind === "term") { const x = PR.lexMatch && PR.lexMatch(quote); if (x && PR.showLexCard) PR.showLexCard(x, rect); return; }  // 術語表裡有的詞（lexicon.js）
     if (kind === "chat") { PR.chatAsk({ anchor, quote, page }); return; }
+    if (kind === "dockai") { try { window.parent.PR.dockAI.ask(quote, page); } catch (e) { /* 外部工具欄剛收起來 */ } return; }
     if (kind === "translate") { if (side === "pdf" && PR.translateSelection) PR.translateSelection({ anchor, page, range, rects, quote }); return; }
     // PDF 上選的：記頁碼、字元範圍和框，錨到落在的那一段（可能沒有）；譯文上選的：原話＋前後文
     const note = side === "pdf" ? { anchor: anchor || null, page, range, rects, quote, kind, color: color || "yellow", side }

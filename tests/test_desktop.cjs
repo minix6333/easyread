@@ -14,7 +14,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     quit() { this.quitCalled = true; this.emit("before-quit", { preventDefault() {} }); },
     relaunch() { this.relaunched = true; }, exit() { this.exited = true; },
   });
-  const windows = [], launches = [], menus = [], stages = [], handlers = new Map();
+  const windows = [], launches = [], menus = [], stages = [], handlers = new Map(), guests = new Map();
   // 右邊嵌外部網頁用的儲存區（session.fromPartition("persist:embed")）：記下主程式對它設了什麼
   const embed = { setUserAgent(ua) { this.ua = ua; }, setPermissionRequestHandler(fn) { this.ask = fn; }, setPermissionCheckHandler(fn) { this.check = fn; },
     webRequest: { onBeforeRequest(fn) { embed.filter = fn; }, onBeforeSendHeaders(fn) { embed.headers = fn; } }, clearStorageData: async () => { embed.cleared = true; }, clearCache: async () => {} };
@@ -46,7 +46,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   };
   const proc = new EventEmitter();
   Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
-  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: { openExternal(url) { app.external = (app.external || []).concat(url); } }, session: { fromPartition(name) { embed.name = name; return embed; } } }
+  const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: { openExternal(url) { app.external = (app.external || []).concat(url); } }, session: { fromPartition(name) { embed.name = name; return embed; } }, webContents: { fromId: (id) => guests.get(id) || null } }
     : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
     : name === "http" ? { request(url, options, callback) {
       const req = new EventEmitter(); req.setTimeout = () => {}; req.end = () => queueMicrotask(() => {
@@ -60,6 +60,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     : name === "./desktop-updates.cjs" ? { registerUpdates() {} }
     : name === "./deep-link.cjs" ? require("../electron/deep-link.cjs")
     : name === "./native-dock.cjs" ? require("../electron/native-dock.cjs")
+    : name === "./embed-bridge.cjs" ? require("../electron/embed-bridge.cjs")
     : name === "electron-updater" ? { autoUpdater: {} }
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
     : require(name);
@@ -67,7 +68,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
   vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout, clearTimeout, console });
   const settled = () => new Promise(resolve => setImmediate(resolve));
   await settled();
-  return { app, windows, launches, menus, handlers, stages, settled, embed };
+  return { app, windows, launches, menus, handlers, stages, settled, embed, guests };
 }
 
 test("macOS keeps native editing roles and offers input context actions", async () => {
@@ -169,6 +170,39 @@ test("embedded web tools are locked down: own storage, no preload or Node, no lo
   let stopped = false;
   guest.emit("will-navigate", { preventDefault() { stopped = true; } }, "file:///etc/passwd");
   assert.equal(stopped, true);
+  d.app.quit();
+});
+
+test("selected text in an AI answer on the right can be saved, found or used to jump to a page; files only go to FOLI's own panel", async () => {
+  const d = await desktop();
+  const main = d.windows[0];
+  main.isDestroyed = () => false;
+  main.webContents.isDestroyed = () => false;
+  const sent = [];
+  main.webContents.send = (channel, msg) => sent.push([channel, msg]);
+  const guest = new EventEmitter();
+  Object.assign(guest, { id: 42, getType: () => "webview", hostWebContents: main.webContents, setWindowOpenHandler() {}, isDestroyed: () => false, session: d.embed });
+  d.app.emit("web-contents-created", {}, guest);
+  guest.emit("context-menu", {}, { isEditable: false, selectionText: "推導見第 3 頁", editFlags: {} });
+  const items = d.menus[d.menus.length - 1];
+  const same = (a, b) => assert.equal(JSON.stringify(a), JSON.stringify(b));  // vm 裡的物件和外面的字面值比 deepEqual 會不相等
+  same(items.filter((x) => x.label).map((x) => x.label), ["存到這份文件的筆記", "在文件裡找這段", "跳到第 3 頁"]);
+  items.find((x) => x.label === "跳到第 3 頁").click();
+  same(sent, [["easyread:embed-action", { action: "page", page: 3, id: 42 }]]);
+  // 不是掛在 FOLI 主視窗上的網頁（登入用的小彈窗之類）：只有複製
+  const popup = new EventEmitter();
+  Object.assign(popup, { id: 43, getType: () => "window", setWindowOpenHandler() {}, session: d.embed, isDestroyed: () => false });
+  d.app.emit("web-contents-created", {}, popup);
+  popup.emit("context-menu", {}, { isEditable: false, selectionText: "第 3 頁", editFlags: {} });
+  same(d.menus[d.menus.length - 1].map((x) => x.role || x.label), ["copy"]);
+  // 附檔：只交給主視窗上的外部工具欄網頁、只交 FOLI 快取 share 資料夾裡的檔案
+  const give = d.handlers.get("easyread:embed-files");
+  const from = { sender: main.webContents, senderFrame: main.webContents.mainFrame };
+  d.guests.set(43, popup);
+  same(await give(from, { id: 43, files: ["/tmp/cache/abcd1234/share/x.pdf"] }), { ok: false, error: "target" });
+  d.guests.set(42, guest);
+  same(await give(from, { id: 42, files: ["/etc/hosts"] }), { ok: false, error: "files" });
+  await assert.rejects(() => give({ sender: {}, senderFrame: {} }, { id: 42, files: [] }), /Untrusted/);
   d.app.quit();
 });
 

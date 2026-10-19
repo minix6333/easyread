@@ -150,3 +150,16 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
 @media (max-width: 560px) { .engine-cards:not(.mc-cards) { grid-template-columns: 1fr; } }
 .mc-cards .mc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; padding-top: 8px; }
 .mc-cards .mc-tags .badge { margin: 0; }
+
+/* 設定 →「外部 AI」（settings-apps.js）：電腦上的 AI App 一列一個——字母方塊、名字和狀態、連接／拿掉 */
+.ai-apps { display: flex; flex-direction: column; gap: 6px; }
+.ai-app { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--fill); }
+.ai-app.off { opacity: .55; }
+.ai-app .ltr { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--tint); color: #fff; font: 600 13px/1 var(--ui); font-style: normal; letter-spacing: -.02em; }
+.ai-app .ltr svg { width: 17px; height: 17px; }
+.ai-app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ai-app-body b { font: 600 13.5px/1.3 var(--ui); color: var(--ink); }
+.ai-app-body span { font: 12px/1.4 var(--ui); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-app.on .ai-app-body span { color: var(--ok, var(--accent)); }
+.ai-notes { margin: 0; padding-left: 1.2em; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+.ai-notes li { margin: 2px 0; }
