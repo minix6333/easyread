@@ -101,6 +101,11 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
     near(look.main, sheet) && near(look.body, sheet) && !near(look.composer, sheet) && !/^rgb\(33, 33, 33\)/.test(look.composer) && look.literal !== "rgb(11, 11, 11)" &&
     look.text === "rgb(236, 236, 236)" && look.brand === "rgb(16, 163, 127)", { sheet, look });
 
+  if (opt("--shot", "")) {  // --shot 檔名：換好底色、標好頁碼的樣子截一張（給人看）
+    await sleep(400);
+    const b = await js("(() => { const r = document.querySelector('#dock').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()");
+    fs.writeFileSync(opt("--shot", ""), (await wc.capturePage({ x: Math.floor(b.x), y: Math.floor(b.y), width: Math.ceil(b.w), height: Math.ceil(b.h) })).toPNG());
+  }
   step = "plain colours";
   await js("(() => { const a = PR.dock.current(); a.plain = true; return PR.dockAI.reskin(document.querySelector('#dock webview.dock-view'), a).then(() => 1); })()");
   const plain = await g.executeJavaScript("getComputedStyle(document.querySelector('main')).backgroundColor");
