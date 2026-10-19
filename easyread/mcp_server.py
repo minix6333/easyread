@@ -1,6 +1,7 @@
 """讓電腦上的 AI App（Claude、ChatGPT／Codex、Cursor、Claude Code…）讀得到、碰得到 FOLI：一個 MCP 伺服器（stdio）。
 那些 App 的設定裡加一個「easyread mcp」的伺服器（設定頁「外部 AI App」有一鍵加，見 mcp_setup.py），它們就多了這幾個工具：
-- 讀：現在在看哪一份、第幾頁、選了什麼字（current，要 FOLI 開著）；文獻庫清單；某幾頁的原文（整頁是圖的，用看圖讀出來的字）；
+- 讀：現在在看哪一份、第幾頁、選了什麼字（current，要 FOLI 開著）；文獻庫清單；某幾頁的原文（整頁是圖的，用看圖讀出來的字；
+  還沒看圖讀過、抽出來是亂碼或公式讀不出來的頁，連那一頁的圖一起給，讓那個 App 自己看）；
   全文搜尋；這份文件的筆記、畫線、提問。
 - 寫：在某一頁加一則筆記；把回答存成提問紀錄（問題是標題、回答是正文，署名是那個 App）；請 FOLI 翻到某一頁（沒開會打開）。
 資料直接讀文獻庫的檔案（和 FOLI 同一個資料夾、同一套跨行程的鎖，handoff.py），所以 FOLI 沒開也能讀、能寫；
@@ -9,26 +10,30 @@
 """
 from __future__ import annotations
 
+import base64
+import io
 import json
 import re
 import subprocess
 import sys
 import urllib.request
 
-from . import VERSION, config, docmap, handoff, search
+from . import VERSION, config, derive, docmap, handoff, pagevision, search
 from .library import Library
 from .log import log
 from .store import Workspace, read_json
 
 PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 PAGE_CHARS = 40000   # read_pages 一次最多給幾個字
+PAGE_IMAGES = 4      # read_pages 一次最多附幾頁的圖（一張約 150 KB；太多 App 會嫌回應太大）
+IMAGE_SIDE = 1400    # 附的圖長邊最多幾個像素：公式的上下標還看得清楚
 NAMES = {"claude-ai": "Claude", "claude": "Claude", "claude-code": "Claude Code", "codex": "Codex", "codex-mcp-client": "Codex",
          "chatgpt": "ChatGPT", "cursor": "Cursor", "cursor-vscode": "Cursor", "gemini-cli": "Gemini", "vscode": "VS Code", "windsurf": "Windsurf"}
 
 INSTRUCTIONS = (
     "FOLI is the user's PDF reader and research library (papers, slides, lecture notes). "
     "Start with `current` to see which document and page the user is reading and what they selected; "
-    "then `read_pages` for the text (pages that are images were transcribed), `search` across the library, `get_notes` for their highlights and notes. "
+    "then `read_pages` for the text (pages that are images were transcribed; pages whose text or formulas did not extract cleanly come with the page image — read those from the image), `search` across the library, `get_notes` for their highlights and notes. "
     "When you cite, give page numbers. With the user's consent you can `add_note`, `save_answer` (keeps your answer as a Q&A card on that page) "
     "or `go_to_page` to show them a page in FOLI.")
 
@@ -38,7 +43,8 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {}}, "annotations": {"readOnlyHint": True}},
     {"name": "list_documents", "description": "List documents in the user's FOLI library (most recently opened first), optionally filtered by words in the title, authors or tags.",
      "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}}}, "annotations": {"readOnlyHint": True}},
-    {"name": "read_pages", "description": "Read the text of pages of a document (1-based, inclusive). Pages that are images or scans contain FOLI's transcription. Long ranges are cut at about 40,000 characters.",
+    {"name": "read_pages", "description": "Read the text of pages of a document (1-based, inclusive). Pages that are images or scans contain FOLI's transcription; "
+     "pages whose text or formulas could not be extracted cleanly also come with an image of the page (up to 4 per call). Long ranges are cut at about 40,000 characters.",
      "inputSchema": {"type": "object", "properties": {"doc_id": DOC, "start": {"type": "integer", "minimum": 1}, "end": {"type": "integer", "minimum": 1}}, "required": ["start"]},
      "annotations": {"readOnlyHint": True}},
     {"name": "search", "description": "Full-text search across the whole library (or one document): returns documents and pages with snippets. Also searches the user's notes.",
@@ -64,6 +70,23 @@ class Fail(Exception):
 
 def _lib() -> Library:
     return Library(config.library_dir())
+
+
+def _page_jpeg(ws: Workspace, n: int) -> str | None:
+    """第 n 頁的圖：長邊最多 IMAGE_SIDE、JPEG，base64。做不出來回 None（只給字）。"""
+    try:
+        src = derive.page_image(ws.root, n)
+        if not src:
+            return None
+        from PIL import Image
+        with Image.open(src) as im, im.convert("RGB") as rgb:
+            rgb.thumbnail((IMAGE_SIDE, IMAGE_SIDE))
+            buf = io.BytesIO()
+            rgb.save(buf, "JPEG", quality=80)
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:  # noqa: BLE001
+        log.exception("MCP：第 %s 頁的圖做不出來 %s", n, ws.id)  # i18n-ok 記錄
+        return None
 
 
 def _live(path: str, timeout: float = 2.0):
@@ -115,8 +138,9 @@ class Server:
                 if not fn or name not in {t["name"] for t in TOOLS}:
                     return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": f"unknown tool: {name}"}}
                 try:
-                    text = fn(args if isinstance(args, dict) else {})
-                    return {"jsonrpc": "2.0", "id": mid, "result": {"content": [{"type": "text", "text": text}], "isError": False}}
+                    out = fn(args if isinstance(args, dict) else {})  # 字串，或已經排好的內容（字＋圖）
+                    content = out if isinstance(out, list) else [{"type": "text", "text": out}]
+                    return {"jsonrpc": "2.0", "id": mid, "result": {"content": content, "isError": False}}
                 except Fail as e:
                     return {"jsonrpc": "2.0", "id": mid, "result": {"content": [{"type": "text", "text": str(e)}], "isError": True}}
             return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"method not found: {method}"}}
@@ -182,7 +206,7 @@ class Server:
                  "tags": i.get("tags") or None, "last_opened": i.get("last_opened") or None} for i in items[:limit]]
         return json.dumps([{k: v for k, v in r.items() if v} for r in rows], ensure_ascii=False, indent=1) + (f"\n({len(items) - limit} more)" if len(items) > limit else "")
 
-    def t_read_pages(self, args: dict) -> str:
+    def t_read_pages(self, args: dict):
         ws = self._ws(args)
         texts = docmap.page_texts(ws)
         if not texts:
@@ -191,15 +215,36 @@ class Server:
         end = min(len(texts), int(args.get("end") or start))
         if start > len(texts):
             raise Fail(f"The document has {len(texts)} pages.")
-        parts, used = [f"《{handoff.title(ws)}》 pages {start}–{end} of {len(texts)}"], 0  # i18n-ok 給模型看的
+        # 要看圖才讀得準、FOLI 還沒看過的頁（整頁是圖、亂碼、公式的上下標變成別的文字）：附上那一頁的圖，讓那個 App 自己看
+        try:
+            seen = pagevision.load(ws.root).get("pages") or {}
+            unseen = {n for n in pagevision.scan(ws.root) if str(n) not in seen}
+        except Exception:  # noqa: BLE001 —— 量不了就照舊只給字
+            unseen = set()
+        parts, images, later, used = [f"《{handoff.title(ws)}》 pages {start}–{end} of {len(texts)}"], [], [], 0  # i18n-ok 給模型看的
         for n in range(start, end + 1):
-            body = (texts[n - 1] or "").strip() or "(no text on this page)"
+            body = (texts[n - 1] or "").strip()
             if used + len(body) > PAGE_CHARS and n > start:
                 parts.append(f"[stopped at page {n - 1}: too long; ask for page {n} onwards separately]")
                 break
-            parts.append(f"=== page {n} ===\n{body}")
             used += len(body)
-        return "\n\n".join(parts)
+            img = _page_jpeg(ws, n) if n in unseen and len(images) < PAGE_IMAGES else None
+            if img:
+                images.append((n, img))
+                body = (f"[The text layer of page {n} is unreliable (formulas or text came out garbled) — read page {n} from the attached image.]"
+                        + ("\n" + body if body else ""))
+            elif n in unseen:
+                later.append(n)
+            parts.append(f"=== page {n} ===\n{body or '(no text on this page)'}")
+        if later:
+            parts.append(f"[pages {', '.join(map(str, later))} also need to be read from images; call read_pages for them separately]")
+        text = "\n\n".join(parts)
+        if not images:
+            return text
+        out = [{"type": "text", "text": text}]
+        for n, data in images:
+            out += [{"type": "text", "text": f"Image of page {n}:"}, {"type": "image", "data": data, "mimeType": "image/jpeg"}]
+        return out
 
     def t_search(self, args: dict) -> str:
         q = str(args.get("query") or "").strip()

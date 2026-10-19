@@ -69,6 +69,18 @@ class PageVision(unittest.TestCase):
         self.assertEqual(pagevision.overlay(root, 1, junk), "")  # 還沒看過：亂碼不給 AI、不進搜尋
         self.assertEqual(pagevision.overlay(root, 1, prose), prose)
 
+    def test_formulas_whose_subscripts_came_out_as_indic_letters(self):
+        # PowerPoint 的數學字型轉成 PDF：上下標被對到泰米爾、奧里亞文字（𝑎௜(௞) 是 a_i^(k)、𝑛௞ିଵ 是 n_{k-1}）
+        slide = "Neuron\n𝑎௜\n(௞) Σ\n𝑎ଵ\n(௞ିଵ)\n𝑧௜\n(௞)\nThere are 𝑛௞ିଵ neurons in the previous layer = 𝑓 ௞ 𝑾௜"
+        self.assertTrue(pagevision.misfont(slide))
+        self.assertFalse(pagevision.garbled(slide))  # 一般的字是好的：不是整頁亂碼
+        self.assertTrue(pagevision.misfont("Probability of an Event\n• 𝑃 ∅ = 0\n• 𝑃 𝐴 ∩ 𝐵ത = 𝑃 𝐴 − 𝑃 𝐴 ∩ 𝐵"))  # 一個就算：ത 是上橫線
+        self.assertFalse(pagevision.misfont("𝑃(𝐴|𝐵) = 𝑃(𝐴 ∩ 𝐵)/𝑃(𝐵)"))  # 公式好好的
+        self.assertFalse(pagevision.misfont("प्रायिकता सिद्धांत में घटनाओं की संभावना का अध्ययन किया जाता है, जैसे 𝑃(𝐴) और 𝑃(𝐵)।"))  # 真的印地文
+        self.assertFalse(pagevision.misfont("நிகழ்தகவு கோட்பாட்டில் நிகழ்வுகளின் வாய்ப்பு படிக்கப்படுகிறது"))  # 真的泰米爾文、沒有公式
+        root = _paper(self.tmp / "slides", 1)
+        self.assertEqual(pagevision.overlay(root, 1, slide), slide)  # 還沒看過圖：標題、句子照樣給（只有公式要看圖）
+
     def test_background_reading_is_one_at_a_time_and_not_fast(self):
         root = _paper(self.tmp / "bgread", 3)
         calls = []

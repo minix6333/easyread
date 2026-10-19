@@ -111,7 +111,8 @@
       if (!saved || typeof saved !== "object") return st;
       st.apps = (Array.isArray(saved.apps) ? saved.apps : []).map((a) => (a && a.kind === "app"
         ? { id: String(a.id || ""), kind: "app", path: /^\/.+\.app$/i.test(a.path || "") ? a.path : "", name: String(a.name || "").slice(0, 60), icon: /^data:image\/png;base64,[\w+/=]+$/.test(a.icon || "") ? a.icon : "" }
-        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "", plain: !!(a && a.plain), noPage: !!(a && a.noPage) }))
+        : { id: String((a && a.id) || ""), url: M.url(a && a.url), name: String((a && a.name) || "").slice(0, 60), icon: /^https:\/\//.test((a && a.icon) || "") ? a.icon : "", plain: !!(a && a.plain), noPage: !!(a && a.noPage), noProject: !!(a && a.noProject),
+            project: a && a.project && /^\/[\w\/-]{3,120}$/.test(a.project.path || "") ? { path: a.project.path, name: String(a.project.name || "").slice(0, 60) } : null }))
         .filter((a) => a.id && (a.url || a.path)).slice(0, 12);
       st.nw = Number(saved.nw) > 0 ? Number(saved.nw) : 480;
       st.seq = Math.max(Number(saved.seq) || 0, st.apps.length);
@@ -130,7 +131,7 @@
   if (!desktop && !demo) return;
 
   const st = M.load(PR.ls.get(KEY, null));
-  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon, plain: !!a.plain, noPage: !!a.noPage })), active: st.active, seq: st.seq });
+  const save = () => PR.ls.set(KEY, { open: st.open, w: st.w, nw: st.nw, apps: st.apps.map((a) => (a.kind === "app" ? { id: a.id, kind: "app", path: a.path, name: a.name, icon: a.icon } : { id: a.id, url: a.url, name: a.name, icon: a.icon, plain: !!a.plain, noPage: !!a.noPage, noProject: !!a.noProject, project: a.project || null })), active: st.active, seq: st.seq });
   const native = desktop && window.easyreadDesktop.platform === "darwin" && typeof window.easyreadDesktop.nativeDock === "function" ? window.easyreadDesktop.nativeDock : null;
   let nativeOn = null;  // 現在貼在旁邊的那個程式（apps 裡的 id）；沒有就是 null
   const root = document.documentElement;
@@ -156,7 +157,7 @@
     v.className = "dock-view";
     v.dataset.app = app.id;
     if (desktop) { v.setAttribute("partition", "persist:embed"); v.setAttribute("allowpopups", ""); }
-    v.setAttribute("src", app.url);
+    v.setAttribute("src", (PR.dockAI && desktop && PR.dockAI.home(app)) || app.url);  // ChatGPT／Claude 有「FOLI」專案：直接開專案頁
     if (PR.dockAI) PR.dockAI.wire(v, app);  // 認得的 AI 網站：讀得到正在讀的文件、回答裡的頁碼點得回來、換成 FOLI 的底色（dock-ai.js）
     if (desktop) {
       v.addEventListener("page-title-updated", (e) => { app.title = String(e.title || "").slice(0, 80); paintHead(); });

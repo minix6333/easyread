@@ -3,7 +3,8 @@ AI 就讀不到那一頁。這裡挑出這種頁，請能看圖的模型照實�
 之後問 AI、問整個文獻庫、全文搜尋、預讀用的都是這份文字（docmap.page_texts、search._paper_pages、chat._page_text 疊上去）。
 
 - 哪些頁要看（scan）：抽得出的字很少、但頁面上有東西；或內容圖片佔了一大塊、字又不多；
-  或抽出來是亂碼（字型沒有對應表：`! #"%$'&() *,+.-"/0214`——字數很多，但英文字母兩兩相連幾乎都不像英文）。
+  或抽出來是亂碼（字型沒有對應表：`! #"%$'&() *,+.-"/0214`——字數很多，但英文字母兩兩相連幾乎都不像英文）；
+  或公式的上下標抽出來變成印度系文字（misfont：PowerPoint、Word 的數學字型轉成 PDF 常見，`𝑎௜(௞)` 其實是 a_i^(k)）。
   每一頁都在同一個位置的圖（投影片的底圖、頁首的商標）不算內容，先排除——不然整份投影片都會被當成圖。
 - 存在文件資料夾的 vision.json（跟著同步，另一台不用再看一次）：
   {"v": 1, "sig": PDF 的指紋, "scan": [要看的頁], "pages": {"3": "…"}, "model": "…", "at": "…"}
@@ -15,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -31,7 +33,9 @@ NOW_WORKERS = 3    # 讀者在等的時候：同時送幾個
 NOW_PAGES = 12     # 問的時候當場看的上限（讀者在等）
 AUTO_PAGES = 40    # 背景自動看的上限；再多就等讀者問到那幾頁
 LATER_DOCS = 4     # 問一個分類／整個文獻庫時，當場看不完的：一問最多排幾份到背景
-SCAN_VERSION = 2   # 判斷的方法改了就加一：每台電腦上量過的快取重量一次
+SCAN_VERSION = 3   # 判斷的方法改了就加一：每台電腦上量過的快取重量一次（3：公式上下標變成印度系文字的頁也要看）
+_INDIC = re.compile(r"[\u0900-\u0DFF]")  # i18n-ok 字元範圍：天城文到僧伽羅文（每一種文字一段 128 個字碼）
+_MATH_LETTER = re.compile(r"[\U0001D400-\U0001D7FF]")  # i18n-ok 字元範圍：數學字母（𝑎、𝑊、𝒃…）
 _MEANING = re.compile(r"[A-Za-z0-9㐀-䶿一-鿿぀-ヿ가-힯]")  # i18n-ok 字元範圍
 # 英文裡常見的兩個字母連在一起（約 300 組）。正常的英文頁（含公式、程式、表格）有七成以上的字母對在這裡面；
 # 亂碼頁（字型沒有對應表）只有兩三成到五成
@@ -166,7 +170,7 @@ def _measure(root: Path) -> list[dict]:
     out = []
     for r, t in zip(rows, texts):
         cover = sum((b[2] - b[0]) * (b[3] - b[1]) for b in r["imgs"] if b not in template) / max(1.0, r["area"])
-        out.append({"chars": len(_MEANING.findall(t)), "cover": min(1.0, cover), "objs": r["objs"], "garbled": garbled(t)})
+        out.append({"chars": len(_MEANING.findall(t)), "cover": min(1.0, cover), "objs": r["objs"], "garbled": garbled(t) or misfont(t)})
     return out
 
 
@@ -179,6 +183,19 @@ def garbled(text: str) -> bool:
     if len(pairs) < 24 or len(set(pairs)) < 20:
         return False
     return sum(p in _PAIRS for p in pairs) / len(pairs) < 0.6
+
+
+def misfont(text: str) -> bool:
+    """公式的上下標抽出來是亂碼：數學字型沒有對應表，上下標被對到泰米爾、奧里亞、泰盧固…文字的字碼上（`𝑎௜(௞)` 是 a_i^(k)、
+    `𝑛௞ିଵ` 是 n_{k-1}）。這種頁一般的字（標題、句子）是好的，只有公式讀不出來——所以不像 garbled 那樣整頁當作沒有字，
+    只是要看圖。認法：同一頁有至少 3 個數學字母，又有印度系文字（一個就算：`𝐵ത` 的 ത 是上橫線），而且混了兩種以上的文字、
+    有還沒定義的字碼，或只佔一小部分（真的印地文、泰米爾文文件是一種文字佔大部分）。"""
+    ind = _INDIC.findall(text or "")
+    if not ind or len(_MATH_LETTER.findall(text)) < 3:
+        return False
+    if len({ord(c) >> 7 for c in ind}) >= 2 or any(unicodedata.category(c) == "Cn" for c in ind):
+        return True
+    return len(ind) * 3 < len(re.sub(r"\s", "", text))
 
 
 def needs_vision(m: dict) -> bool:

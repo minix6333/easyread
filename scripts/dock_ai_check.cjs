@@ -2,7 +2,8 @@
 // 用一個本機的假 AI 網頁（深色底、一則有頁碼和公式的回答、上傳欄位、輸入框）嵌進右邊，逐項看：
 // 底色換成 FOLI 面板的、回答裡的頁碼標出來而且點了會翻頁、附上這一頁（交給上傳欄位；沒有欄位時拖進輸入框）、
 // 閱讀頁選字「問右邊的…」貼進輸入框、最後一則回答存成提問紀錄（公式還原成 TeX）、回答上按右鍵的翻頁、
-// 在它的輸入框按 Enter／送出鈕：先附上正在讀的那一頁、等它「上傳」完才送出（同一段對話同一頁不重附、問整份加上 PDF、可以關掉）。
+// 在它的輸入框按 Enter／送出鈕：先附上正在讀的那一頁、等它「上傳」完才送出（同一段對話同一頁不重附、問整份加上 PDF、可以關掉）、
+// 新對話放進 ChatGPT／Claude 的「FOLI」專案（側邊欄、網站自己的專案清單找得到；按新對話換回專案頁；專案刪了不來回跳）。
 // 不連任何外部網站；存進去的筆記最後刪掉。
 //   node_modules/.bin/electron scripts/dock_ai_check.cjs <論文 id> [--base URL]
 const { app, BrowserWindow, ipcMain, webContents } = require("electron");
@@ -21,7 +22,7 @@ process.on("unhandledRejection", fail);
 setTimeout(() => fail(new Error("TIMEOUT")), 150000);
 if (!pid) { console.log("FAILED — 要給一篇論文的 id"); process.exit(2); }
 
-const MOCK = (input, sneaky) => `<!doctype html><html class="dark"><head><meta charset="utf-8"><style>
+const MOCK = (input, sneaky, projects) => `<!doctype html><html class="dark"><head><meta charset="utf-8"><style>
 :root { --surface-0: #000000; --surface-1: #212121; --surface-2: #303030; --text: #ececec; --brand: #10a37f; }
 html, body { margin: 0; height: 100%; background: var(--surface-0); color: var(--text); font: 15px system-ui; }
 main { position: fixed; inset: 0; background: var(--surface-0); display: flex; flex-direction: column; }
@@ -32,6 +33,7 @@ main { position: fixed; inset: 0; background: var(--surface-0); display: flex; f
 textarea { width: 100%; height: 48px; background: transparent; color: inherit; border: 0; outline: 0; font: inherit; }
 button.send { background: var(--brand); }
 </style></head><body><main>
+${projects ? '<nav><a href="/g/g-p-0123456789abcdef0123456789abcdef-other/project">Other</a><a href="/g/g-p-0123456789abcdef0123456789abcdef-foli/project"><span>FOLI</span></a><a href="/g/g-p-0123456789abcdef0123456789abcdef-foli/c/6a1b2c3d">FOLI notes chat</a></nav>' : ""}
 <div class="thread">
   <div data-message-author-role="user" class="bubble">連續的隨機變數，期望值為什麼要用積分？</div>
   <div data-message-author-role="assistant" class="answer"><p>先看<strong>第 3 頁</strong>的定義，例子在 p. 5。</p>
@@ -63,7 +65,20 @@ ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { 
 app.commandLine.appendSwitch("host-resolver-rules", "MAP foli-mock.test 127.0.0.1");
 app.whenReady().then(async () => {
   step = "mock server";
-  const server = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(MOCK(!/noinput/.test(req.url), /sneaky/.test(req.url))); });
+  // 假網站也照 ChatGPT、Claude 的格式回專案清單；/g/g-p-dead… 是被刪掉的專案（送回首頁）
+  const served = [];
+  let auth = "";
+  const json = (res, o) => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(o)); };
+  const server = http.createServer((req, res) => {
+    served.push(req.url);
+    if (req.url === "/api/auth/session") return json(res, { accessToken: "tok-123", user: { name: "x" } });
+    if (req.url.startsWith("/backend-api/gizmos/snorlax/sidebar")) { auth = req.headers.authorization || ""; return json(res, { items: [{ gizmo: { gizmo: { id: "g-p-0000", short_url: "g-p-0000-school", display: { name: "School" } } } }, { gizmo: { gizmo: { id: "g-p-abcdefabcdefabcdefabcdefabcdefab", short_url: "g-p-abcdefabcdefabcdefabcdefabcdefab-foli", display: { name: "FOLI" } }, conversations: { items: [] } } }], cursor: null }); }
+    if (req.url === "/api/organizations") return json(res, [{ uuid: "99999999-8888-7777-6666-555555555555", name: "My org" }]);
+    if (req.url === "/api/organizations/99999999-8888-7777-6666-555555555555/projects") return json(res, [{ uuid: "00000000-2222-3333-4444-555555555555", name: "Thesis" }, { uuid: "11111111-2222-3333-4444-555555555555", name: "FOLI" }]);
+    if (/\/g\/g-p-dead/.test(req.url)) { res.writeHead(302, { Location: "/" }); return res.end(); }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(MOCK(!/noinput/.test(req.url), /sneaky/.test(req.url), /projects/.test(req.url)));
+  });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const mock = "http://foli-mock.test:" + server.address().port + "/";
   // 預載：和桌面版的 preload 一樣的那幾個（這裡的主程序自己接 embed-files，用的是同一份 embed-bridge.cjs）
@@ -289,6 +304,42 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   await sleep(700);
   const r10 = await askIt("上傳中按送出它不理的網站");
   check("上傳時送出鈕看起來能按、但按了不理的網站：傳完再按一次，只送出一則", r10.sent.length === 1 && JSON.stringify(files(r10)) === '["p9.jpg"]' && r10.afterUpload, r10);
+
+  step = "project";
+  // ChatGPT／Claude 的「FOLI」專案：側邊欄找得到就記住、換到專案頁；按「新對話」回到首頁時再換回去；關掉就不換；專案刪了不來回跳；
+  // 側邊欄沒有時問網站自己的專案清單（假網頁照 ChatGPT、Claude 的格式回）
+  const FOLI = "/g/g-p-0123456789abcdef0123456789abcdef-foli/project", API_FOLI = "/g/g-p-abcdefabcdefabcdefabcdefabcdefab-foli/project";
+  const pathNow = () => { try { return new URL(g.getURL()).pathname; } catch (e) { return ""; } };
+  const waitPath = async (p, n) => { for (let i = 0; i < (n || 60) && pathNow() !== p; i++) await sleep(100); return pathNow(); };
+  const reset = "(() => { const a = PR.dock.current(), v = " + V + "; a.project = null; a.noProject = false; v._looked = false; v._homing = false; return 1; })()";
+  await js("localStorage.setItem('easyread-dockai-site', 'chatgpt'); " + reset);
+  await g.loadURL(mock + "?projects=1");
+  const p1 = await waitPath(FOLI, 100);
+  const stored = await js("JSON.stringify(PR.dock.current().project)"), kept1 = JSON.parse(await js("localStorage.getItem('easyread-dock')")).apps[0].project;
+  check("ChatGPT 側邊欄有「FOLI」專案：找到、記住，換到專案頁（新對話從那裡開始）", p1 === FOLI && stored === JSON.stringify({ path: FOLI, name: "FOLI" }) && kept1 && kept1.path === FOLI, { p1, stored, kept1 });
+  for (let i = 0; i < 100 && !(await g.executeJavaScript("!!window.__foliGuest").catch(() => false)); i++) await sleep(100);
+  await g.executeJavaScript("history.pushState(null, '', '/'); 1");  // 在它那邊按「新對話」
+  await sleep(400);
+  const p2 = await waitPath(FOLI, 60);
+  check("在它那邊按「新對話」（回到首頁）：換回 FOLI 專案頁", p2 === FOLI, { p2 });
+  for (let i = 0; i < 100 && !(await g.executeJavaScript("!!window.__foliGuest").catch(() => false)); i++) await sleep(100);
+  await js("PR.dockAI.project(" + V + ", PR.dock.current(), false)");
+  await g.executeJavaScript("history.pushState(null, '', '/'); 1");
+  await sleep(1200);
+  const p3 = pathNow(), off = JSON.parse(await js("localStorage.getItem('easyread-dock')")).apps[0].noProject;
+  check("迴紋針裡關掉「新對話放進專案」：按新對話就留在一般的新對話，設定記住", p3 === "/" && off === true, { p3, off });
+  await js("(() => { const a = PR.dock.current(); a.project = { path: '/g/g-p-dead0000000000000000000000000000-foli/project', name: 'FOLI' }; return PR.dockAI.project(" + V + ", a, true); })()");
+  await sleep(2500);
+  const gone = await js("PR.dock.current().project"), p4 = pathNow(), loads = served.filter((u) => /dead/.test(u)).length;
+  check("專案被刪了（換過去又被送回首頁）：忘掉它、說一聲，不會來回跳", gone === null && p4 === "/" && loads === 1, { gone, p4, loads });
+  await js(reset);
+  await g.loadURL(mock);
+  const p5 = await waitPath(API_FOLI, 100);
+  check("側邊欄沒有專案的連結（視窗窄、收起來了）：問 ChatGPT 自己的專案清單找到「FOLI」", p5 === API_FOLI && auth === "Bearer tok-123", { p5, auth });
+  for (let i = 0; i < 100 && !(await g.executeJavaScript("!!window.__foliGuest").catch(() => false)); i++) await sleep(100);
+  const claude = await g.executeJavaScript("window.__foliGuest.init({ pages: 0, hold: true, site: 'claude' }) && window.__foliGuest.findProject('FOLI')");
+  check("Claude：從它的專案清單找到「FOLI」（/project/<uuid>）", claude && claude.path === "/project/11111111-2222-3333-4444-555555555555" && claude.name === "FOLI", claude);
+  await js("localStorage.removeItem('easyread-dockai-site'); " + reset);
 
   step = "cleanup";
   await cleanup();

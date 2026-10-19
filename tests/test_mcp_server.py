@@ -102,6 +102,33 @@ class McpServer(unittest.TestCase):
         text, err = self.talk.tool("current")
         self.assertIn("FOLI is not open", text)
 
+    def test_pages_that_need_an_image_come_with_one(self):
+        import base64
+        from PIL import Image
+        d = self.tmp / "aaaa1111"
+        imgs = [Image.new("RGB", (600, 800), c) for c in ("white", "lightyellow", "lightblue")]
+        imgs[0].save(d / "source.pdf", "PDF", save_all=True, append_images=imgs[1:], resolution=72)
+        talk = lambda **a: self.talk({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "read_pages", "arguments": a}})[0]["result"]  # noqa: E731
+        with mock.patch.object(mcp_server.pagevision, "scan", return_value=[2, 3]):  # 第 2、3 頁抽出來的字靠不住（公式亂碼、整頁是圖）
+            r = talk(doc_id="aaaa1111", start=1, end=3)
+            kinds = [c["type"] for c in r["content"]]
+            self.assertEqual(kinds, ["text", "text", "image", "text", "image"])
+            self.assertIn("=== page 1 ===\nIntroduction.", r["content"][0]["text"])
+            self.assertIn("[The text layer of page 2 is unreliable", r["content"][0]["text"])
+            self.assertIn("Projection sampling", r["content"][0]["text"])  # 抽出來的字還是給（標題、句子是好的）
+            self.assertEqual((r["content"][1]["text"], r["content"][2]["mimeType"]), ("Image of page 2:", "image/jpeg"))
+            self.assertEqual(base64.b64decode(r["content"][2]["data"])[:3], b"\xff\xd8\xff")  # 真的是 JPEG
+            only1 = talk(doc_id="aaaa1111", start=1)
+            self.assertEqual([c["type"] for c in only1["content"]], ["text"])  # 好好的頁：只有字
+            with mock.patch.object(mcp_server, "PAGE_IMAGES", 1):  # 一次最多附一張：其餘的請它另外叫
+                r = talk(doc_id="aaaa1111", start=1, end=3)
+                self.assertEqual([c["type"] for c in r["content"]], ["text", "text", "image"])
+                self.assertIn("[pages 3 also need to be read from images", r["content"][0]["text"])
+            (d / "vision.json").write_text(json.dumps({"v": 1, "sig": mcp_server.pagevision.signature(d), "pages": {"2": "page two read from the image"}}), encoding="utf-8")
+            r = talk(doc_id="aaaa1111", start=2, end=3)
+            self.assertEqual([c["type"] for c in r["content"]], ["text", "text", "image"])  # 第 2 頁 FOLI 看圖讀過了：給讀出來的字，不附圖
+            self.assertIn("page two read from the image", r["content"][0]["text"])
+
     def test_writing_back_a_note_and_an_answer(self):
         self.talk({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "codex-mcp-client"}}})
         text, err = self.talk.tool("save_answer", doc_id="aaaa1111", page=2, question="投影取樣在做什麼？", answer="讓資料留在模型原本的分布附近（第 2 頁）。")

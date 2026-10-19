@@ -5,7 +5,8 @@
       越接近文字的顏色動得越少，文字色不動。算出來的 CSS 交回給 FOLI，由 FOLI 用 insertCSS 放上去（不受網站的 CSP 限制）。
    2. 回答裡的頁碼（第 5 頁、p. 5、pp. 3–4、第 3 張投影片）用 CSS 的「自訂標示」（Highlight API：只標範圍，不改 DOM）標成強調色，
       滑過去是手指，點了請 FOLI 翻到那一頁。
-   3. 讀者送出問題時先攔一下，請 FOLI 附上正在讀的那一頁，傳完再替讀者送出（hold 開著時；外部工具欄的迴紋針裡可以關）。
+   3. 讀者送出問題時先攔一下，請 FOLI 附上正在讀的那一頁，傳完再替讀者送出（hold 開著時；外部工具欄的迴紋針裡可以關）；
+      找讀者在 ChatGPT／Claude 建好的「FOLI」專案（findProject），FOLI 讓新對話從那個專案開始。
    4. 給 FOLI 叫的幾個函式：找輸入框並聚焦（回傳位置，附檔時拖到那裡）、讀選取的字、讀最後一則回答（都轉成 Markdown，公式還原成 TeX）。
    對 FOLI 說話：console.debug("⁣foli:" + JSON)，FOLI 在 webview 的 console-message 收（只接受翻頁、重新配色、要送出了這幾種）。
    不靠 DOM 的部分（頁碼的格式、顏色換算）放在 pure，tests/test_dock_guest.cjs 測。 */
@@ -417,6 +418,58 @@
     ask("click");
   }, true);
 
+  /* ---------- 專案（ChatGPT、Claude 的「專案」）：找讀者建好、叫 FOLI 的那一個，新對話放進去 ---------- */
+  // 專案頁的網址：ChatGPT 是 /g/g-p-<編號>-<名字>/project，Claude 是 /project/<uuid>。依序找：現在這一頁、側邊欄的連結、
+  // 網站自己的專案清單（ChatGPT、Claude 的網頁用的那個；只讀，不改任何東西）。回傳 { path, name } 或 null
+  const PROJECT = /^\/(?:g\/(g-p-[\w-]+)\/project|project\/([0-9a-f-]{36}))\/?$/i;
+  const projectPath = (p) => { const m = PROJECT.exec(p || ""); return m ? (m[1] ? "/g/" + m[1] + "/project" : "/project/" + m[2]) : ""; };
+  function projectHere() {
+    const path = projectPath(location.pathname);
+    if (!path) return null;
+    const h = document.querySelector("main h1, h1");
+    const name = ((h && h.textContent) || document.title || "").replace(/\s*[|·–—-]\s*(ChatGPT|Claude)\s*$/i, "").replace(/^(ChatGPT|Claude)\s*[|·–—-]\s*/i, "").trim();
+    return { path, name: name.slice(0, 60) };
+  }
+  function projectLinks() {
+    const out = [];
+    for (const a of document.querySelectorAll('a[href*="/g/g-p-"], a[href*="/project/"]')) {
+      let u;
+      try { u = new URL(a.getAttribute("href"), location.href); } catch (e) { continue; }
+      const path = u.origin === location.origin && projectPath(u.pathname);
+      const name = (a.innerText || a.textContent || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] || "";
+      if (path && name) out.push({ path, name: name.slice(0, 60) });
+    }
+    return out;
+  }
+  async function projectList() {
+    const get = (u, headers) => Promise.race([fetch(u, { credentials: "include", headers: headers || {} }).then((r) => (r.ok ? r.json() : null)), sleep(6000).then(() => null)]).catch(() => null);
+    const out = [];
+    if (opts.site === "chatgpt") {  // 側邊欄的專案清單（ChatGPT 內部叫 snorlax）：認名字和 g-p- 開頭的編號，不管外面包了幾層
+      const s = await get("/api/auth/session");
+      const walk = (o, depth) => {
+        if (!o || typeof o !== "object" || depth > 8) return;
+        const name = typeof o.name === "string" ? o.name : o.display && typeof o.display.name === "string" ? o.display.name : "";
+        const id = [o.short_url, o.id].find((x) => typeof x === "string" && /^g-p-[\w-]+$/.test(x));
+        if (name && id) out.push({ path: "/g/" + id + "/project", name: name.slice(0, 60) });
+        for (const k in o) if (o[k] && typeof o[k] === "object") walk(o[k], depth + 1);
+      };
+      if (s && s.accessToken) walk(await get("/backend-api/gizmos/snorlax/sidebar?conversations_per_gizmo=0", { Authorization: "Bearer " + s.accessToken }), 0);
+    } else if (opts.site === "claude") {
+      const orgs = await get("/api/organizations");
+      for (const org of Array.isArray(orgs) ? orgs.slice(0, 4) : []) {
+        const list = org && typeof org.uuid === "string" ? await get("/api/organizations/" + encodeURIComponent(org.uuid) + "/projects") : null;
+        for (const p of Array.isArray(list) ? list : []) if (p && typeof p.uuid === "string" && /^[0-9a-f-]{36}$/i.test(p.uuid) && typeof p.name === "string") out.push({ path: "/project/" + p.uuid, name: p.name.slice(0, 60) });
+      }
+    }
+    return out;
+  }
+  async function findProject(want) {
+    const key = (n) => String(n || "").trim().toLowerCase(), w = key(want || "FOLI");
+    const pick = (list) => list.find((p) => key(p.name) === w) || list.find((p) => key(p.name).includes(w)) || null;
+    const here = projectHere();
+    return pick(here ? [here] : []) || pick(projectLinks()) || pick(await projectList());
+  }
+
   /* ---------- 開始 ---------- */
   let skinKey = "";
   const mo = new MutationObserver((list) => {
@@ -426,7 +479,7 @@
     scanSoon();
   });
   function init(o) {
-    opts = Object.assign({ pages: 0, hold: false }, o || {});
+    opts = Object.assign({ pages: 0, hold: false, site: "" }, o || {});
     hold = !!opts.hold;
     skinKey = document.documentElement.className + "|" + (document.body && document.body.className);
     mo.disconnect();
@@ -436,7 +489,7 @@
     return true;
   }
   root.__foliGuest = { v: VERSION, init, skinCss, focusComposer, selection, lastAnswer, setPages: (n) => { opts.pages = n || 0; scanSoon(); }, marked: () => marked, hits: () => hits.length,
-    hold: (on) => { hold = !!on; if (!hold && pending) release({}); return hold; }, ack: () => { acked = true; return true; }, release,
+    hold: (on) => { hold = !!on; if (!hold && pending) release({}); return hold; }, ack: () => { acked = true; return true; }, release, findProject, projectHere,
     probe() {  // 檢查用：在這個網站認到的輸入框、送出鈕（新網站或網站改版時，看是哪一個沒認到）
       const say = (e) => (e ? e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.getAttribute("data-testid") ? "[testid=" + e.getAttribute("data-testid") + "]" : "") + (e.getAttribute("aria-label") ? '["' + e.getAttribute("aria-label") + '"]' : "") : null);
       const c = composer(), b = sendButton();
