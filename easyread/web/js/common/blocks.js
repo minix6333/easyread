@@ -336,7 +336,7 @@
       const b = e.target.closest("[data-t]");
       if (!b || !state.editing) return;
       const k = b.dataset.t;
-      if (k === "ai") { const i = idx(state.editing); pullText(state.editing); stopEdit(); api.askAi(i); return; }
+      if (k === "ai") { const pk = api.picked(), i = idx(state.editing); pullText(state.editing); stopEdit(); emit("ai", { from: i, to: i, picked: (pk && pk.text) || "" }); return; }  // 反白的字一起交出去：失焦就沒了
       api.inline(k);
     });
     /* 輸入框裡某個位置在畫面上的哪裡（工具列要浮在選起來的字上面，不是整塊的最上面）：用一個看不見、排版一樣的鏡子量 */
@@ -589,7 +589,8 @@
       return "bk-b t-" + b.type + (i === 0 ? " b0" : "") +
         (b.type === "list" ? " l-" + b.kind + " in-" + (b.indent || 0) + (!prev || prev.type !== "list" ? " lf" : "") + (!next || next.type !== "list" ? " ll" : "") : "") +
         (b.type === "heading" ? " hl-" + b.level : "") + (b.type === "callout" ? " c-" + b.kind : "") + (state.editing === b.id ? " editing" : "") +
-        (sel ? " sel" + (prev && state.selected.has(prev.id) ? " sj-up" : "") + (next && state.selected.has(next.id) ? " sj-dn" : "") : "");
+        (sel ? " sel" + (prev && state.selected.has(prev.id) ? " sj-up" : "") + (next && state.selected.has(next.id) ? " sj-dn" : "") : "") +
+        (state.preview && !state.preview.streaming && i >= state.preview.from && i <= state.preview.to ? " pv-old" : "");  // AI 的建議採用了會換掉的那幾塊
     }
     const GUT = '<div class="bk-gut">' + (state.compact ? "" : '<button type="button" class="bk-add" data-bk="add" tabindex="-1" title="' + t("在下面加一塊（按住 ⌥ 加在上面）") + '">' + ico("plus") + "</button>") +
       '<div class="bk-handle" draggable="true" data-menu-align="left" title="' + t("拖動換順序；點一下開選單") + '">' + ico("grip", "more") + "</div></div>";
@@ -631,7 +632,7 @@
       const p = state.preview;
       return '<div class="bk-preview"><div class="bk-pv-head">' + ico("sparkle") + "<b>" + esc(p.label || t("AI 的建議")) + "</b>" + (p.streaming ? '<span class="spin"></span>' : "") + '<span class="grow"></span>' +
         (p.streaming ? '<button class="btn sm" data-bk="pv-stop">' + t("停止") + "</button>" : '<button class="btn sm accent" data-bk="pv-accept">' + t("採用") + '</button><button class="btn sm" data-bk="pv-reject">' + t("捨棄") + "</button>") + "</div>" +
-        '<div class="bk-pv-body">' + (p.md ? blocksHtml(p.md) : '<p class="bk-ph">' + t("正在想…") + "</p>") + "</div></div>";
+        '<div class="bk-pv-body">' + (p.md ? blocksHtml(p.md) : '<p class="bk-ph">' + esc(p.note || t("正在想…")) + "</p>") + "</div></div>";
     }
     function autosize(ta) { if (FIELD_SIZING) return; ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
     /* 只重畫一塊（種類、內容改了） */
@@ -900,7 +901,7 @@
         if (inl) { e.preventDefault(); api.inline(inl); return; }
         if (!e.shiftKey && key === "k") { e.preventDefault(); api.inline("link"); return; }
         if (e.shiftKey && e.key === "Enter") { e.preventDefault(); openMenu(id, ""); return; }
-        if (!e.shiftKey && e.key === "Enter") { e.preventDefault(); pullText(id); stopEdit(); api.askAi(i); return; }
+        if (!e.shiftKey && e.key === "Enter") { e.preventDefault(); const pk = api.picked(); pullText(id); stopEdit(); emit("ai", { from: i, to: i, picked: (pk && pk.text) || "" }); return; }  // ⌘↩：反白的字一起交出去
         if (!e.shiftKey && (key === "/" || code === "Slash")) { e.preventDefault(); openMenu(id, "", true); return; }  // ⌘/：轉成別種（Notion）
         // ⌘⇧7 編號、⌘⇧8 項目、⌘⇧9 待辦（Google 文件、Apple 備忘錄那一套）
         const shiftList = e.shiftKey && { Digit7: "number", Digit8: "bullet", Digit9: "todo" }[code];
@@ -1885,7 +1886,26 @@
         const el = list.querySelector(".bk-preview");
         if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
       },
-      updatePreview(md, extra) { if (!state.preview) return; Object.assign(state.preview, { md }, extra || {}); const el = list.querySelector(".bk-pv-body"); if (el) el.innerHTML = md ? blocksHtml(md) : '<p class="bk-ph">' + t("正在想…") + "</p>"; const head = list.querySelector(".bk-preview"); if (head && extra && "streaming" in extra) render(); },
+      updatePreview(md, extra) {
+        if (!state.preview) return;
+        Object.assign(state.preview, { md }, extra || {});
+        const el = list.querySelector(".bk-pv-body");
+        if (el) el.innerHTML = md ? blocksHtml(md) : '<p class="bk-ph">' + esc(state.preview.note || t("正在想…")) + "</p>";
+        const head = list.querySelector(".bk-preview");
+        if (head && extra && ("streaming" in extra || "label" in extra)) render();
+      },
+      previewing: () => !!state.preview,
+      /* 給筆記 AI（common/note-ai.js）：每一塊各自的 Markdown（編號對著它）、選一段、正在編的那一塊裡反白的字 */
+      blocksMd() { if (state.editing) pullText(state.editing); return state.blocks.map((b) => serialize([b])); },
+      selectSpan(a, b) { if (state.blocks.length) selectRange(a, b); },
+      picked() {
+        if (!state.editing) return null;
+        const sel = getSelection(), f = fieldOf(state.editing);
+        let text = "";
+        if (f && f.el && f.el.tagName === "TEXTAREA") text = f.el.value.slice(f.el.selectionStart, f.el.selectionEnd);
+        else if (sel && !sel.isCollapsed && sel.rangeCount && root.contains(sel.getRangeAt(0).commonAncestorContainer)) text = String(sel);
+        return { i: idx(state.editing), text: text.trim() };
+      },
       acceptPreview() {
         const p = state.preview; if (!p) return;
         snapshot();

@@ -320,6 +320,7 @@
     },
     native: () => nativeOn,
     saveApps: () => save(),  // 改了某個網頁自己的設定（dock-ai.js 的「問問題時附上這一頁」）之後存起來
+    repaint: () => paintHead(),  // 標題列重畫（書籤多了、少了：那顆書籤要出現、消失）
     addApp: (path) => addNative(path, PR.$('#tabs [data-act="dock"]')),
     /* 分頁列右邊的按鈕；貼著別的程式時欄收起來了，切換用的圖示也放在這裡 */
     button: () => (nativeOn ? '<span class="dock-rail">' + st.apps.map((a) => '<button class="dock-app' + (isOn(a) ? " on" : "") + '" data-dockapp="' + PR.esc(a.id) + '" title="' + PR.esc(a.title || a.name) + '">' + appIcon(a) + "</button>").join("") +
@@ -348,6 +349,8 @@
     const a = b.dataset.d, cur = active(), v = cur && views[cur.id];
     if (a === "add") return addMenu(b);
     if (a === "ai") return PR.dockAI && PR.dockAI.menu(b);
+    if (a === "marks") return PR.dockAI && PR.dockAI.marksMenu(b);
+    if (a === "float") return PR.dockFloat && PR.dockFloat.toggle(cur);
     if (a === "url") return askUrl(b);
     if (a === "pickapp") { const path = await native("pick"); return path ? addNative(path, b) : null; }
     if (a === "hide") return PR.dock.toggle(false);

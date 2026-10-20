@@ -177,12 +177,34 @@
     }
     const qi = [PR.hasIcon("wand") ? "wand" : "sparkle", "plus", "type", PR.hasIcon("table") ? "table" : "grid", "sparkle"];  // 整理、補充、改短、表格、潤飾
     $("#noteAi").innerHTML = '<div class="nai"><div class="nai-quick">' + QUICK().map(([l, q, k], i) => '<button data-nai="' + (k || "quick") + '" data-q="' + PR.esc(q) + '"' + (busy ? " disabled" : "") + ">" + PR.icon(qi[i] || "sparkle", "sm") + "<span>" + PR.esc(l) + "</span></button>").join("") + "</div>" +
-      '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
+      chip() +
+      '<div class="nai-box"><textarea class="nai-in" rows="1" placeholder="' + PR.t("想怎麼改？例如：把這段排版排好、改成待辦、整份加上小標題") + '"' + (busy ? " disabled" : "") + ">" + PR.esc(st.draft) + "</textarea>" +
       '<button class="nai-model" data-nai="model" title="' + PR.t("换模型") + '"><span>' + PR.esc(modelLabel()) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
       (busy ? '<button class="nai-send stop" data-nai="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>" : '<button class="nai-send" data-nai="send" title="' + PR.t("送出（Enter）") + '">' + PR.icon("sparkle", "sm") + "</button>") + "</div></div>";
     if (focused && !busy) { const t2 = $("#noteAi .nai-in"); t2.focus(); t2.setSelectionRange(t2.value.length, t2.value.length); }
   }
-  function openAi() {
+  /* 這次要改的範圍（common/note-ai.js）：按下「問 AI」那一欄的那一刻記下來；編輯器自己交過來的（區塊選單、格式工具列、⌘↩）用它給的 */
+  const chip = () => {
+    const sc = st.scope, on = !!(sc && sc.from != null);
+    return '<div class="nai-scope' + (on ? " on" : "") + '"><span>' + PR.icon(on ? "scope" : "notebook", "sm") + PR.esc(PR.noteAi.scopeLabel(sc)) + "</span>" +
+      (on ? '<button data-nai="unscope" title="' + PR.t("不限這幾塊：交給 AI 看整份筆記") + '">' + PR.icon("x", "sm") + "</button>" : "") + "</div>";
+  };
+  function grab(range) {
+    if (!st.ed || st.streaming) return;
+    st.scope = range && range.from != null ? { from: range.from, to: range.to, picked: range.picked || "", cursor: range.from, n: st.ed.count() } : PR.noteAi.capture(st.ed);
+    if (range && range.from != null && st.ed.count()) st.ed.selectSpan(range.from, range.to);
+    const el = $("#noteAi .nai-scope");
+    if (el) el.outerHTML = chip();
+  }
+  document.addEventListener("pointerdown", (e) => {
+    const box = e.target.closest && e.target.closest("#noteAi");
+    if (!box || e.target.closest('[data-nai="unscope"], [data-nai="stop"], [data-nai="model"]')) return;
+    const ta = e.target.closest(".nai-in");
+    if (ta && document.activeElement === ta) return;  // 已經在輸入框裡打字：只是移游標
+    grab();
+  }, true);
+  function openAi(range) {
+    if (range) grab(range);
     st.aiOpen = true;
     paintAi();
     const ta = $("#noteAi .nai-in");
@@ -191,68 +213,31 @@
   function closeAi() {
     if (st.streaming || st.draft.trim()) return;
     st.aiOpen = false;
+    st.scope = null;
     paintAi();
   }
   document.addEventListener("focusout", (e) => {
     if (!e.target.closest || !e.target.closest("#noteAi")) return;
     setTimeout(() => { const a = document.activeElement; if (!(a && a.closest && a.closest("#noteAi")) && !(PR.menuOpen && PR.menuOpen())) closeAi(); }, 180);
   });
-  function clean(md) {
-    let s = md.replace(/^\s*(?:以下是|這是|改好的版本|修改後)[^\n]*[:：]\s*\n/, "");
-    const m = /^\s*\x60\x60\x60(?:markdown|md)?\s*\n([\s\S]*?)\n\x60\x60\x60\s*$/.exec(s);
-    return m ? m[1] : s;
-  }
   async function send(text, o) {
     o = o || {};
     text = (text || "").trim();
     if (st.streaming || !st.ed) return;
-    if (o.tidy) {  // 整理：自己點選了幾塊就整理那幾塊，不然整份
-      if (!st.ed.getValue().trim()) return PR.toast(PR.t("還沒有筆記可以整理"));
-      const c = st.ed.current();
-      if (c.editing || !c.ids.length) st.ed.selectAll();
-    }
-    const sel = st.ed.selection();
-    const mode = sel && sel.md.trim() ? "edit" : "write";
-    const from = sel ? sel.from : st.ed.count(), to = sel ? sel.to : st.ed.count() - 1;
-    if (!text && mode === "write") return PR.toast(PR.t("先說要寫什麼"));
+    if (!text) return PR.toast(PR.t("先說要怎麼改，或要寫什麼"));
+    if (o.tidy && !st.ed.getValue().trim()) return PR.toast(PR.t("還沒有筆記可以整理"));
+    const sc = st.scope || PR.noteAi.capture(st.ed);
     st.draft = "";
     const ta0 = $("#noteAi .nai-in");
     if (ta0) ta0.value = "";
-    const ctrl = new AbortController();
-    st.streaming = { ctrl };
-    const what = o.tidy ? PR.t("AI 整理的版本") : mode === "edit" ? PR.t("AI 改的版本") : PR.t("AI 寫的一段");
-    st.ed.preview(from, mode === "edit" ? to : from - 1, "", { streaming: true, label: what, stop: () => ctrl.abort() });
+    st.streaming = { ctrl: null };
     paintAi();
-    let out = "", label = "";
-    try {
-      const res = await fetch(url + "/ai", { method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ mode, note: st.ed.getValue(), selection: sel ? sel.md : "", ask: text, model: st.model, ...PR.web.body(st.models.find((m) => m.id === st.model)), ...(o.tidy ? { web: false } : {}) }) });  // 整理只動排版：不用上網
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
-      const reader = res.body.getReader(), dec = new TextDecoder();
-      let buf = "";
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, i); buf = buf.slice(i + 1);
-          if (!line.trim()) continue;
-          const ev = JSON.parse(line);
-          if (ev.model) label = ev.model;
-          if (ev.status && PR.webStatusText(ev.status)) st.ed.updatePreview(clean(out), { streaming: true, label: PR.webStatusText(ev.status) + "…" });  // 上網查的時候說在查什麼
-          if (ev.t) { out += ev.t; st.ed.updatePreview(clean(out)); }
-          if (ev.error) throw new Error(ev.error);
-        }
-      }
-      st.streaming = null;
-      if (!clean(out).trim()) { st.ed.rejectPreview(); PR.toast(PR.t("AI 沒有回任何內容")); }
-      else st.ed.updatePreview(clean(out), { streaming: false, label: what + (label ? " · " + label : "") });
-    } catch (e) {
-      st.streaming = null;
-      st.ed.rejectPreview();
-      if (e.name !== "AbortError") PR.toast(PR.t("没能回答：{msg}", { msg: PR.esc(e.message) }), null, 6000);
-    }
+    const job = PR.noteAi.run({ ed: st.ed, url: url + "/ai", scope: sc, ask: text, title: o.tidy ? PR.t("AI 整理的版本") : "",
+      body: { model: st.model, ...PR.web.body(st.models.find((m) => m.id === st.model)), ...(o.tidy ? { web: false } : {}) } });  // 整理只動排版：不用上網
+    st.streaming.ctrl = job.ctrl;
+    await job.done;
+    st.streaming = null;
+    st.scope = null;
     paintAi();
   }
   document.addEventListener("click", (e) => {
@@ -263,7 +248,8 @@
     if (a === "send") return send(ta.value);
     if (a === "quick") return send(b.dataset.q);
     if (a === "tidy") return send(b.dataset.q, { tidy: true });
-    if (a === "stop") { if (st.streaming) st.streaming.ctrl.abort(); return; }
+    if (a === "stop") { if (st.streaming && st.streaming.ctrl) st.streaming.ctrl.abort(); return; }
+    if (a === "unscope") { st.scope = { from: null, to: null, picked: "", cursor: null }; const el = $("#noteAi .nai-scope"); if (el) el.outerHTML = chip(); if (ta) ta.focus(); return; }
     if (a === "model") PR.menu(b, st.models.map((m) => ({ label: m.label, checked: m.id === st.model, disabled: m.ready === false, fn: () => { st.model = m.id; PR.ls.set("easyread-chat-model", m.id); paintAi(); } })));
   });
   document.addEventListener("keydown", (e) => {
@@ -303,7 +289,7 @@
     paintHead();
     st.ed = PR.blockEditor($("#noteEd"), { value: st.note.body || "", placeholder: PR.t("寫點什麼，或按「/」選區塊…"), onChange: (md) => { st.note.body = md; queue({ body: md }); }, upload, moveOut });
     PR.note.ed = PR.noteEd = st.ed;  // scripts/note_editor_check.cjs 也從 PR.noteEd 拿
-    st.ed.on("ai", () => openAi());
+    st.ed.on("ai", (r) => openAi(r));
     st.ed.on("edge", () => { title.focus(); title.setSelectionRange(title.value.length, title.value.length); });  // 正文最上面再往上：回到標題
     setState("saved");
     loadModels();

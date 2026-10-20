@@ -246,6 +246,8 @@ body.dock-open #dock { animation: dock-in .34s cubic-bezier(.2, .8, .2, 1) backw
 .dock-nav .btn.icon { color: var(--ink); }
 /* 嵌的網頁：畫布上的一張紙；載入中上緣跑一條細線 */
 .dock-body { margin: 0 var(--pad) var(--pad); border-radius: var(--r-sheet); overflow: hidden; background: var(--sheet); box-shadow: 0 0 0 .5px var(--line); }
+.dock-float { border-radius: var(--r-canvas, 16px); background: var(--canvas-c); }
+.df-body { background: var(--sheet); border-radius: var(--r-sheet); box-shadow: 0 0 0 .5px var(--line); }
 #dock.empty .dock-body { background: transparent; box-shadow: none; }
 .dock-view { background: var(--sheet); }
 .dock-body::before { content: ""; position: absolute; z-index: 3; left: 0; top: 0; width: 36%; height: 2px; border-radius: 2px; background: var(--accent); opacity: 0; pointer-events: none; }

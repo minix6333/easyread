@@ -243,6 +243,7 @@ textarea.input { height: auto; padding: 7px 10px; resize: vertical; line-height:
 .pill.reading { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .pill.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .spin { width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; display: inline-block; }
+#toast .spin { margin-right: 8px; vertical-align: -1px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* 浮層（選單、彈出框）：厚玻璃，從觸發的地方長出來——縮小、糊的→清楚（materialize），臨界阻尼、不過衝 */

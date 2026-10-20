@@ -23,6 +23,8 @@ const UI = {
   // 2.1.0-tw.13：閱讀頁的字換成圖示（原文／譯文／雙語、面板分頁、筆記面板、閱讀狀態、簡明回答…）
   langs: "languages", cols2: "columns-2", sticky: "sticky-note", unread: "circle-dashed", reading: "circle-dot", chats: "messages-square",
   layers: "layers", summary: "scroll-text", brief: "text", gauge: "gauge", origtext: "book-open-text", notepen: "notebook-pen",
+  // 2.1.0-tw.15：筆記 AI 的範圍、書籤、外部 AI 的漂浮小視窗、釘選
+  scope: "text-select", mark: "bookmark", markadd: "bookmark-plus", markon: "bookmark-check", pip: "picture-in-picture-2", pinoff: "pin-off", chatplus: "message-square-plus",
 };
 
 const PICK = [

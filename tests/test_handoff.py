@@ -56,6 +56,17 @@ class Handoff(unittest.TestCase):
         with self.assertRaises(ValueError):
             handoff.share_file(self.ws, "zip")
 
+    def test_a_text_file_for_the_floating_window(self):
+        # 漂浮小視窗附上的「原本的對話」：Markdown 放在快取的 dock/share；同名蓋掉、別的名字清掉；空的不收
+        a = handoff.share_text("原本的對話", "# 對話\n\n## 我\n\n問題")
+        self.assertTrue(a["path"].endswith(os.path.join("dock", "share", "原本的對話.md")))
+        self.assertEqual(Path(a["path"]).read_text(encoding="utf-8"), "# 對話\n\n## 我\n\n問題")
+        b = handoff.share_text("別的/名字", "x")
+        self.assertEqual(b["name"], "別的 名字.md")
+        self.assertFalse(Path(a["path"]).exists())
+        with self.assertRaises(ValueError):
+            handoff.share_text("x", "  ")
+
     def test_an_answer_is_saved_as_a_question_card_with_the_ai_as_the_byline(self):
         note = handoff.add_qa(self.ws, 2, "  連續的隨機變數\n期望值為什麼要用積分？ ", "因為……見第 2 頁。\n\n$E[X]=\\int x p(x)\\,dx$", "ChatGPT")
         reader, disc = self.ws.load("reader"), self.ws.load("discussion")

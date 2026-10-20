@@ -186,7 +186,7 @@ test("selected text in an AI answer on the right can be saved, found or used to 
   guest.emit("context-menu", {}, { isEditable: false, selectionText: "推導見第 3 頁", editFlags: {} });
   const items = d.menus[d.menus.length - 1];
   const same = (a, b) => assert.equal(JSON.stringify(a), JSON.stringify(b));  // vm 裡的物件和外面的字面值比 deepEqual 會不相等
-  same(items.filter((x) => x.label).map((x) => x.label), ["存到這份文件的筆記", "在文件裡找這段", "跳到第 3 頁"]);
+  same(items.filter((x) => x.label).map((x) => x.label), ["存成筆記", "在小視窗問這段", "在文件裡找這段", "跳到第 3 頁"]);
   items.find((x) => x.label === "跳到第 3 頁").click();
   same(sent, [["easyread:embed-action", { action: "page", page: 3, id: 42 }]]);
   // 不是掛在 FOLI 主視窗上的網頁（登入用的小彈窗之類）：只有複製

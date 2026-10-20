@@ -263,11 +263,58 @@
   const colorName = (c) => (PR.HL_COLORS.find(([k]) => k === c) || [c, c])[1];
   const when = (iso) => (iso ? PR.shortTime(iso) : "");
 
+  /* ---------- 書籤：在一則回答上做記號，聊到後面（或換到別的對話）可以從標題列的書籤跳回來 ---------- */
+  function marks() {  // 這份文件裡所有有書籤的回答：[{ t（對話）, m（回答）, q（它前面那個問題） }]，照對話最近用過的、對話裡的順序
+    const out = [];
+    for (const t of st.threads) (t.messages || []).forEach((m, i, all) => { if (m.mark && m.role === "assistant") out.push({ t, m, q: i > 0 && all[i - 1].role === "user" ? all[i - 1] : null }); });
+    return out;
+  }
+  function openThread(tid) {
+    st.cur = tid; st.listOpen = false;
+    const t = thread();
+    if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
+    st.answerStyle = styleOf(t);
+    st.chatOptions = { ...((t && t.chat_options) || {}) }; st.effortOpen = false;
+    st.scope = (t && t.scope) || null; st.scopeOpen = false; st.scopePick = null;
+    render();
+  }
+  function jumpTo(tid, mid) {
+    if (st.cur !== tid) { if (st.streaming) return PR.toast(PR.t("请先停止当前回答")); openThread(tid); }
+    const el = PR.$('#chatpanel .cm.ai[data-id="' + CSS.escape(mid) + '"]');
+    if (!el) return;
+    const q = el.previousElementSibling && el.previousElementSibling.classList.contains("user") ? el.previousElementSibling : el;  // 從問題那裡開始看
+    q.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1600);
+  }
+  function marksMenu(at) {
+    const groups = new Map();
+    for (const x of marks()) { if (!groups.has(x.t.id)) groups.set(x.t.id, []); groups.get(x.t.id).push(x); }
+    const snip = (s) => { s = PR.plain(String(s || "")).replace(/\s+/g, " ").trim(); return s.length > 36 ? s.slice(0, 35) + "…" : s; };
+    const items = [];
+    for (const [tid, xs] of groups) {
+      if (items.length) items.push("-");
+      items.push({ label: PR.plain(xs[0].t.title || PR.t("新对话")), icon: "chats", disabled: true });
+      for (const x of xs) items.push({ label: snip(x.q ? x.q.content : x.m.content) || PR.t("（回答）"), icon: "markon", fn: () => jumpTo(tid, x.m.id) });
+    }
+    PR.menu(at, items);
+  }
+  async function toggleMark(m, on) {
+    try {
+      const r = await PR.api("/api/p/" + PR.pid + "/chat/mark", { method: "POST", body: { thread: st.cur, id: m.id, on } });
+      st.threads = r.threads || st.threads;
+      render();
+      if (on) PR.toast(PR.t("加了書籤：上面的書籤可以跳回這一則"), null, 2500);
+    } catch (err) { PR.toast(PR.t("沒加成：{msg}", { msg: PR.esc(err.message) })); }
+  }
+  PR.chatMarks = { list: marks, jump: jumpTo };
+
   /* ---------- 画面 ---------- */
   function headHtml() {
     const t = thread();
     return '<div class="ch-head"><button class="ch-title" data-c="list" title="' + PR.t("全部对话") + '">' + PR.icon("menu", "sm") + "<span>" + PR.md(t ? t.title : PR.t("新对话"), { cite: false, xref: false }) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
-      '<span class="grow"></span>' + (PR.canChat() && PR.chatDoc ? PR.chatDoc.button() : "") +
+      '<span class="grow"></span>' + (marks().length ? '<button class="btn icon" data-c="marks" title="' + PR.t("書籤：跳回標起來的那一則") + '">' + PR.icon("mark", "sm") + "</button>" : "") +
+      (PR.canChat() && PR.chatDoc ? PR.chatDoc.button() : "") +
       (PR.canChat() ? '<button class="btn icon" data-c="overview" title="' + PR.t("整份導讀：各部分的主題、要懂的觀念、先備知識和數學（上課前先看）") + '"' + (st.streaming ? " disabled" : "") + ">" + PR.icon("list", "sm") + "</button>" : "") +
       '<button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + "</button>" +
       (PR.chatOnly ? '<button class="btn icon" data-c="dock" title="' + PR.t("收回主視窗的側邊") + '">' + PR.icon("dock", "sm") + "</button>"
@@ -292,12 +339,14 @@
           .map((r) => '<button class="cm-ctx" data-c="go" data-anchor="' + PR.esc(PR.blockById[r.anchor] ? r.anchor : "") + '" data-page="' + (r.page || "") + '">' + PR.icon("link", "sm") + "<span>" + PR.esc(ctxLabel(r)) + "</span></button>").join("")) + "</div>";
     }
     const live = st.streaming && st.streaming.msg === m;
-    return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '" data-beside><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
+    return '<div class="cm ai' + (m.error ? " err" : "") + (m.mark ? " marked" : "") + '" data-id="' + PR.esc(m.id || "") + '" data-beside><div class="who"><span class="av">' + PR.icon("bot", "sm") + "</span>" + PR.esc(m.model || "AI") +
+      (m.mark ? '<span class="cm-mark" title="' + PR.t("有書籤") + '">' + PR.icon("markon", "sm") + "</span>" : "") +
       (m.answer_style === "ste100" ? '<span class="cm-style" title="' + PR.t("简明回答") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("brief") ? "brief" : "list", "sm") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content, live ? { live: true } : null) : '<p class="thinking"><i></i><i></i><i></i>' + (live ? PR.waitStatus.html("chat") : "") + (st.streaming && st.streaming.live ? "" : PR.waitHint(st.model)) + "</p>") + "</div>" +
       (live ? '<div class="web-live" hidden></div>' : "") + '<div class="src-slot">' + PR.sourcesHtml(m.sources, live ? { live: true } : null) + "</div>" +
       // 回答底下一排圖示：複製、加入筆記、放到頁邊（字在滑鼠提示裡）
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy" title="' + PR.t("复制") + '" aria-label="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + '</button><button data-c="tonote" title="' + PR.t("加入筆記：加進論文筆記的某個分類，或這一頁的筆記") + '" aria-label="' + PR.t("加入筆記") + '">' + PR.icon("notebook", "sm") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("放到页边：作为 AI 讨论放到这段旁边") + '" aria-label="' + PR.t("放到页边") + '">' + PR.icon(PR.hasIcon && PR.hasIcon("sticky") ? "sticky" : "note", "sm") + "</button>" : "") +
+        (thread() && !thread().local ? '<button data-c="mark" class="' + (m.mark ? "on" : "") + '" title="' + (m.mark ? PR.t("拿掉書籤") : PR.t("加書籤：聊到後面可以從上面的書籤跳回這一則")) + '" aria-label="' + PR.t("書籤") + '">' + PR.icon(m.mark ? "markon" : "markadd", "sm") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
@@ -530,6 +579,7 @@
     if (c === "unsel") { st.sel = null; PR.chatLink && PR.chatLink.cleared(); return paintChips(); }
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = st.scopeOpen = false; st.scopePick = null; render(); if (st.listOpen) { const f = PR.$("#chatpanel .ch-find input"); if (f) f.focus(); } return; }
     if (c === "jump") { const box = PR.$("#chatList"); if (box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); return; }
+    if (c === "marks") return marksMenu(b);
     if (c === "find") return;
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.scope = null; st.scopeOpen = false; st.scopePick = null; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "web") {
@@ -593,6 +643,7 @@
     const card = b.closest(".cm.ai");
     const m = card && thread() && thread().messages.find((x) => x.id === card.dataset.id);
     if (c === "copy" && m) navigator.clipboard.writeText(m.content).then(() => PR.toast(PR.t("已复制")));
+    if (c === "mark" && m) return toggleMark(m, !m.mark);
     if (c === "tonote" && m) {
       const msgs = thread().messages, i = msgs.indexOf(m), q = i > 0 && msgs[i - 1].role === "user" ? msgs[i - 1] : null;
       PR.noteAddMenu(b, { title: q ? q.content : "", body: m.content, page: (q && q.page) || 0 });
@@ -608,13 +659,7 @@
   document.addEventListener("click", (e) => {  // 点对话列表里的一行：切过去
     const row = e.target.closest("#chatpanel .ch-thread[data-t]");
     if (!row || e.target.closest("[data-c]") || st.streaming) return;
-    st.cur = row.dataset.t; st.listOpen = false;
-    const t = thread();
-    if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
-    st.answerStyle = styleOf(t);
-    st.chatOptions = { ...((t && t.chat_options) || {}) }; st.effortOpen = false;
-    st.scope = (t && t.scope) || null; st.scopeOpen = false; st.scopePick = null;
-    render();
+    openThread(row.dataset.t);
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && (st.effortOpen || st.menuOpen || st.scopeOpen || st.scopePick)) { st.effortOpen = st.menuOpen = st.scopeOpen = false; st.scopePick = null; render(); return; }

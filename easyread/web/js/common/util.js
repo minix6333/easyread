@@ -412,9 +412,9 @@ window.PR = window.PR || {};
     let t = PR.$("#toast");
     if (!t) { t = PR.el("div", { id: "toast", role: "status" }); document.body.appendChild(t); }
     t.innerHTML = "<span>" + html + "</span>";
-    if (action) {
-      const b = PR.el("button", { text: action.label });
-      b.onclick = () => { t.classList.remove("open"); action.fn(); };
+    for (const a of Array.isArray(action) ? action.filter(Boolean) : action ? [action] : []) {  // 一顆或幾顆（看看、撤銷）
+      const b = PR.el("button", { text: a.label });
+      b.onclick = () => { t.classList.remove("open"); a.fn(); };
       t.appendChild(b);
     }
     t.classList.add("open");

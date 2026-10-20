@@ -1,7 +1,10 @@
 /* 把聊天裡的回答加進筆記，而且分類放：論文筆記（筆記面板的「總結」）裡每個分類是一個「## 分類」小節，
    加進去的內容接在那一節的最後；沒有那一節就在最後新開一節。分類有預設的幾個（基礎觀念、定義、公式與推導…），
    筆記裡自己寫的 ## 小標題也算分類，所以要怎麼分由讀者決定。也可以加到正在看的那一頁的筆記。
-   PR.noteInsert / PR.noteSnippet / PR.noteCategories 是純函式（tests/test_noteadd.cjs）。 */
+   加進去之前先改寫成筆記的樣子（PR.asNote → notehelp.py 的 asnote）：主題是小標題、重點先講、條列，
+   沒有「好問題」「希望有幫助」「你問的」這種回答的口吻。AI 用不了時只做簡單的清理（PR.noteFromAnswer）。
+   外部工具欄的 AI 的回答（dock-ai.js）用 PR.addAnswerAsNote 存進這一頁的筆記；提問紀錄「改成筆記」用 PR.qaToNote。
+   PR.noteInsert / PR.noteSnippet / PR.noteCategories / PR.noteFromAnswer / PR.noteTopic 是純函式（tests/test_noteadd.cjs）。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
@@ -45,17 +48,97 @@
     const label = String(n.quote || PR.plain((n.body || "").split("\n")[0]) || PR.t("筆記")).replace(/\s+/g, " ").trim();
     return "> [!ref " + n.id + (page ? " p" + page : "") + "] " + (label.length > 80 ? label.slice(0, 80) + "…" : label);
   };
+  /* ---------- 回答改寫成筆記 ---------- */
+  const OPEN = /^\s*(?:好(?:的|問題)|當然|沒問題|是的|這是(?:一個)?(?:很)?好(?:的)?問題|簡單(?:來|地)?說|我們(?:來|先)|讓我(?:們)?(?:來)?|以下(?:是|為)|下面(?:是|我))[^\n]*\n+/;  // i18n-ok 比對回答的開場白
+  const CLOSE = /^(?:希望(?:這|以上|對你|能)|如果(?:你|您)?(?:還|想|需要|有)|有(?:需要|任何問題|其他問題)|需要的話|歡迎(?:再|繼續)|祝你|還有(?:什麼|其他)(?:問題|想)|要不要我)/;  // i18n-ok 比對回答的結語、追問
+  /* 問題 → 筆記的主題：去掉問號和「是什麼」「為什麼」這類問法 */
+  PR.noteTopic = (q) => String(q || "").replace(/\s+/g, " ").replace(/^「[^」]*」\s*[—-]\s*/, "").replace(/^[「『"]|[」』"]$/g, "")  // i18n-ok 標點
+    .replace(/[？?。.!！]+$/, "").replace(/(?:到底)?(?:是什麼|是甚麼|是啥|為什麼|為何|怎麼(?:做|算|來的|用)?|如何|嗎|呢|吧)$/, "").trim().slice(0, 40);  // i18n-ok 比對問法
+  /* 沒有 AI 時的簡單版本：拿掉開場白和結語、標題降級，主題放在最前面 */
+  PR.noteFromAnswer = function (item) {
+    const lines = String(item.body || "").trim().replace(OPEN, "").split("\n");
+    while (lines.length && (!lines[lines.length - 1].trim() || CLOSE.test(lines[lines.length - 1].trim().replace(/^[*_>\-\s]+/, "")))) lines.pop();
+    const body = lines.join("\n").trim().replace(/^#{1,3}\s+/gm, "#### ");
+    const topic = PR.noteTopic(item.title);
+    return (topic ? "### " + topic + "\n\n" : "") + body;
+  };
+  const tidyNote = (md) => {  // 模型偶爾包在 ``` 裡、或加一句開場白、結語：拿掉
+    let s = String(md || "").replace(/^\s*(?:以下是|這是|改好的|整理好的)[^\n]*[:：]\s*\n/, "");  // i18n-ok 比對開場白
+    const m = /^\s*```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/.exec(s);
+    if (m) s = m[1];
+    const lines = s.trim().split("\n");
+    while (lines.length && (!lines[lines.length - 1].trim() || CLOSE.test(lines[lines.length - 1].trim()))) lines.pop();
+    return lines.join("\n").trim().replace(/^#{1,2}\s+/gm, "### ");  // 不會變成筆記裡的分類（## 分類）
+  };
+  const withPage = (md, page) => (page ? md.replace(/^(###\s+[^\n]*?)\s*$/m, (m0, h) => h + PR.t("（第 {page} 頁）", { page })) : md);
+  /* item：{title（問題）, body（回答）, page}。回傳 { md, ai }（ai：是不是 AI 改寫的） */
+  PR.asNote = async function (item) {
+    if (!(PR.canChat && PR.canChat()) || PR.store.mode !== "server") return { md: PR.noteFromAnswer(item), ai: false };
+    try {
+      if (PR.chatModel) await PR.chatModel.load();
+      const res = await fetch("/api/p/" + PR.pid + "/notehelp", { method: "POST", headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
+        body: JSON.stringify({ mode: "asnote", question: item.title || "", answer: item.body || "", page: item.page || 0, model: PR.chatModel ? PR.chatModel.id() : "" }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
+      let out = "";
+      for (const line of (await res.text()).split("\n")) {
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.error) throw new Error(ev.error);
+        if (ev.t) out += ev.t;
+      }
+      out = tidyNote(out);
+      if (!out) throw new Error("empty");
+      return { md: out, ai: true };
+    } catch (e) {
+      return { md: PR.noteFromAnswer(item), ai: false, error: e.message };
+    }
+  };
+  const working = (what) => PR.toast('<span class="spin"></span>' + what, null, 90000);
+  /* 外部工具欄的 AI 的回答 → 這一頁的筆記（本頁筆記，接在最後）。item：{title, body, page, by} */
+  PR.addAnswerAsNote = async function (item) {
+    const page = item.page || (PR.pdfMain && PR.pdfMain() && PR.pdfPage ? PR.pdfPage() : (PR.blockById[PR.readingBlock && PR.readingBlock()] || {}).page || 0);
+    if (!page) { PR.toast(PR.t("找不到要存到哪一頁")); return false; }
+    working(PR.t("正在把 {by} 的回答整理成筆記…", { by: PR.esc(item.by || "AI") }));
+    const r = await PR.asNote(Object.assign({}, item, { page: 0 }));
+    const pn = (S.reader.page_notes || {})[page] || {}, was = pn.body || "";
+    const body = (was.trim() ? was.replace(/\s+$/, "") + "\n\n" : "") + r.md;
+    PR.commit(Object.assign({ op: "page_note", page, body }, pn.star ? { star: true } : {}));
+    afterChange();
+    PR.toast(r.ai ? PR.t("已整理成筆記，存在第 {page} 頁", { page }) : PR.t("已存到第 {page} 頁的筆記（AI 沒能整理，先照原樣）", { page }), [
+      { label: PR.t("看看"), fn: () => { if (PR.goToPage) PR.goToPage(page); PR.toggleNotesPanel(true, "page"); } },
+      { label: PR.t("撤销"), fn: () => { PR.commit(Object.assign({ op: "page_note", page, body: was }, pn.star ? { star: true } : {})); afterChange(); } }], 6000);
+    return true;
+  };
+  /* 提問紀錄「改成筆記」：問題和 AI 的回答合成一張筆記（筆記的寫法），原本的提問收起來（撤銷可以換回來） */
+  PR.qaToNote = async function (nid) {
+    const n = (S.reader.notes || {})[nid];
+    if (!n) return;
+    const answer = PR.repliesTo(nid).map((r) => String(r.body || "").trim()).filter(Boolean).join("\n\n");
+    working(PR.t("正在把這則提問整理成筆記…"));
+    const r = await PR.asNote({ title: n.body, body: answer, page: 0 });
+    const now = PR.nowIso();  // 和其他筆記同一種寫法（伺服器照字串比先後）
+    const note = Object.assign({}, n, { id: PR.uid("n"), kind: "note", body: r.md, created: now, updated: now });
+    delete note.deleted;
+    PR.saveNote(note);
+    PR.saveNote(Object.assign({}, n, { deleted: true }));
+    const redraw = () => { if (PR.renderMargin) PR.renderMargin(); if (PR.applyMarks) PR.applyMarks(); afterChange(); };
+    redraw();
+    PR.toast(r.ai ? PR.t("已改成筆記") : PR.t("已改成筆記（AI 沒能整理，先照原樣）"), { label: PR.t("撤销"), fn: () => { PR.saveNote(Object.assign({}, note, { deleted: true })); PR.saveNote(Object.assign({}, n, { deleted: false })); redraw(); } }, 5000);
+  };
   function afterChange() {
     if (PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel) PR.renderNotesPanel();
   }
   /* item：{title, body, page}。at：選單出現在哪個按鈕旁 */
   PR.noteAddMenu = function (at, item) {
     const page = item.page || (PR.pdfMain && PR.pdfMain() && PR.pdfPage ? PR.pdfPage() : 0);
-    const put = (category) => {
-      const was = (S.reader.paper_note || {}).body || "";
-      PR.commit({ op: "paper_note", body: PR.noteInsert(was, category, PR.noteSnippet(item)) });
+    const put = async (category) => {
+      working(PR.t("正在把回答整理成筆記…"));
+      const r = await PR.asNote(item);
+      const was = (S.reader.paper_note || {}).body || "";  // 整理完才讀：等的時候可能又改過
+      PR.commit({ op: "paper_note", body: PR.noteInsert(was, category, withPage(r.md, page)) });
       afterChange();
-      PR.toast(PR.t("已加到筆記的「{c}」", { c: PR.esc(category) }), { label: PR.t("撤销"), fn: () => { PR.commit({ op: "paper_note", body: was }); afterChange(); } }, 5000);
+      PR.toast(r.ai ? PR.t("已整理成筆記，加到「{c}」", { c: PR.esc(category) }) : PR.t("已加到筆記的「{c}」（AI 沒能整理，先照原樣）", { c: PR.esc(category) }),
+        { label: PR.t("撤销"), fn: () => { PR.commit({ op: "paper_note", body: was }); afterChange(); } }, 5000);
     };
     const items = PR.noteCategories((S.reader.paper_note || {}).body).map((c) => ({ label: c, icon: "tag", fn: () => put(c) }));
     items.push({ label: PR.t("新分類…"), icon: "plus", fn: async () => {
@@ -63,12 +146,15 @@
       if (name && name.trim()) put(name.trim().replace(/^#+\s*/, ""));
     } });
     if (page) {
-      items.push("-", { label: PR.t("本頁筆記（第 {page} 頁）", { page }), icon: "notebook", fn: () => {
+      items.push("-", { label: PR.t("本頁筆記（第 {page} 頁）", { page }), icon: "notebook", fn: async () => {
+        working(PR.t("正在把回答整理成筆記…"));
+        const r = await PR.asNote(Object.assign({}, item, { page: 0 }));
         const pn = (S.reader.page_notes || {})[page] || {}, was = pn.body || "";
-        const body = (was.trim() ? was.replace(/\s+$/, "") + "\n\n" : "") + PR.noteSnippet(Object.assign({}, item, { page: 0 }));
+        const body = (was.trim() ? was.replace(/\s+$/, "") + "\n\n" : "") + r.md;
         PR.commit(Object.assign({ op: "page_note", page, body }, pn.star ? { star: true } : {}));
         afterChange();
-        PR.toast(PR.t("已加到第 {page} 頁的筆記", { page }), { label: PR.t("撤销"), fn: () => { PR.commit(Object.assign({ op: "page_note", page, body: was }, pn.star ? { star: true } : {})); afterChange(); } }, 5000);
+        PR.toast(r.ai ? PR.t("已整理成筆記，存在第 {page} 頁", { page }) : PR.t("已存到第 {page} 頁的筆記（AI 沒能整理，先照原樣）", { page }),
+          { label: PR.t("撤销"), fn: () => { PR.commit(Object.assign({ op: "page_note", page, body: was }, pn.star ? { star: true } : {})); afterChange(); } }, 5000);
       } });
     }
     PR.menu(at, items);

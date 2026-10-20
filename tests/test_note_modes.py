@@ -89,6 +89,71 @@ class NoteModesTest(unittest.TestCase):
         with patch.object(notehelp.webimg, "enabled", lambda: False):  # 設定裡關掉網路上的圖：不提 pic
             self.assertNotIn("```pic", notehelp.edit_prompt(self.ws, {"mode": "write", "note": "", "ask": "x"}, "openai"))
 
+    def test_notes_ai_gets_numbered_blocks_the_scope_and_the_operation_names(self):
+        tw_ = patch.object(notehelp.langs, "reply_code", lambda meta=None: "zh-TW")  # 繁體介面（台灣）
+        tw_.start()
+        self.addCleanup(tw_.stop)
+        body = {"blocks": ["# 我的筆記", "梯度下降：每次往負梯度走一小步", "- 學習率要小\n- 太大會發散"], "scope": {"from": 1, "to": 2},
+                "picked": "負梯度", "ask": "把這段排版排好", "page": 2}
+        text = notehelp.auto_prompt(self.ws, body, "openai")
+        self.assertIn("[1]\n# 我的筆記\n[2]\n梯度下降", text)
+        self.assertIn("讀者選了第 2–3 塊。", text)
+        self.assertIn("他反白了這些字：「負梯度」", text)
+        self.assertIn("待辦「- [ ] 」", text)  # 操作名稱對到編輯器的寫法
+        self.assertIn("@@ replace A-B", text)
+        self.assertIn("We minimise the loss", text)  # 讀者在第 2 頁：這一頁的字
+        self.assertTrue(text.rstrip().endswith("讀者的要求：把這段排版排好"))
+        # 沒選、游標在某一塊；空的筆記
+        cur = notehelp.note_auto_prompt({"title": "隨手記"}, {"blocks": ["甲", "乙"], "cursor": 1, "ask": "寫一段總結"})
+        self.assertIn("讀者的游標在第 2 塊。", cur)
+        self.assertNotIn("文件", cur.split("讀者的整份筆記")[1])  # 獨立筆記：沒有文件可以對照
+        empty = notehelp.note_auto_prompt({"title": ""}, {"blocks": [], "ask": "寫個大綱"})
+        self.assertIn("（還是空的，一塊都沒有）", empty)
+        self.assertIn("他沒有選任何地方", empty)
+
+    def test_the_readers_own_words_are_not_converted(self):
+        # 簡體介面：說明轉成簡體，但讀者的筆記、反白的字、要求、回答原樣給（轉換器會動到用字）
+        with patch.object(notehelp.langs, "reply_code", lambda meta=None: "zh"):
+            text = notehelp.note_auto_prompt({"title": "隨手記"}, {"blocks": ["學習率要小", "資料集"], "scope": {"from": 0, "to": 0}, "picked": "學習率", "ask": "改成待辦清單"})
+            self.assertIn("[1]\n學習率要小\n[2]\n資料集", text)
+            self.assertIn("「學習率」", text)
+            self.assertIn("读者的要求：改成待辦清單", text)
+            self.assertIn("读者选了第 1 块。", text)
+            note = notehelp.asnote_prompt({}, {"question": "學習率是什麼？", "answer": "學習率決定每一步走多遠。"})
+            self.assertIn("學習率決定每一步走多遠。", note)
+            self.assertIn("改写成笔记，不是回答", note)
+
+    def test_a_long_note_keeps_the_chosen_blocks_whole(self):
+        tw_ = patch.object(notehelp.langs, "reply_code", lambda meta=None: "zh-TW")
+        tw_.start()
+        self.addCleanup(tw_.stop)
+        blocks = ["第 %d 段：" % i + "內容" * 400 for i in range(40)]  # 約 32000 字，超過 AUTO_BUDGET
+        text = notehelp.note_auto_prompt({"title": "長"}, {"blocks": blocks, "scope": {"from": 30, "to": 30}, "ask": "改短"})
+        self.assertIn("[31]\n第 30 段：" + "內容" * 400, text)  # 選到的那一塊：全文
+        self.assertIn("[1]\n第 0 段：" + "內容" * 50, text)
+        self.assertIn("這一塊沒有給全文，不要改它", text)
+        self.assertIn("[40]", text)  # 編號都在
+
+    def test_an_answer_is_rewritten_as_a_note(self):
+        tw_ = patch.object(notehelp.langs, "reply_code", lambda meta=None: "zh-TW")
+        tw_.start()
+        self.addCleanup(tw_.stop)
+        text = notehelp.asnote_prompt({"title_en": "Test paper"}, {"question": "反向傳播是什麼？", "answer": "好問題！簡單來說……"})
+        self.assertIn("改寫成筆記，不是回答", text)
+        self.assertIn("「### 」", text)
+        self.assertIn("讀者原本問的是", text)
+        self.assertIn("反向傳播是什麼？", text)
+        self.assertIn("好問題！簡單來說……", text)
+
+    def test_notes_ai_requests_are_checked(self):
+        with patch.object(notehelp.chat_models, "engine_cfg", lambda cfg, model: ({"engine": "openai"}, {"model": "m"})):
+            with self.assertRaises(ValueError):
+                notehelp.handle(None, self.ws, {"mode": "auto", "blocks": "not a list", "ask": "x"})
+            with self.assertRaises(ValueError):
+                notehelp.handle(None, self.ws, {"mode": "auto", "blocks": [], "ask": "  "})
+            with self.assertRaises(ValueError):
+                notehelp.handle(None, self.ws, {"mode": "asnote", "answer": ""})
+
     def test_page_note_request_streams_and_attaches_the_page_image(self):
         sent, seen = [], {}
 

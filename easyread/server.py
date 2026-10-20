@@ -786,6 +786,10 @@ class Handler(BaseHTTPRequestHandler):
             app.focus = {"id": pid, "title": str(body.get("title") or "")[:300], "page": int(body.get("page") or 0) or None,
                          "pages": int(body.get("pages") or 0) or None, "sel": str(body.get("sel") or "")[:4000], "t": time.time()} if pid else {}
             return self._json(200, {"ok": True})
+        if path == "/api/handoff/text":  # 給外部工具欄的 AI 附上的文字檔（漂浮小視窗附上「右邊的對話」）：放在快取的 share 資料夾
+            from . import handoff
+            body = json.loads(self._body() or b"{}")
+            return self._json(200, handoff.share_text(str(body.get("name") or ""), str(body.get("text") or "")))
         if path == "/api/backdrop":
             return self._json(200, backdrop.save(json.loads(self._body() or b"{}")))
         if path == "/api/trash":  # 回收站：restore 恢复一篇 / purge 彻底删一篇 / empty 清空
@@ -832,6 +836,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, {"ok": True})
                 if sub == "pin":
                     chat_store.pin(ws, tid, body.get("id", ""))
+                elif sub == "mark":  # 書籤：在一則問題或回答上做記號（on＝false 拿掉）
+                    try:
+                        chat_store.mark(ws, tid, str(body.get("id") or ""), bool(body.get("on", True)))
+                    except KeyError:
+                        return self._json(404, {"error": tr("找不到這則對話")})
                 elif sub == "rename":
                     chat_store.rename(ws, tid, body.get("title", ""))
                 elif sub == "delete":

@@ -105,6 +105,25 @@ def share_file(ws: Workspace, kind: str, n: int | None = None) -> dict:
     raise ValueError(tr("kind 只能是 pdf 或 page"))
 
 
+TEXT_MAX = 400_000  # 文字檔最多幾個字（一段很長的對話也放得下）
+
+
+def share_text(name: str, text: str) -> dict:
+    """{path, name}：一份要附給外部 AI 的 Markdown 文字檔（漂浮小視窗附上的「右邊的對話」），放在 config.CACHE_DIR/dock/share；
+    同名的就蓋掉，舊的（別的名字）清掉，資料夾裡不會越積越多。"""
+    text = str(text or "")
+    if not text.strip():
+        raise ValueError(tr("沒有要附上的內容"))
+    d = config.CACHE_DIR / "dock" / "share"
+    d.mkdir(parents=True, exist_ok=True)
+    out = d / f"{_safe_name(name or 'chat', 60)}.md"
+    _clear(d, out, (".md",))
+    tmp = out.with_name(out.name + ".part")
+    tmp.write_text(text[:TEXT_MAX], encoding="utf-8")
+    tmp.replace(out)
+    return {"path": str(out), "name": out.name}
+
+
 def _uid() -> str:
     """和頁面上的 PR.uid("n") 一樣的樣子：n＋時間（36 進位）＋四個亂數字元。"""
     t, digits, s = int(time.time() * 1000), "0123456789abcdefghijklmnopqrstuvwxyz", ""

@@ -105,6 +105,30 @@ def delete(ws: Workspace, tid: str) -> None:
     ws.update("chat", lambda chat: _normalize(chat).update(threads=[t for t in chat["threads"] if t["id"] != tid]))
 
 
+def mark(ws: Workspace, tid: str, mid: str, on: bool) -> None:
+    """書籤：在一則問題或回答上做記號（mark＝做記號的時間），聊到後面可以從書籤清單跳回來。
+    問題沒有 id，用「它後面那則回答的 id ＋ ?」指它（頁面上問題泡泡帶的就是這個）。"""
+    stamp = now_iso()
+
+    def apply(chat):
+        for t in _normalize(chat)["threads"]:
+            if t["id"] != tid:
+                continue
+            msgs = t.get("messages", [])
+            for k, m in enumerate(msgs):
+                hit = m.get("id") == mid or (mid.endswith("?") and m.get("role") == "user" and k + 1 < len(msgs) and msgs[k + 1].get("id") == mid[:-1])
+                if not hit:
+                    continue
+                if on:
+                    m["mark"] = stamp
+                else:
+                    m.pop("mark", None)
+                return
+            raise KeyError(mid)
+        raise KeyError(tid)
+    ws.update("chat", apply)
+
+
 def pin(ws: Workspace, tid: str, mid: str) -> None:
     """把一条回答放到页边，成为那段旁边的一条 AI 讨论。"""
     t = get(ws, tid)

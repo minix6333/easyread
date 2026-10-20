@@ -7,12 +7,15 @@
       滑過去是手指，點了請 FOLI 翻到那一頁。
    3. 讀者送出問題時先攔一下，請 FOLI 附上正在讀的那一頁，傳完再替讀者送出（hold 開著時；外部工具欄的迴紋針裡可以關）；
       找讀者在 ChatGPT／Claude 建好的「FOLI」專案（findProject），FOLI 讓新對話從那個專案開始。
-   4. 給 FOLI 叫的幾個函式：找輸入框並聚焦（回傳位置，附檔時拖到那裡）、讀選取的字、讀最後一則回答（都轉成 Markdown，公式還原成 TeX）。
+   4. 一則一則的訊息：滑過去右上角有「書籤」「存成筆記」兩顆小按鈕（#foli-tools，放在 body 最後，不碰網站自己的元素），
+      有書籤的那幾則左邊一條線（data-foli-mark 屬性）；在回答裡選字冒出「問這句」（#foli-ask），點了在漂浮小視窗另外問；
+      transcript() 把整段對話轉成 Markdown（漂浮小視窗附上它，接著原本的對話問）。
+   5. 給 FOLI 叫的幾個函式：找輸入框並聚焦（回傳位置，附檔時拖到那裡）、讀選取的字、讀最後一則回答（都轉成 Markdown，公式還原成 TeX）。
    對 FOLI 說話：console.debug("⁣foli:" + JSON)，FOLI 在 webview 的 console-message 收（只接受翻頁、重新配色、要送出了這幾種）。
    不靠 DOM 的部分（頁碼的格式、顏色換算）放在 pure，tests/test_dock_guest.cjs 測。 */
 (function (root) {
   "use strict";
-  const VERSION = 2;
+  const VERSION = 3;
 
   /* ---------- 純函式 ---------- */
   // 頁碼：中文「第 5 頁／第 3–5 頁／第 3 至 5 頁」、「第 5 張投影片」「投影片第 5 張」；英文「p. 5」「pp. 3–4」「page 12」「pages 3-4」「slide 7」。
@@ -470,6 +473,138 @@
     return pick(here ? [here] : []) || pick(projectLinks()) || pick(await projectList());
   }
 
+  /* ---------- 一則一則的訊息：書籤、存成筆記、給漂浮小視窗的「原本的對話」 ---------- */
+  // 各家標記訊息的方式（ChatGPT 的 data-message-author-role、Claude 的 user-message／font-claude-…、Gemini 的 user-query／model-response）
+  const MSG = '[data-message-author-role], [data-testid="user-message"], .font-claude-response, .font-claude-message, user-query, model-response';
+  const roleOf = (el) => { const r = el.getAttribute("data-message-author-role"); return r ? (r === "user" ? "user" : "assistant") : el.matches('[data-testid="user-message"], user-query') ? "user" : "assistant"; };
+  const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
+  function messages() {  // 最外層的才算（同一則裡面又有一層同樣記號的不重複算）
+    return Array.from(document.querySelectorAll(MSG)).filter((el) => !(el.parentElement && el.parentElement.closest(MSG)) && norm(el.textContent).length).map((el) => ({ el, role: roleOf(el) }));
+  }
+  const snippetOf = (el) => norm(el.textContent).slice(0, 90);  // textContent：不用排版（innerText 每次都要算版面，對話長了滑鼠一動就卡）
+  const outer = (el) => { let top = el && el.closest(MSG); while (top && top.parentElement && top.parentElement.closest(MSG)) top = top.parentElement.closest(MSG); return top; };
+  function findMsg(m) {  // 書籤對到哪一則：開頭的字一樣（同一個角色）；認不到再看第幾則
+    const want = norm(m.snippet).slice(0, 48), list = messages();
+    return (list.find((x) => x.role === m.role && want && snippetOf(x.el).startsWith(want)) || list.find((x) => want && snippetOf(x.el).includes(want.slice(0, 24))) || {}).el || null;
+  }
+  function transcript() {  // 原本的對話（漂浮小視窗附上它）：一則一則轉成 Markdown
+    return { title: transcriptTitle(), msgs: messages().map((x) => ({ role: x.role, md: tidy(md(x.el)) || norm(x.el.textContent) })) };
+  }
+
+  /* 書籤：FOLI 記著（dock-ai.js），載好、換頁時交過來；有書籤的那幾則左邊一條強調色的線 */
+  let marks = [];
+  function paintMarks() {
+    for (const el of document.querySelectorAll("[data-foli-mark]")) el.removeAttribute("data-foli-mark");
+    for (const m of marks) { const el = findMsg(m); if (el) el.setAttribute("data-foli-mark", ""); }
+  }
+  async function jumpTo(m) {  // 捲到那一則（還沒載進來的較早訊息：往上捲幾次讓網站載）
+    for (let k = 0; k < 6; k++) {
+      const el = findMsg(m);
+      if (el) {
+        el.scrollIntoView({ block: "start", behavior: k ? "auto" : "smooth" });
+        el.removeAttribute("data-foli-flash"); void el.offsetWidth; el.setAttribute("data-foli-flash", "");
+        setTimeout(() => el.removeAttribute("data-foli-flash"), 1700);
+        return true;
+      }
+      const first = messages()[0];
+      if (!first) await sleep(700);
+      else { first.el.scrollIntoView({ block: "start" }); await sleep(800); }
+    }
+    return false;
+  }
+
+  /* 滑過一則訊息：右上角兩顆小按鈕——書籤、存成筆記（回答才有）。按鈕自己的樣子在 FOLI 放上來的 CSS 裡（dock-ai.js 的 markCss） */
+  let tools = null, toolFor = null, hideT = 0, taken = null;
+  function toolsEl() {
+    if (tools && tools.isConnected) return tools;
+    tools = document.createElement("div");
+    tools.id = "foli-tools";
+    tools.addEventListener("mousedown", (e) => e.preventDefault());  // 不搶焦點、不清掉選取
+    tools.addEventListener("mouseenter", () => clearTimeout(hideT));
+    tools.addEventListener("mouseleave", () => hideSoon());
+    tools.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-act]");
+      if (!b || !toolFor) return;
+      e.preventDefault(); e.stopPropagation();
+      const el = toolFor, role = roleOf(el), act = b.dataset.act;
+      if (act === "mark") {
+        const on = !el.hasAttribute("data-foli-mark");
+        if (on) el.setAttribute("data-foli-mark", ""); else el.removeAttribute("data-foli-mark");
+        say({ t: "mark", on, role, snippet: snippetOf(el), path: location.pathname, title: transcriptTitle() });
+        paintTools();
+      } else if (act === "note") {
+        taken = { md: tidy(md(el)) || norm(el.textContent), question: question(el) };
+        say({ t: "tonote" });
+      }
+    });
+    (document.body || document.documentElement).appendChild(tools);
+    return tools;
+  }
+  const transcriptTitle = () => norm(document.title).replace(/\s*[|·–—-]\s*(ChatGPT|Claude|Gemini)\s*$/i, "").slice(0, 80);
+  function paintTools() {
+    const t = toolsEl(), el = toolFor;
+    if (!el) { t.classList.remove("on"); return; }
+    const marked = el.hasAttribute("data-foli-mark"), tx = opts.text || {}, ic = opts.icons || {};
+    t.innerHTML = '<button data-act="mark" class="' + (marked ? "is-on" : "") + '" title="' + (marked ? tx.unmark || "" : tx.mark || "") + '">' + (marked ? ic.markon || "★" : ic.mark || "☆") + "</button>" +
+      (roleOf(el) === "assistant" ? '<button data-act="note" title="' + (tx.note || "") + '">' + (ic.note || "✎") + "</button>" : "");
+    const r = el.getBoundingClientRect(), w = t.offsetWidth || 64;
+    if (r.bottom < 40 || r.top > innerHeight - 30) { t.classList.remove("on"); return; }
+    t.style.top = Math.round(Math.max(8, r.top + 4)) + "px";
+    t.style.left = Math.round(Math.max(8, Math.min(innerWidth - w - 10, r.right - w - 6))) + "px";
+    t.classList.add("on");
+  }
+  function hideSoon() { clearTimeout(hideT); hideT = setTimeout(() => { toolFor = null; if (tools) tools.classList.remove("on"); }, 350); }
+  let moveT = 0;
+  document.addEventListener("mousemove", (e) => {
+    if (!opts.tools || moveT) return;
+    moveT = setTimeout(() => { moveT = 0; }, 60);
+    if (tools && tools.contains(e.target)) return;
+    const top = e.target.closest ? outer(e.target) : null;
+    if (!top) { if (toolFor) hideSoon(); return; }
+    clearTimeout(hideT);
+    if (top !== toolFor) { toolFor = top; paintTools(); }
+  }, true);
+  document.addEventListener("scroll", () => { if (toolFor) paintTools(); }, true);
+
+  // 在這個網頁裡按下滑鼠：告訴 FOLI（漂浮小視窗沒釘選的話要收起來——FOLI 收不到網頁裡的滑鼠）
+  let downAt = 0;
+  document.addEventListener("pointerdown", () => { if (Date.now() - downAt > 400) { downAt = Date.now(); say({ t: "down" }); } }, true);
+
+  /* 在回答裡選字：冒出一顆「問這句」，點了在漂浮小視窗另外問（原本的對話不動） */
+  let askPill = null, askedAt = 0;
+  function pillEl() {
+    if (askPill && askPill.isConnected) return askPill;
+    askPill = document.createElement("button");
+    askPill.id = "foli-ask";
+    askPill.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const text = norm(String(getSelection() || "")).slice(0, 1500);
+      askPill.classList.remove("on");
+      askedAt = Date.now();
+      if (text) say({ t: "aside", text });
+      try { getSelection().removeAllRanges(); } catch (err) { /* 選取清不掉就算了 */ }  // 字已經交給小視窗：放開滑鼠時這顆不要再冒出來
+    });
+    (document.body || document.documentElement).appendChild(askPill);
+    return askPill;
+  }
+  document.addEventListener("mouseup", (e) => {
+    if (!opts.aside || (askPill && askPill.contains(e.target)) || Date.now() - askedAt < 600) return;
+    setTimeout(() => {
+      const sel = getSelection(), p = pillEl();
+      const text = sel && !sel.isCollapsed && sel.rangeCount ? norm(String(sel)) : "";
+      const node = text && sel.getRangeAt(0).commonAncestorContainer, host = node && (node.nodeType === 1 ? node : node.parentElement);
+      const inAnswer = host && outer(host) && roleOf(outer(host)) === "assistant" && !host.closest("textarea, input, [contenteditable='true'], [contenteditable='']");
+      if (!inAnswer || text.length < 2 || text.length > 1500) { p.classList.remove("on"); return; }
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      p.innerHTML = (opts.icons && opts.icons.ask ? opts.icons.ask : "") + "<span>" + ((opts.text && opts.text.ask) || "Ask") + "</span>";
+      p.classList.add("on");
+      const w = p.offsetWidth, h = p.offsetHeight;
+      p.style.left = Math.round(Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))) + "px";
+      p.style.top = Math.round(r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + "px";
+    }, 10);
+  }, true);
+  document.addEventListener("selectionchange", () => { const s = getSelection(); if (askPill && (!s || s.isCollapsed)) askPill.classList.remove("on"); });
+
   /* ---------- 開始 ---------- */
   let skinKey = "";
   const mo = new MutationObserver((list) => {
@@ -477,9 +612,12 @@
     for (const m of list) if (m.type === "attributes" && (m.target === document.documentElement || m.target === document.body) && m.attributeName !== "data-foli-skin") theme = true;
     if (theme) { const k = document.documentElement.className + "|" + (document.body && document.body.className); if (k !== skinKey) { skinKey = k; say({ t: "reskin" }); } }
     scanSoon();
+    if (marks.length) marksSoon();
   });
+  let marksT = 0;
+  const marksSoon = () => { clearTimeout(marksT); marksT = setTimeout(paintMarks, 400); };  // 網站重畫了那一則：記號再放一次
   function init(o) {
-    opts = Object.assign({ pages: 0, hold: false, site: "" }, o || {});
+    opts = Object.assign({ pages: 0, hold: false, site: "", tools: false, aside: false, text: {}, icons: {} }, o || {});
     hold = !!opts.hold;
     skinKey = document.documentElement.className + "|" + (document.body && document.body.className);
     mo.disconnect();
@@ -490,6 +628,8 @@
   }
   root.__foliGuest = { v: VERSION, init, skinCss, focusComposer, selection, lastAnswer, setPages: (n) => { opts.pages = n || 0; scanSoon(); }, marked: () => marked, hits: () => hits.length,
     hold: (on) => { hold = !!on; if (!hold && pending) release({}); return hold; }, ack: () => { acked = true; return true; }, release, findProject, projectHere,
+    transcript, jumpTo, setMarks: (list) => { marks = Array.isArray(list) ? list : []; paintMarks(); return marks.length; }, take: () => { const x = taken; taken = null; return x; },
+    count: () => messages().length,
     probe() {  // 檢查用：在這個網站認到的輸入框、送出鈕（新網站或網站改版時，看是哪一個沒認到）
       const say = (e) => (e ? e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.getAttribute("data-testid") ? "[testid=" + e.getAttribute("data-testid") + "]" : "") + (e.getAttribute("aria-label") ? '["' + e.getAttribute("aria-label") + '"]' : "") : null);
       const c = composer(), b = sendButton();

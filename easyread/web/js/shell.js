@@ -350,7 +350,10 @@
     if (d.type === "open") openUrl(String(d.url || ""), "", !!d.beside);
     else if (d.type === "home") goHome(String(d.url || ""));
     else if (d.type === "title" && from) { from.title = String(d.title || "").replace(/\s*·\s*FOLI$/, ""); renderTabs(); save(); }
-    else if (d.type === "focus" && from) { const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); } }
+    else if (d.type === "focus" && from) {
+      if (PR.dockFloat) PR.dockFloat.outside();  // 點到閱讀頁、文獻庫：沒釘選的漂浮小視窗收起來
+      const i = M.paneOf(st, from.id); if (i >= 0 && i !== st.focus) { st.focus = i; renderTabs(); renderPanes(); save(); }
+    }
     else if (d.type === "key") key(String(d.key), !!d.shift);
     else if (d.type === "painted" && from) revealed(from.id);  // 新開的分頁畫好了：淡入換上來
     else if (d.type === "drag-link") { if (PR.dockDragHint) PR.dockDragHint(); }  // 有人拖著連結經過某一格：右緣亮出可以放下的地方

@@ -414,6 +414,14 @@ body:not(.pdf-main) [data-act="find"] { display: none; }
 .nai-quick button:hover { background: var(--accent-soft-2); color: var(--accent); }
 .nai-quick button:active { transform: scale(.96); }
 .nai-quick button:disabled { opacity: .5; pointer-events: none; }
+/* 這次要改的範圍（common/note-ai.js）：整份筆記／第 2–3 塊／選的字，× 拿掉就是整份 */
+.nai-scope { display: flex; align-items: center; gap: 2px; min-width: 0; margin: 0 0 6px 2px; font: 12px var(--ui); color: var(--ink-3); }
+.nai-scope > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; height: 22px; padding: 0 9px 0 7px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nai-scope svg.i { flex: none; width: 12px; height: 12px; }
+.nai-scope.on > span { color: var(--accent); background: var(--accent-soft); }
+.nai-scope button { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-3); }
+.nai-scope button svg.i { width: 11px; height: 11px; }
+.nai-scope button:hover { background: var(--surface-2); color: var(--ink); }
 .nai-box { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule-2), 0 2px 10px rgba(43, 36, 32, .05); transition: box-shadow var(--dur-fast); }
 .nai-box:focus-within { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 4px var(--accent-soft-2); }
 .nai-in { flex: 1; min-width: 0; min-height: 24px; max-height: 120px; margin: 4px 0; padding: 0; border: 0; outline: 0; resize: none; background: transparent; font: 13.5px/1.6 var(--ui); color: var(--ink); }

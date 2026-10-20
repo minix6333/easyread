@@ -3,7 +3,9 @@
 // 底色換成 FOLI 面板的、回答裡的頁碼標出來而且點了會翻頁、附上這一頁（交給上傳欄位；沒有欄位時拖進輸入框）、
 // 閱讀頁選字「問右邊的…」貼進輸入框、最後一則回答存成提問紀錄（公式還原成 TeX）、回答上按右鍵的翻頁、
 // 在它的輸入框按 Enter／送出鈕：先附上正在讀的那一頁、等它「上傳」完才送出（同一段對話同一頁不重附、問整份加上 PDF、可以關掉）、
-// 新對話放進 ChatGPT／Claude 的「FOLI」專案（側邊欄、網站自己的專案清單找得到；按新對話換回專案頁；專案刪了不來回跳）。
+// 新對話放進 ChatGPT／Claude 的「FOLI」專案（側邊欄、網站自己的專案清單找得到；按新對話換回專案頁；專案刪了不來回跳）、
+// 滑過回答的小按鈕（書籤、存成筆記）、從書籤跳回別的對話裡的那一則、「問這句」開漂浮小視窗、釘選、小視窗附上原本那段對話。
+// 「存成筆記」會請 AI 改寫：要接假的 AI（--base http://localhost:8794，見 scripts/note_ai_check.cjs），不花額度。
 // 不連任何外部網站；存進去的筆記最後刪掉。
 //   node_modules/.bin/electron scripts/dock_ai_check.cjs <論文 id> [--base URL]
 const { app, BrowserWindow, ipcMain, webContents } = require("electron");
@@ -53,9 +55,9 @@ const upload = () => {
   if (sneaky) { busy = true; setTimeout(() => { busy = false; window.__upDone = Date.now(); }, 1200); return; }
   btn.disabled = true; bar.hidden = false; setTimeout(() => { btn.disabled = false; bar.hidden = true; window.__upDone = Date.now(); }, 700);
 };
-if (f) f.addEventListener("change", (e) => { for (const x of e.target.files) window.__got.push("input:" + x.name + ":" + x.size); upload(); });
+if (f) f.addEventListener("change", (e) => { for (const x of e.target.files) { window.__got.push("input:" + x.name + ":" + x.size); if (/\.md$/.test(x.name)) x.text().then((t) => { window.__md = t; }); } upload(); });
 document.addEventListener("dragover", (e) => e.preventDefault());
-document.addEventListener("drop", (e) => { e.preventDefault(); for (const x of e.dataTransfer.files) window.__got.push("drop:" + x.name + ":" + x.size); upload(); });
+document.addEventListener("drop", (e) => { e.preventDefault(); for (const x of e.dataTransfer.files) { window.__got.push("drop:" + x.name + ":" + x.size); if (/\.md$/.test(x.name)) x.text().then((t) => { window.__md = t; }); } upload(); });
 const send = () => { if (btn.disabled || busy || !ta.value.trim()) return; window.__sent.push({ text: ta.value, got: window.__got.slice(), at: Date.now() }); ta.value = ""; window.__got = []; };
 btn.addEventListener("click", send);
 ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
@@ -206,7 +208,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
     const st = await js(`PR.api('/api/p/${pid}/state')`).catch(() => null);
     const rid = st && ((st.discussion || {}).entries || []).filter((e) => e.reply_to === nid).map((e) => e.id);
     for (const id of rid || []) await js(`PR.api('/api/p/${pid}/discussion_del', { method: 'POST', body: { id: ${JSON.stringify(id)} } })`).catch(() => {});
-    await js(`PR.api('/api/p/${pid}/ops', { method: 'POST', body: { ops: [{ op: 'note_del', id: ${JSON.stringify(nid)}, at: new Date().toISOString() }] } })`).catch(() => {});
+    await js(`PR.api('/api/p/${pid}/ops', { method: 'POST', body: { ops: [{ op: 'note_del', id: ${JSON.stringify(nid)}, at: PR.nowIso() }] } })`).catch(() => {});
   };
   const st = await js(`PR.api('/api/p/${pid}/state')`);
   const note = ((st.reader || {}).notes || {})[nid] || {};
@@ -340,6 +342,100 @@ contextBridge.exposeInMainWorld("easyreadDesktop", { isElectron: true, platform:
   const claude = await g.executeJavaScript("window.__foliGuest.init({ pages: 0, hold: true, site: 'claude' }) && window.__foliGuest.findProject('FOLI')");
   check("Claude：從它的專案清單找到「FOLI」（/project/<uuid>）", claude && claude.path === "/project/11111111-2222-3333-4444-555555555555" && claude.name === "FOLI", claude);
   await js("localStorage.removeItem('easyread-dockai-site'); " + reset);
+
+  step = "message tools";
+  // 滑過一則回答：兩顆小按鈕（書籤、存成筆記）；書籤記在 FOLI，換了對話也跳得回來；存成筆記：改寫成筆記，存進正在讀的那一頁
+  const gClick = (w, p) => { w.sendInputEvent({ type: "mouseMove", x: p.x, y: p.y }); w.sendInputEvent({ type: "mouseDown", x: p.x, y: p.y, button: "left", clickCount: 1 }); w.sendInputEvent({ type: "mouseUp", x: p.x, y: p.y, button: "left", clickCount: 1 }); };
+  const centerOf = (w, sel) => w.executeJavaScript("(() => { const e = document.querySelector(" + JSON.stringify(sel) + "); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+  const guestReady = async (w) => { for (let i = 0; i < 100 && !(await w.executeJavaScript("!!(window.__foliGuest && window.__foliGuest.v >= 3)").catch(() => false)); i++) await sleep(100); };
+  await g.loadURL(mock);
+  await guestReady(g);
+  await sleep(600);
+  await js("localStorage.removeItem('easyread-dock-marks'); 1");
+  const ansAt = await g.executeJavaScript("(() => { const r = document.querySelector('[data-message-author-role=assistant]').getBoundingClientRect(); return { x: Math.round(r.left + 60), y: Math.round(r.top + 12) }; })()");
+  g.sendInputEvent({ type: "mouseMove", x: ansAt.x, y: ansAt.y });
+  await sleep(250);
+  const tl = await g.executeJavaScript("(() => { const t = document.getElementById('foli-tools'); return t ? { on: t.classList.contains('on'), n: t.querySelectorAll('button').length } : null; })()");
+  check("滑過一則回答：右上角出現兩顆小按鈕（書籤、存成筆記）", tl && tl.on && tl.n === 2, tl);
+  gClick(g, await centerOf(g, "#foli-tools [data-act=mark]"));
+  await sleep(500);
+  const mk = { attr: await g.executeJavaScript("!!document.querySelector('[data-message-author-role=assistant][data-foli-mark]')"), stored: await js("(JSON.parse(localStorage.getItem('easyread-dock-marks') || '{}').d1 || []).map((m) => m.role + ':' + m.path)"), btn: await js("!!document.querySelector('#dock [data-d=marks]')") };
+  check("按書籤：那一則左邊一條線，記在 FOLI，外部工具欄多一顆書籤", mk.attr && JSON.stringify(mk.stored) === '["assistant:/"]' && mk.btn, mk);
+  const shots = opt("--shots", "");  // --shots 資料夾：功能出現的那一刻截圖（給人看）
+  const snap = async (name, sel) => {
+    if (!shots) return;
+    await sleep(350);
+    const b = sel ? await js("(() => { const r = document.querySelector(" + JSON.stringify(sel) + ").getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()") : null;
+    const img = await wc.capturePage(b ? { x: Math.floor(b.x), y: Math.floor(b.y), width: Math.ceil(b.w), height: Math.ceil(b.h) } : undefined);
+    fs.mkdirSync(shots, { recursive: true });
+    fs.writeFileSync(require("path").join(shots, name + ".png"), img.toPNG());
+  };
+  g.sendInputEvent({ type: "mouseMove", x: ansAt.x, y: ansAt.y });
+  await snap("dock-tools", "#dock");
+  await g.executeJavaScript("history.pushState(null, '', '/c/zz9999-other'); 1");  // 換到另一段對話
+  await sleep(900);
+  const away = await g.executeJavaScript("!!document.querySelector('[data-foli-mark]')");
+  const mbtn = await js("(() => { const b = document.querySelector('#dock [data-d=marks]'); const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+  wc.sendInputEvent({ type: "mouseMove", x: mbtn.x, y: mbtn.y }); wc.sendInputEvent({ type: "mouseDown", x: mbtn.x, y: mbtn.y, button: "left", clickCount: 1 }); wc.sendInputEvent({ type: "mouseUp", x: mbtn.x, y: mbtn.y, button: "left", clickCount: 1 });
+  await sleep(400);
+  const mItems = await js("[...document.querySelectorAll('#ctxmenu .mi')].map((b) => b.textContent.trim() + (b.disabled ? ' (head)' : ''))");
+  const mIt = await js("(() => { const b = [...document.querySelectorAll('#ctxmenu .mi:not([disabled])')].find((x) => /先看/.test(x.textContent)); if (!b) return null; const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()");
+  if (mIt) { wc.sendInputEvent({ type: "mouseMove", x: mIt.x, y: mIt.y }); wc.sendInputEvent({ type: "mouseDown", x: mIt.x, y: mIt.y, button: "left", clickCount: 1 }); wc.sendInputEvent({ type: "mouseUp", x: mIt.x, y: mIt.y, button: "left", clickCount: 1 }); }
+  let flashed = false;
+  for (let i = 0; i < 60 && !flashed; i++) { await sleep(150); flashed = await g.executeJavaScript("!!document.querySelector('[data-foli-flash]')").catch(() => false); }
+  const backPath = new URL(g.getURL()).pathname;
+  check("換到別的對話後（那裡沒有線），從書籤跳回：打開原本那段對話、捲到那一則閃一下", !away && !!mIt && flashed && backPath === "/" && mItems.some((x) => /這段對話|另一段對話/.test(x)), { away, mItems, flashed, backPath });
+  await guestReady(g);
+  await sleep(400);
+  const pn = await js(R + ".PR.pdfPage()");
+  const pnBefore = await js(R + ".PR.state.reader.page_notes && (" + R + ".PR.state.reader.page_notes[" + pn + "] || {}).body || ''");
+  const ans2 = await g.executeJavaScript("(() => { const r = document.querySelector('[data-message-author-role=assistant]').getBoundingClientRect(); return { x: Math.round(r.left + 60), y: Math.round(r.top + 12) }; })()");
+  g.sendInputEvent({ type: "mouseMove", x: ans2.x, y: ans2.y });
+  await sleep(250);
+  gClick(g, await centerOf(g, "#foli-tools [data-act=note]"));
+  let pnAfter = "";
+  for (let i = 0; i < 100; i++) { await sleep(200); pnAfter = await js("(" + R + ".PR.state.reader.page_notes[" + pn + "] || {}).body || ''"); if (/取樣怎麼幫上微調/.test(pnAfter)) break; }
+  check("按「存成筆記」：改寫成筆記的樣子，存進正在讀的那一頁的筆記", /### 取樣怎麼幫上微調/.test(pnAfter) && pnAfter.startsWith(pnBefore.trim() ? pnBefore.trim() : "###"), pnAfter.slice(-240));
+  await js(R + ".PR.commit({ op: 'page_note', page: " + pn + ", body: " + JSON.stringify(pnBefore) + " }); 1");
+
+  step = "float";
+  // 在回答裡選字 →「問這句」→ 漂浮小視窗（同一個網站）打開，選的字貼進輸入框；沒釘選點外面就收起來，釘選了不收；
+  // 小視窗送出第一個問題：附上右邊那段對話（Markdown）和正在讀的那一頁
+  await g.executeJavaScript("(() => { const p = document.querySelector('[data-message-author-role=assistant] p'); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 1; })()");
+  await sleep(350);
+  const pill = await g.executeJavaScript("(() => { const p = document.getElementById('foli-ask'); if (!p || !p.classList.contains('on')) return null; const r = p.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), text: p.textContent }; })()");
+  check("在回答裡選字：冒出「問這句」", pill && /問這句/.test(pill.text), pill);
+  if (pill) { g.sendInputEvent({ type: "mouseMove", x: pill.x, y: pill.y }); g.sendInputEvent({ type: "mouseDown", x: pill.x, y: pill.y, button: "left", clickCount: 1 }); g.sendInputEvent({ type: "mouseUp", x: pill.x, y: pill.y, button: "left", clickCount: 1 }); }
+  let fg = null;
+  for (let i = 0; i < 100 && !(fg = webContents.getAllWebContents().find((w) => w.getType() === "webview" && !w.isDestroyed() && w.id !== g.id && /^http:\/\/foli-mock\.test/.test(w.getURL()))); i++) await sleep(100);
+  if (fg) await guestReady(fg);
+  let typedQ = "";
+  for (let i = 0; i < 60 && fg; i++) { typedQ = await fg.executeJavaScript("document.querySelector('#prompt-textarea').value").catch(() => ""); if (/先看/.test(typedQ)) break; await sleep(150); }
+  const fShown = await js("!!(PR.dockFloat && PR.dockFloat.shown())");
+  const pillAgain = await g.executeJavaScript("!!(document.getElementById('foli-ask') || {}).classList && document.getElementById('foli-ask').classList.contains('on')");
+  check("小視窗打開（同一個網站，另一個網頁），選的那段字貼進它的輸入框；「問這句」收起來、不再冒出來", fShown && !!fg && /^「先看第 3 頁的定義，例子在 p\. 5。」/.test(typedQ) && !pillAgain, { fShown, fg: !!fg, typedQ, pillAgain });
+  await snap("dock-float");
+  await js("PR.dockFloat.pin(false); 1");
+  wc.sendInputEvent({ type: "mouseDown", x: 300, y: 300, button: "left", clickCount: 1 }); wc.sendInputEvent({ type: "mouseUp", x: 300, y: 300, button: "left", clickCount: 1 });
+  await sleep(300);
+  const hidUnpinned = !(await js("PR.dockFloat.shown()"));
+  await js("PR.dockFloat.open(PR.dock.current()); PR.dockFloat.pin(true); 1");
+  await sleep(400);
+  wc.sendInputEvent({ type: "mouseDown", x: 300, y: 300, button: "left", clickCount: 1 }); wc.sendInputEvent({ type: "mouseUp", x: 300, y: 300, button: "left", clickCount: 1 });
+  await sleep(300);
+  const keptPinned = await js("PR.dockFloat.shown()");
+  const pinned = await js("JSON.parse(localStorage.getItem('easyread-dock-float') || '{}').pinned");
+  check("沒釘選：點到外面就收起來（對話還在）；釘選了：點外面也不收，設定記住", hidUnpinned && keptPinned && pinned === true, { hidUnpinned, keptPinned, pinned });
+  await fg.executeJavaScript("(() => { window.__got = []; window.__sent = []; const t = document.querySelector('#prompt-textarea'); t.value = t.value + '這句是什麼意思？'; t.focus(); return 1; })()");
+  fg.focus();
+  fg.sendInputEvent({ type: "keyDown", keyCode: "Return" }); fg.sendInputEvent({ type: "char", keyCode: "\r" }); fg.sendInputEvent({ type: "keyUp", keyCode: "Return" });
+  for (let i = 0; i < 100 && !(await fg.executeJavaScript("window.__sent.length")); i++) await sleep(150);
+  const fs1 = await fg.executeJavaScript("({ sent: window.__sent.slice(), md: window.__md || '' })");
+  const fgot = ((fs1.sent[0] || {}).got || []).join(" | ");
+  check("小視窗送出第一個問題：先附上右邊那段對話（一則一則的 Markdown）和正在讀的那一頁，傳完才送出",
+    fs1.sent.length === 1 && /原本的對話\.md/.test(fgot) && /p\d+\.jpg/.test(fgot) && /^# 原本的對話/.test(fs1.md) && /## 我\n\n連續的隨機變數/.test(fs1.md) && /## MockAI\n\n先看\*\*第 3 頁\*\*/.test(fs1.md) && /\$E\[X\]=\\int x\\,p\(x\)\\,dx\$/.test(fs1.md),
+    { fgot, sent: fs1.sent.map((x) => x.text), md: fs1.md.slice(0, 260) });
+  await js("PR.dockFloat.pin(false); PR.dockFloat.hide(); localStorage.removeItem('easyread-dock-float'); localStorage.removeItem('easyread-dock-marks'); 1");
 
   step = "cleanup";
   await cleanup();

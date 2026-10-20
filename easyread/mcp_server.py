@@ -52,7 +52,8 @@ TOOLS = [
      "annotations": {"readOnlyHint": True}},
     {"name": "get_notes", "description": "The user's highlights, notes, questions (with saved answers) and per-page notes for a document.",
      "inputSchema": {"type": "object", "properties": {"doc_id": DOC}}, "annotations": {"readOnlyHint": True}},
-    {"name": "add_note", "description": "Add a note card on a page of a document in FOLI (it appears beside that page). Markdown and $TeX$ are supported.",
+    {"name": "add_note", "description": "Add a note card on a page of a document in FOLI (it appears beside that page). Write it as the user's own study note, not as a reply: "
+     "start with a short topic heading (### …), then the key point first and bullets; no greetings, no \"you/I\", no closing offers. Markdown and $TeX$ are supported.",
      "inputSchema": {"type": "object", "properties": {"doc_id": DOC, "page": {"type": "integer", "minimum": 1}, "text": {"type": "string"},
                                                        "quote": {"type": "string", "description": "Optional sentence from the page the note is about."}}, "required": ["page", "text"]}},
     {"name": "save_answer", "description": "Save a question and your answer as a Q&A card on a page in FOLI, signed with your app's name. Use when the user wants to keep an answer.",

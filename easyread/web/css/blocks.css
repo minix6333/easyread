@@ -155,6 +155,8 @@ mark.md-hl { background: var(--hl-yellow); color: inherit; border-radius: 3px; p
 .bk-pv-head b { font-weight: 600; }
 .bk-pv-head .grow { flex: 1; }
 .bk-pv-body { padding: 10px 14px; }
+.bk-b.pv-old { opacity: .42; transition: opacity var(--dur-fast); }  /* AI 的建議採用了會換掉的那幾塊 */
+.bk-b.pv-old:hover { opacity: .75; }
 .bk-pv-body > :first-child { margin-top: 0; }
 .bk-pv-body > :last-child { margin-bottom: 0; }
 /* 表格（筆記裡、AI 的建議裡、卡片裡）：圓角的一張表，細線分格，表頭淡淡一層底 */

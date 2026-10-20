@@ -53,10 +53,13 @@ test("only files FOLI prepared in its cache share folder can be handed to the we
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "foli-share-"));
   const share = path.join(dir, "cache", "4cf6b1e1a402", "share");
   fs.mkdirSync(share, { recursive: true });
-  const pdf = path.join(share, "取樣增強的監督式微調.pdf"), jpg = path.join(share, "doc p3.jpg"), txt = path.join(share, "notes.txt");
-  for (const f of [pdf, jpg, txt]) fs.writeFileSync(f, "x");
+  const pdf = path.join(share, "取樣增強的監督式微調.pdf"), jpg = path.join(share, "doc p3.jpg"), html = path.join(share, "page.html");
+  const chat = path.join(dir, "cache", "dock", "share", "原本的對話.md");  // 漂浮小視窗附上的原本那段對話
+  fs.mkdirSync(path.dirname(chat), { recursive: true });
+  for (const f of [pdf, jpg, html, chat]) fs.writeFileSync(f, "x");
   assert.deepEqual(bridge.checkFiles([pdf, jpg]), [pdf, jpg]);
-  assert.equal(bridge.checkFiles([txt]), null);                           // 不是 PDF、圖片
+  assert.deepEqual(bridge.checkFiles([chat]), [chat]);
+  assert.equal(bridge.checkFiles([html]), null);                          // 不是 PDF、圖片、Markdown／文字檔
   assert.equal(bridge.checkFiles(["/etc/hosts"]), null);                  // 不在 share 資料夾
   assert.equal(bridge.checkFiles([path.join(share, "missing.pdf")]), null);
   assert.equal(bridge.checkFiles([path.join(share, "..", "..", "..", "x.pdf")]), null);
@@ -70,7 +73,7 @@ test("the right-click menu offers to jump to a page mentioned in the selected te
   assert.equal(bridge.pageIn("no page here, p < 0.05"), 0);
   const sent = [];
   const items = bridge.selectionItems("見第 3 頁", true, (m) => sent.push(m));
-  assert.deepEqual(items.filter((i) => i.label).map((i) => i.label), ["存到這份文件的筆記", "在文件裡找這段", "跳到第 3 頁"]);
+  assert.deepEqual(items.filter((i) => i.label).map((i) => i.label), ["存成筆記", "在小視窗問這段", "在文件裡找這段", "跳到第 3 頁"]);
   items.find((i) => i.label === "跳到第 3 頁").click();
   assert.deepEqual(sent, [{ action: "page", page: 3 }]);
   assert.deepEqual(bridge.selectionItems("   ", true, () => {}), []);

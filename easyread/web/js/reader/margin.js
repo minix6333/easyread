@@ -527,7 +527,8 @@
       (n.quote || n.region) && !isQ ? { dots: PR.HL_COLORS.map(([c, name]) => ({ color: "var(--ul-" + c + ")", title: name, on: (n.color || "yellow") === c, fn: () => { PR.saveNote(Object.assign({}, n, { color: c })); repaint(); } })) } : null,
       "-",
       text ? { label: PR.t("複製文字"), icon: "copy", fn: () => navigator.clipboard.writeText(text).then(() => PR.toast(PR.t("已复制"), null, 1200)) } : null,
-      n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "l-message-circle", fn: () => { PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,
+      n.kind !== "highlight" ? { label: isQ ? PR.t("改成笔记") : PR.t("改成问题"), icon: isQ ? "note" : "l-message-circle",
+        fn: () => { if (isQ && answered && PR.qaToNote) return PR.qaToNote(nid); PR.saveNote(Object.assign({}, n, { kind: isQ ? "note" : "question" })); repaint(); } } : null,  // 回答過的提問：問答合成一張筆記（noteadd.js）
       PR.noteRefMenu ? { label: PR.t("加進總結…"), icon: "notebook", fn: () => setTimeout(() => PR.noteRefMenu(at, nid), 0) } : null,
       PR.cardsFromNote && PR.canChat && PR.canChat() ? { label: PR.t("做成複習卡"), icon: "l-brain", fn: () => PR.cardsFromNote(n) } : null,
       PR.linkFrom ? { label: PR.t("建立關聯"), icon: "link", fn: () => PR.linkFrom(nid) } : null,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 
 from . import kinds, langs, tw
@@ -116,6 +117,142 @@ WRITE_ASK = (
 )
 NOTE_BUDGET = 16000  # 整份筆記最多帶幾個字
 
+# 筆記 AI 照讀者的話改筆記（auto，閱讀頁的筆記面板和獨立筆記都用；web/js/common/note-ai.js 套用）：
+# 整份筆記一塊一塊編號給模型，連同讀者選了哪幾塊、反白了哪些字、游標在哪一塊。模型先用筆記裡的操作名稱說它理解成要做什麼
+# （「@@ do: 整理；轉成待辦」），再用 @@ 開頭的指令說要換掉、插入、刪掉、搬動哪幾塊。頁面先當「AI 的建議」預覽，讀者按採用才換上。
+OPS = (
+    "筆記編輯器的操作（讀者會用這些名稱說要做什麼，你回報時也用這些名稱）和它認得的 Markdown 寫法：\n"  # i18n-ok 提示詞
+    "- 區塊種類（轉成…）：內文（一般段落）、大標題「# 」、副標題「## 」、標題「### 」、項目清單「- 」、編號清單「1. 」、"  # i18n-ok 提示詞
+    "待辦「- [ ] 」（做完的「- [x] 」）、收合「> [!toggle] 標題」（內容接在下面的「> 」行）、引用「> 」、"  # i18n-ok 提示詞
+    "說明框「> [!note] 標題」、訣竅框「> [!tip] 標題」、警示框「> [!warn] 標題」、分隔線「---」、程式碼（```語言 … ```）、"  # i18n-ok 提示詞
+    "公式（獨立一段的 $$ … $$）、表格（| 欄 | 欄 |）、流程圖（```mermaid … ```）。清單縮排一層是兩個空格。\n"  # i18n-ok 提示詞
+    "- 文字的標記：粗體 **字**、斜體 *字*、底線 ++字++、刪除線 ~~字~~、螢光 ==字==、行內程式碼 `字`、行內公式 $TeX$、連結 [字](網址)。\n"  # i18n-ok 提示詞
+    "- 其他：整理（只動排版：分段、加簡短的小標題、並列的改成清單、有先後的改成編號清單、要做的事改成待辦、適合對照的排成表格，字句一個都不改）、"  # i18n-ok 提示詞
+    "改寫、改短、補充說明、改成表格、查核、翻譯、上移、下移、移到最上面、移到最下面、縮排、取消縮排、刪除、複製一份、寫一段新的。\n"  # i18n-ok 提示詞
+    "- 圖片「![…](…)」、出處卡「> [!ref …]」、@ 提到的連結照原樣保留（不要改寫、不要刪），除非讀者要你動它們。"  # i18n-ok 提示詞
+)
+AUTO_ASK = (
+    "讀者在寫筆記，要你照他的話改。下面是整份筆記，一塊一塊編了號（[1]、[2]…；一塊就是一段 Markdown）。\n"  # i18n-ok 提示詞
+    "先想清楚他要的是哪一種操作（對到下面列的名稱）、要動哪幾塊：他選了幾塊就只動那幾塊；他反白了一些字，就是那一塊裡的那幾個字；"  # i18n-ok 提示詞
+    "他說「整份」「全部」「整篇」，或什麼都沒選、要的又是排版、整理這一類，就是整份筆記；他用位置或內容指出來的"  # i18n-ok 提示詞
+    "（「第二個標題下面的清單」「講梯度的那一段」），就找出是哪幾塊；只是要寫新的內容，就寫在他游標那一塊後面（沒有游標就接在最後）。\n"  # i18n-ok 提示詞
+    "他沒要求動的字句、數字、公式、頁碼、連結一個都不能改（包括他自己的措辭）；不要加他沒要的內容，不要客套、不要解釋。\n"  # i18n-ok 提示詞
+)
+AUTO_FORMAT = (
+    "回覆一定照這個格式，不要多說別的話：\n"  # i18n-ok 提示詞
+    "第一行：「@@ do: 」接你理解成的操作，用上面的名稱，一到三個，用「；」隔開，例如「@@ do: 整理」「@@ do: 轉成待辦；粗體」。\n"  # i18n-ok 提示詞
+    "接著是一段或幾段修改。每段先一行指令，下一行起是那一段的 Markdown（刪除、搬動不用寫內容）：\n"  # i18n-ok 提示詞
+    "@@ replace A-B　把第 A 到第 B 塊換成下面的內容（只有一塊就寫 @@ replace A）\n"  # i18n-ok 提示詞
+    "@@ insert after N　在第 N 塊後面加上下面的內容（N 是 0 表示放在最前面）\n"  # i18n-ok 提示詞
+    "@@ delete A-B　刪掉第 A 到第 B 塊\n"  # i18n-ok 提示詞
+    "@@ move A-B after N　把第 A 到第 B 塊原封不動搬到第 N 塊後面\n"  # i18n-ok 提示詞
+    "編號都是上面整份筆記的編號；幾段修改不要重疊；沒有要動的塊不要輸出。"  # i18n-ok 提示詞
+)
+AUTO_BUDGET = 24000  # 整份筆記帶全文的字數上限；超過時，沒選到、游標也不在的塊只給開頭
+
+
+def _numbered(blocks: list[str], keep: set[int]) -> str:
+    """[1]、[2]… 一塊一塊列出來。太長時，keep（選到的、游標在的）以外的長塊只給開頭——編號不變，模型也知道那幾塊不能改。"""
+    long = sum(len(b) for b in blocks) > AUTO_BUDGET
+    out = []
+    for i, b in enumerate(blocks):
+        if long and i not in keep and len(b) > 160:
+            b = b[:120].rstrip() + "…（後面略過：這一塊沒有給全文，不要改它）"  # i18n-ok 提示詞
+        out.append(f"[{i + 1}]\n{b}")
+    return "\n".join(out)
+
+
+def _conv(code: str):
+    """FOLI 自己寫的說明照回答的語言轉（簡體／繁體）；讀者的筆記、反白的字、要求、回答原樣給，不經過轉換器（轉換器會動到用字）。"""
+    return lambda text: localize(text if tw.is_tw(code) else tw.to_cn(text), code)
+
+
+def _auto_parts(body: dict, conv) -> tuple[list[str], str]:
+    """筆記（編號）、讀者選了哪裡、要求。回傳（幾段提示詞, 要求）——模板用 conv 轉，讀者的內容原樣放進去。"""
+    blocks = [str(b)[:20000] for b in (body.get("blocks") or [])][:600]
+    n = len(blocks)
+    sc = body.get("scope") if isinstance(body.get("scope"), dict) else {}
+    try:
+        a, b = int(sc.get("from")), int(sc.get("to"))
+        if not (0 <= a <= b < n):
+            a = b = None
+    except (TypeError, ValueError):
+        a = b = None
+    cur = body.get("cursor")
+    cur = cur if isinstance(cur, int) and 0 <= cur < n else None
+    picked = re.sub(r"\s+", " ", str(body.get("picked") or "")).strip()[:600]
+    keep = set(range(a, b + 1)) if a is not None else set()
+    if cur is not None:
+        keep.add(cur)
+    where = []
+    if a is not None:
+        where.append(conv(f"讀者選了第 {a + 1} 塊。" if a == b else f"讀者選了第 {a + 1}–{b + 1} 塊。"))  # i18n-ok 提示詞
+    elif cur is not None:
+        where.append(conv(f"讀者的游標在第 {cur + 1} 塊。"))  # i18n-ok 提示詞
+    if picked:
+        where.append(conv("他反白了這些字：") + "「" + picked + "」")  # i18n-ok 提示詞
+    notes = _numbered(blocks, keep) if blocks else conv("（還是空的，一塊都沒有）")  # i18n-ok 提示詞
+    if blocks and sum(len(x) for x in blocks) > AUTO_BUDGET:  # 略過的那幾塊的說明也照語言轉
+        notes = notes.replace("…（後面略過：這一塊沒有給全文，不要改它）", conv("…（後面略過：這一塊沒有給全文，不要改它）"))  # i18n-ok 提示詞
+    parts = [conv("讀者的整份筆記（一塊一塊編了號）：") + "\n<<<\n" + notes + "\n>>>",  # i18n-ok 提示詞
+             "".join(where) or conv("他沒有選任何地方，游標也不在筆記裡。")]  # i18n-ok 提示詞
+    ask = str(body.get("ask") or "").strip() or conv("把這份筆記排得更好讀")  # i18n-ok 提示詞
+    return parts, ask
+
+
+def auto_prompt(ws: Workspace, body: dict, engine: str) -> str:
+    """閱讀頁筆記面板（本頁、總結）的筆記 AI：照讀者的話改筆記。文件本身的內容一起給（補充、查核要用）。"""
+    from . import docmap, preread
+    meta = ws.load("paper").get("meta", {})
+    title = meta.get("title_zh") or meta.get("title_en") or ""
+    code = langs.reply_code(meta)
+    conv = _conv(code)
+    head = f"你在幫讀者寫《{title}》的筆記。用{langs.reply_lang(meta)}。" + AUTO_ASK + "要補充、查核時以文件本身的內容為準，不要編造。" + _tone(code) + _figures()  # i18n-ok 提示詞
+    parts = [head, OPS, AUTO_FORMAT]
+    notes, ask = _auto_parts(body, conv)
+    brief = preread.text(ws, budget=6000)
+    if brief:
+        parts.append("這份文件的全文筆記（AI 之前讀完整份寫的，每個部分講什麼、東西在哪一頁）：\n" + brief)  # i18n-ok 提示詞
+    near = docmap.nearby(ws, ask + " " + str(body.get("picked") or "")[:400], skip=(), k=3, per=2400)
+    if near:
+        parts.append("文件裡和這次要求最相關的幾頁（抽取的文字，公式和表格可能是亂的）：\n" + near)  # i18n-ok 提示詞
+    try:
+        page = int(body.get("page") or 0)
+    except (TypeError, ValueError):
+        page = 0
+    if page:
+        parts.append(f"讀者現在在第 {page} 頁，這一頁的文字：\n" + chat._page_text(ws, page)[:5000])  # i18n-ok 提示詞
+    return "\n\n".join([conv("\n\n".join(parts))] + notes + [conv("讀者的要求：") + ask])  # i18n-ok 提示詞
+
+
+# 回答收進筆記（asnote）：問 AI 的回答、提問紀錄、外部 AI 的回答「存成筆記」時，先改寫成筆記的樣子——不是一則回答
+ASNOTE_ASK = (
+    "讀者要把一段 AI 的回答收進自己的筆記。把它改寫成筆記，不是回答：\n"  # i18n-ok 提示詞
+    "- 第一行是「### 」加上這則筆記的主題：幾個字的名詞片語，不是問句，也不要照抄問題。\n"  # i18n-ok 提示詞
+    "- 接著第一句直接寫重點（結論），後面用條列；有先後的步驟用編號清單，適合對照的排成表格，關鍵詞用粗體；內容多的可以用「#### 」分成兩三小段。\n"  # i18n-ok 提示詞
+    "- 拿掉回答的口吻：開場白（「好問題」「簡單來說」「我們來看看」）、結語和追問（「希望有幫助」「如果你想…我可以…」），"  # i18n-ok 提示詞
+    "還有對讀者說話的「你」「我」「我們」。寫成讀者自己記下來的重點。\n"  # i18n-ok 提示詞
+    "- 只根據這段回答，不要加新的內容；重要的條件、例外、具體的例子要留著。公式（$…$、$$…$$）、數字、頁碼（第 N 頁）、"  # i18n-ok 提示詞
+    "程式碼、圖（```pic、```flow、```viz、```mermaid 這些區塊）原樣保留。\n"  # i18n-ok 提示詞
+    "- 篇幅大約是原本的一半到三分之二（原本就很短的就差不多長）。只輸出筆記本身（Markdown），不要包在 ``` 裡。"  # i18n-ok 提示詞
+)
+ASNOTE_BUDGET = 30000  # 回答最多帶幾個字
+
+
+def asnote_prompt(meta: dict | None, body: dict) -> str:
+    """meta：文件的 meta（決定用什麼語言寫、標題）；獨立筆記、沒有文件時給 None。"""
+    meta = meta or {}
+    title = meta.get("title_zh") or meta.get("title_en") or ""
+    code = langs.reply_code(meta)
+    question = re.sub(r"\s+", " ", str(body.get("question") or "")).strip()[:1500]
+    answer = str(body.get("answer") or "").strip()[:ASNOTE_BUDGET]
+    conv = _conv(code)
+    parts = [conv((f"讀者在讀《{title}》。" if title else "") + f"用{langs.reply_lang(meta)}寫。" + ASNOTE_ASK + _tone(code))]  # i18n-ok 提示詞
+    if question:
+        parts.append(conv("讀者原本問的是（只用來知道重點在哪，不要寫成問句）：") + question)  # i18n-ok 提示詞
+    parts.append(conv("那段回答：") + "\n<<<\n" + answer + "\n>>>")  # i18n-ok 提示詞
+    return "\n\n".join(parts)
+
 
 def edit_prompt(ws: Workspace, body: dict, engine: str) -> str:
     from . import docmap, preread
@@ -165,12 +302,13 @@ def handle(handler, ws: Workspace, body: dict) -> None:
     """server.py 里 POST /api/p/<id>/notehelp 调这里；handler 是那次请求的 BaseHTTPRequestHandler。"""
     mode = body.get("mode")
     note = str(body.get("note") or "")[:20000]
-    if mode not in ("page", "edit", "write") and mode not in ASK:
+    if mode not in ("page", "edit", "write", "auto", "asnote") and mode not in ASK:
         raise ValueError(tr("mode 只能是 review / revise / draft"))
     if mode in ("review", "revise") and not note.strip():
         raise ValueError(tr("笔记还是空的"))
     if mode == "edit" and not str(body.get("selection") or "").strip():
         raise ValueError(tr("先選要改的那幾塊"))
+    _check(mode, body)
     ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
     images = []
     if mode == "page":
@@ -188,12 +326,27 @@ def handle(handler, ws: Workspace, body: dict) -> None:
         text = page_prompt(ws, page, note, ecfg["engine"], bool(images))
     elif mode in ("edit", "write"):
         text = edit_prompt(ws, body, ecfg["engine"])
+    elif mode == "auto":
+        text = auto_prompt(ws, body, ecfg["engine"])
+    elif mode == "asnote":
+        text = asnote_prompt(ws.load("paper").get("meta"), body)
     else:
         text = prompt(ws, mode, note, ecfg["engine"])
-    web = mode in ("edit", "write") and _web(body, ecfg)  # 筆記 AI 照讀者的要求寫、改時可以上網查（幫這頁寫筆記、點評不用）
+    web = mode in ("edit", "write", "auto") and _web(body, ecfg)  # 筆記 AI 照讀者的要求寫、改時可以上網查（幫這頁寫筆記、點評、收成筆記不用）
     if web:
         text = localize_web(text, langs.reply_code(ws.load("paper").get("meta")))
     return _stream(handler, ecfg, m, text, ws.root, images, langs.reply_code(ws.load("paper").get("meta")), web)
+
+
+def _check(mode: str, body: dict) -> None:
+    """auto 要有編好號的筆記（可以是空的）和要求；asnote 要有回答。"""
+    if mode == "auto":
+        if not isinstance(body.get("blocks"), list) or len(body["blocks"]) > 600:
+            raise ValueError(tr("blocks 要是筆記一塊一塊的 Markdown（最多 600 塊）"))
+        if not str(body.get("ask") or "").strip():
+            raise ValueError(tr("先說要怎麼改"))
+    if mode == "asnote" and not str(body.get("answer") or "").strip():
+        raise ValueError(tr("沒有要收進筆記的回答"))
 
 
 def _web(body: dict, ecfg: dict) -> bool:
@@ -247,6 +400,15 @@ def _stream(handler, ecfg: dict, m: dict, text: str, cwd, images, code: str, web
 
 
 # ---------- 獨立筆記（notes.py）的 AI：沒有文件可以對照，只看筆記本身 ----------
+def note_auto_prompt(note: dict, body: dict) -> str:
+    """獨立筆記的筆記 AI：照讀者的話改筆記（沒有文件可以對照，只看筆記本身）。"""
+    code = langs.reply_code(None)
+    conv = _conv(code)
+    head = f"你在幫讀者寫一份筆記《{str(note.get('title') or '')}》。用{langs.reply_lang(None)}。" + AUTO_ASK + _tone(code) + _figures()  # i18n-ok 提示詞
+    parts, ask = _auto_parts(body, conv)
+    return "\n\n".join([conv("\n\n".join([head, OPS, AUTO_FORMAT]))] + parts + [conv("讀者的要求：") + ask])  # i18n-ok 提示詞
+
+
 def note_prompt(note: dict, body: dict) -> str:
     mode = body.get("mode")
     md = str(body.get("note") if body.get("note") is not None else note.get("body") or "")
@@ -269,11 +431,12 @@ def note_prompt(note: dict, body: dict) -> str:
 
 def handle_note(handler, body: dict, note: dict, cwd) -> None:
     mode = body.get("mode")
-    if mode not in ("edit", "write"):
-        raise ValueError(tr("mode 只能是 edit / write"))
+    if mode not in ("edit", "write", "auto", "asnote"):
+        raise ValueError(tr("mode 只能是 edit / write / auto"))
     if mode == "edit" and not str(body.get("selection") or "").strip():
         raise ValueError(tr("先選要改的那幾塊"))
+    _check(mode, body)
     ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
-    web = _web(body, ecfg)
-    text = note_prompt(note, body)
+    web = mode != "asnote" and _web(body, ecfg)
+    text = note_auto_prompt(note, body) if mode == "auto" else asnote_prompt(None, body) if mode == "asnote" else note_prompt(note, body)
     return _stream(handler, ecfg, m, localize_web(text, langs.reply_code(None)) if web else text, cwd, [], langs.reply_code(None), web)

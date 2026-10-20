@@ -84,6 +84,24 @@ body.dock-open #dockGrip { display: block; }
 #dockGrip:hover, body.sizing #dockGrip { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px); }
 body.sizing .dock-view { pointer-events: none; }
 /* 拖著網址經過視窗：右緣亮出放下的地方 */
+/* 外部 AI 的漂浮小視窗（dock-float.js）：同一個網站另外問，接著右邊的對話。抓上面那一條拖，右下角拉大小，釘選了點外面也不收 */
+.dock-float { position: fixed; z-index: 35; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--surface);
+  box-shadow: 0 0 0 .5px var(--rule-2), 0 18px 48px rgba(0, 0, 0, .26); animation: df-in .2s cubic-bezier(.2, .8, .2, 1); }
+.dock-float[hidden] { display: none; }
+@keyframes df-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
+@media (prefers-reduced-motion: reduce) { .dock-float { animation: none; } }
+.dock-float.pinned { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 18px 48px rgba(0, 0, 0, .26); }
+.df-head { flex: none; display: flex; align-items: center; gap: 2px; height: 38px; padding: 0 6px 0 12px; cursor: grab; user-select: none; }
+.dock-float.moving .df-head { cursor: grabbing; }
+.df-app { flex: none; font: 600 13px var(--ui); color: var(--ink); }
+.df-hint { min-width: 0; margin-left: 8px; font: 12px var(--ui); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.df-head .grow { flex: 1; }
+.df-head .btn.icon { flex: none; width: 28px; height: 26px; border-radius: 7px; color: var(--ink-2); background: transparent; box-shadow: none; }
+.df-head .btn.icon:hover { background: var(--row-hover, var(--surface-2)); color: var(--ink); }
+.df-head .btn.icon.on { color: var(--accent); }
+.df-body { position: relative; flex: 1; min-height: 0; margin: 0 6px 6px; border-radius: 10px; overflow: hidden; background: var(--bg); }
+.df-grip { position: absolute; right: 0; bottom: 0; z-index: 2; width: 18px; height: 18px; cursor: nwse-resize; }
+body.sizing .df-view { pointer-events: none; }
 #dockDrop { position: fixed; top: calc(var(--tabs-h) + 10px); right: 10px; bottom: 10px; width: 132px; z-index: 30; display: none; place-items: center; border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow-lg, 0 8px 30px rgba(0,0,0,.18)); color: var(--accent); font: 13px/1.5 var(--ui); text-align: center; }
 #dockDrop.show { display: grid; }
 #dockDrop.over { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); box-shadow: 0 0 0 2px var(--accent), var(--shadow-lg, 0 8px 30px rgba(0,0,0,.18)); }
