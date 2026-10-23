@@ -4,7 +4,10 @@ import json
 import os
 import sys
 import tempfile
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10：沒有 tomllib，讀 TOML 的那兩個測試跳過
+    tomllib = None
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -43,6 +46,7 @@ class McpSetup(unittest.TestCase):
     def target(self, tid):
         return next(t for t in mcp_setup.targets() if t["id"] == tid)
 
+    @unittest.skipIf(tomllib is None, "Python 3.10 沒有 tomllib")
     def test_codex_toml_keeps_everything_else_and_replaces_an_old_entry(self):
         p = self.home / ".codex" / "config.toml"
         p.parent.mkdir()
@@ -64,6 +68,7 @@ class McpSetup(unittest.TestCase):
         self.assertIn("node_repl", data["mcp_servers"])
         self.assertFalse(self.target("codex")["connected"])
 
+    @unittest.skipIf(tomllib is None, "Python 3.10 沒有 tomllib")
     def test_a_missing_codex_config_is_created(self):
         mcp_setup.handle({"do": "connect", "id": "codex"})
         data = tomllib.loads((self.home / ".codex" / "config.toml").read_text(encoding="utf-8"))
